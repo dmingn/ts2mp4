@@ -1,0 +1,25 @@
+[tool.flake8]
+extend-ignore = "E501,W503"
+
+[tool.isort]
+profile = "black"
+
+[tool.poetry]
+name = "ts2mp4"
+version = "0.1.0"
+description = ""
+authors = ["dmingn <dmingn@users.noreply.github.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.7"
+
+[tool.poetry.dev-dependencies]
+black = "^22.3.0"
+isort = {extras = ["pyproject"], version = "^5.10.1"}
+mypy = "^0.942"
+pydocstyle = "^6.1.1"
+pyproject-flake8 = "^0.0.1-alpha.4"
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
