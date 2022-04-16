@@ -24,12 +24,12 @@ def ts2mp4(ts: Path):
                 "bwdif",
                 "-codec:v",
                 "libx265",
+                "-crf",
+                "22",
                 "-codec:a",
                 "copy",
                 "-bsf:a",
                 "aac_adtstoasc",
-                "-map",
-                "0",
                 str(mp4),
             ]
         )
