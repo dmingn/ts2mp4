@@ -6,9 +6,10 @@ from pathlib import Path
 def ts2mp4(ts: Path):
     ts = ts.resolve()
     mp4 = ts.with_suffix(".mp4")
+    mp4_part = ts.with_suffix(".mp4.part")
 
     if not mp4.exists():
-        subprocess.run(
+        proc = subprocess.run(
             args=[
                 "ffmpeg",
                 "-fflags",
@@ -30,9 +31,12 @@ def ts2mp4(ts: Path):
                 "copy",
                 "-bsf:a",
                 "aac_adtstoasc",
-                str(mp4),
+                str(mp4_part),
             ]
         )
+
+        if proc.returncode == 0:
+            mp4_part.replace(mp4)
 
 
 def job(path: Path):
