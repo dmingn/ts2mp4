@@ -2,66 +2,37 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
+
+from ts2mp4.ts2mp4 import ts2mp4
 
 
-async def ts2mp4(ts: Path):
-    ts = ts.resolve()
-    mp4 = ts.with_suffix(".mp4")
-    mp4_part = ts.with_suffix(".mp4.part")
-
-    if not mp4.exists():
-        proc = await asyncio.create_subprocess_shell(
-            cmd=" ".join(
-                [
-                    "ffmpeg",
-                    "-fflags",
-                    "+discardcorrupt",
-                    "-y",
-                    "-i",
-                    str(ts),
-                    "-f",
-                    "mp4",
-                    "-vsync",
-                    "1",
-                    "-vf",
-                    "bwdif",
-                    "-codec:v",
-                    "libx265",
-                    "-crf",
-                    "22",
-                    "-codec:a",
-                    "copy",
-                    "-bsf:a",
-                    "aac_adtstoasc",
-                    str(mp4_part),
-                ]
-            )
-        )
-
-        await proc.wait()
-
-        if proc.returncode == 0:
-            mp4_part.replace(mp4)
+@dataclass(frozen=True)
+class Job:
+    ts: Path
+    ss: Optional[str]
+    to: Optional[str]
 
 
-async def worker(queue: asyncio.Queue[Path]):
+async def worker(queue: asyncio.Queue[Job]):
     while True:
-        ts = await queue.get()
+        job = await queue.get()
 
-        await ts2mp4(ts)
+        await ts2mp4(ts=job.ts, ss=job.ss, to=job.to)
 
         queue.task_done()
 
 
-async def job(path: Path, n_worker: int):
-    queue: asyncio.Queue[Path] = asyncio.Queue()
+async def parent(path: Path, n_worker: int, ss: Optional[str], to: Optional[str]):
+    queue: asyncio.Queue[Job] = asyncio.Queue()
 
     if path.is_dir():
         for ts in path.glob("*.ts"):
-            await queue.put(ts)
+            await queue.put(Job(ts=ts, ss=ss, to=to))
     elif path.suffix == ".ts":
-        await queue.put(path)
+        await queue.put(Job(ts=path, ss=ss, to=to))
 
     tasks = []
     for _ in range(n_worker):
@@ -77,7 +48,9 @@ async def job(path: Path, n_worker: int):
 def cli():
     parser = argparse.ArgumentParser()
     parser.add_argument("path", type=Path)
-    parser.add_argument("-n", "--n_worker", type=int)
+    parser.add_argument("-n", "--n_worker", type=int, default=1)
+    parser.add_argument("-ss", type=str, default=None)
+    parser.add_argument("-to", type=str, default=None)
     args = parser.parse_args()
 
-    asyncio.run(job(path=args.path, n_worker=args.n_worker))
+    asyncio.run(parent(**vars(args)))
