@@ -1,42 +1,28 @@
-from __future__ import annotations
-
 import asyncio
-import datetime
-from dataclasses import dataclass
+import re
 from pathlib import Path
 from typing import Optional
 
 
-@dataclass(frozen=True)
-class _Time:
-    _time: datetime.time
+def _parse_duration_expression(dur_expr: str) -> float:
+    match = re.fullmatch(
+        r"(((?P<hour>\d+):)?(?P<minute>[0-5]?[0-9]):)?(?P<second>[0-5]?[0-9](\.(?P<microsecond>\d+))?)",
+        dur_expr,
+    )
 
-    @classmethod
-    def from_str(cls, s: str) -> _Time:
-        for f in ["%H:%M:%S.%f", "%H:%M:%S", "%M:%S.%f", "%M:%S", "%S.%f", "%S"]:
-            try:
-                return cls(_time=datetime.datetime.strptime(s, f).time())
-            except ValueError:
-                pass
-
+    if not match:
         raise ValueError
 
-    def __sub__(self, other: _Time) -> _Time:
-        return _Time(
-            _time=datetime.time(
-                hour=self._time.hour - other._time.hour,
-                minute=self._time.minute - other._time.minute,
-                second=self._time.second - other._time.second,
-            )
-        )
-
-    def __str__(self) -> str:
-        return self._time.strftime("%H:%M:%S.%f")
+    return (
+        int(match.group("hour") or 0) * 3600
+        + int(match.group("minute") or 0) * 60
+        + float(match.group("second"))
+    )
 
 
 async def ts2mp4(ts: Path, ss: Optional[str], to: Optional[str]):
-    ss_ = _Time.from_str(ss) if ss else None
-    to_ = _Time.from_str(to) if to else None
+    ss_ = _parse_duration_expression(ss) if ss else None
+    to_ = _parse_duration_expression(to) if to else None
     if ss_ and to_:
         to_ -= ss_
 
