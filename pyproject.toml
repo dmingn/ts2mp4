@@ -6,7 +6,7 @@ profile = "black"
 
 [tool.poetry]
 name = "ts2mp4"
-version = "0.3.0"
+version = "2022.07.07.1"
 description = ""
 authors = ["dmingn <dmingn@users.noreply.github.com>"]
 
