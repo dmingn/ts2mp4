@@ -42,7 +42,7 @@ async def ts2mp4(ts: Path, ss: Optional[str], to: Optional[str]):
                 + (["-ss", str(ss_)] if ss_ else [])
                 + [
                     "-i",
-                    str(ts),
+                    f"'{str(ts)}'",
                     "-f",
                     "mp4",
                     "-vsync",
@@ -60,7 +60,7 @@ async def ts2mp4(ts: Path, ss: Optional[str], to: Optional[str]):
                 ]
                 + (["-to", str(to_)] if to_ else [])
                 + [
-                    str(mp4_part),
+                    f"'{str(mp4_part)}'",
                 ]
             )
         )
