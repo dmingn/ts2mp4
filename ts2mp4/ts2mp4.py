@@ -1,5 +1,5 @@
-import asyncio
 import re
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -20,7 +20,7 @@ def _parse_duration_expression(dur_expr: str) -> float:
     )
 
 
-async def ts2mp4(ts: Path, ss: Optional[str], to: Optional[str]):
+def ts2mp4(ts: Path, ss: Optional[str], to: Optional[str]):
     ss_ = _parse_duration_expression(ss) if ss else None
     to_ = _parse_duration_expression(to) if to else None
     if ss_ and to_:
@@ -31,8 +31,8 @@ async def ts2mp4(ts: Path, ss: Optional[str], to: Optional[str]):
     mp4_part = ts.with_suffix(".mp4.part")
 
     if not mp4.exists():
-        proc = await asyncio.create_subprocess_shell(
-            cmd=" ".join(
+        proc = subprocess.run(
+            args=(
                 [
                     "ffmpeg",
                     "-fflags",
@@ -42,7 +42,7 @@ async def ts2mp4(ts: Path, ss: Optional[str], to: Optional[str]):
                 + (["-ss", str(ss_)] if ss_ else [])
                 + [
                     "-i",
-                    f"'{str(ts)}'",
+                    str(ts),
                     "-f",
                     "mp4",
                     "-vsync",
@@ -60,12 +60,10 @@ async def ts2mp4(ts: Path, ss: Optional[str], to: Optional[str]):
                 ]
                 + (["-to", str(to_)] if to_ else [])
                 + [
-                    f"'{str(mp4_part)}'",
+                    str(mp4_part),
                 ]
             )
         )
-
-        await proc.wait()
 
         if proc.returncode == 0:
             mp4_part.replace(mp4)
