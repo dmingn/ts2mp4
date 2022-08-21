@@ -1,5 +1,4 @@
 import argparse
-import asyncio
 from pathlib import Path
 
 from ts2mp4.ts2mp4 import ts2mp4
@@ -12,4 +11,4 @@ def cli():
     parser.add_argument("-to", type=str, default=None)
     args = parser.parse_args()
 
-    asyncio.run(ts2mp4(ts=args.path, ss=args.ss, to=args.to))
+    ts2mp4(ts=args.path, ss=args.ss, to=args.to)
