@@ -30,40 +30,42 @@ def ts2mp4(ts: Path, ss: Optional[str], to: Optional[str]):
     mp4 = ts.with_suffix(".mp4")
     mp4_part = ts.with_suffix(".mp4.part")
 
-    if not mp4.exists():
-        proc = subprocess.run(
-            args=(
-                [
-                    "ffmpeg",
-                    "-fflags",
-                    "+discardcorrupt",
-                    "-y",
-                ]
-                + (["-ss", str(ss_)] if ss_ else [])
-                + [
-                    "-i",
-                    str(ts),
-                    "-f",
-                    "mp4",
-                    "-vsync",
-                    "1",
-                    "-vf",
-                    "bwdif",
-                    "-codec:v",
-                    "libx265",
-                    "-crf",
-                    "22",
-                    "-codec:a",
-                    "copy",
-                    "-bsf:a",
-                    "aac_adtstoasc",
-                ]
-                + (["-to", str(to_)] if to_ else [])
-                + [
-                    str(mp4_part),
-                ]
-            )
-        )
+    if mp4.exists():
+        return
 
-        if proc.returncode == 0:
-            mp4_part.replace(mp4)
+    proc = subprocess.run(
+        args=(
+            [
+                "ffmpeg",
+                "-fflags",
+                "+discardcorrupt",
+                "-y",
+            ]
+            + (["-ss", str(ss_)] if ss_ else [])
+            + [
+                "-i",
+                str(ts),
+                "-f",
+                "mp4",
+                "-vsync",
+                "1",
+                "-vf",
+                "bwdif",
+                "-codec:v",
+                "libx265",
+                "-crf",
+                "22",
+                "-codec:a",
+                "copy",
+                "-bsf:a",
+                "aac_adtstoasc",
+            ]
+            + (["-to", str(to_)] if to_ else [])
+            + [
+                str(mp4_part),
+            ]
+        )
+    )
+
+    if proc.returncode == 0:
+        mp4_part.replace(mp4)
