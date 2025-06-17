@@ -13,12 +13,12 @@ authors = ["dmingn <dmingn@users.noreply.github.com>"]
 [tool.poetry.dependencies]
 python = "^3.7"
 
-[tool.poetry.dev-dependencies]
-black = "^23.3.0"
-isort = {extras = ["pyproject"], version = "^5.11.5"}
-mypy = "^1.4"
-pydocstyle = "^6.3.0"
-pyproject-flake8 = "^5.0.4.post1"
+[tool.poetry.group.dev.dependencies]
+black = "*"
+isort = {extras = ["pyproject"], version = "*"}
+mypy = "*"
+pydocstyle = "*"
+pyproject-flake8 = "*"
 
 [tool.poetry.scripts]
 ts2mp4 = "ts2mp4.cli:cli"
