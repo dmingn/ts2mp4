@@ -11,7 +11,7 @@ description = ""
 authors = ["dmingn <dmingn@users.noreply.github.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.7"
+python = "^3.9"
 
 [tool.poetry.group.dev.dependencies]
 black = "*"
