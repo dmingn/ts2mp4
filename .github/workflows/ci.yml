@@ -1,0 +1,41 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.1.7
+
+      - name: Install poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.1.0
+        with:
+          python-version-file: ".python-version"
+          cache: "poetry"
+
+      - name: Check lock file consistency
+        run: poetry check --lock
+
+      - name: Install dependencies
+        run: poetry sync
+
+      - name: Check formatting with black
+        run: poetry run black --check .
+
+      - name: Check import order with isort
+        run: poetry run isort --check .
+
+      - name: Lint with flake8
+        run: poetry run flake8 .
+
+      - name: Check types with mypy
+        run: poetry run mypy .
