@@ -1,4 +1,4 @@
-if __name__ == "__main__":
-    from ts2mp4.cli import cli
+from ts2mp4.cli import app
 
-    cli()
+if __name__ == "__main__":
+    app()
