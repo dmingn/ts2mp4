@@ -28,6 +28,9 @@ jobs:
       - name: Install dependencies
         run: poetry sync
 
+      - name: Generate test assets
+        run: make tests/assets/test_video.ts
+
       - name: Check formatting with black
         run: poetry run black --check .
 

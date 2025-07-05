@@ -130,3 +130,7 @@ dmypy.json
 
 # VS Code workspace settings
 .vscode/
+
+# Video files
+*.ts
+*.mp4
