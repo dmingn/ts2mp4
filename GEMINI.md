@@ -59,6 +59,7 @@ poetry run pytest
 *   Follow the style of the existing codebase (indentation, naming conventions, etc.).
 *   Actively use type hints.
 *   Write comments in English.
+*   Ensure all files end with a single newline character.
 
 ## 6. Git Workflow
 
