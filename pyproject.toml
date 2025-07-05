@@ -1,6 +1,12 @@
 [tool.isort]
 profile = "black"
 
+[tool.flake8]
+exclude = [".venv"]
+
+[tool.mypy]
+exclude = [".venv"]
+
 [tool.poetry]
 name = "ts2mp4"
 version = "2022.07.29.1"
