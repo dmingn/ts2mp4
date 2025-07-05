@@ -28,6 +28,12 @@ jobs:
       - name: Install dependencies
         run: poetry sync
 
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Generate test assets
+        run: make tests/assets/test_video.ts
+
       - name: Check formatting with black
         run: poetry run black --check .
 
