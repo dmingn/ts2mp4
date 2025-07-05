@@ -17,6 +17,7 @@ isort = {extras = ["pyproject"], version = "*"}
 flake8 = "^7.3.0"
 mypy = "*"
 pydocstyle = "*"
+pytest = "^8.4.1"
 
 [tool.poetry.scripts]
 ts2mp4 = "ts2mp4.cli:app"
