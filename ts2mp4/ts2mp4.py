@@ -1,6 +1,8 @@
 import subprocess
 from pathlib import Path
 
+from .audio_integrity import verify_audio_stream_integrity
+
 
 def ts2mp4(ts: Path):
     ts = ts.resolve()
@@ -10,7 +12,7 @@ def ts2mp4(ts: Path):
     if mp4.exists():
         return
 
-    proc = subprocess.run(
+    subprocess.run(
         args=[
             "ffmpeg",
             "-fflags",
@@ -33,8 +35,10 @@ def ts2mp4(ts: Path):
             "-bsf:a",
             "aac_adtstoasc",
             str(mp4_part),
-        ]
+        ],
+        check=True,  # Ensure ffmpeg command raises an error if it fails
     )
 
-    if proc.returncode == 0:
-        mp4_part.replace(mp4)
+    verify_audio_stream_integrity(ts, mp4_part)
+
+    mp4_part.replace(mp4)
