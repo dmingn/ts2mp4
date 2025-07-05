@@ -71,3 +71,8 @@ poetry run pytest
 *   **Dependencies**: If adding new dependencies, ensure `pyproject.toml` and `poetry.lock` are updated.
 *   **Makefile Usage**: Prioritize using commands defined in the `Makefile` if available.
 *   **Interaction Language**: The Gemini CLI will adapt its communication language to match the language used by the user in the current conversation.
+*   **Commit Failures**: If a commit operation fails, especially due to issues with multi-line strings in the commit message, try the following workaround:
+    1.  Write the desired commit message to `.git/COMMIT_EDITMSG`.
+    2.  Execute `git commit -F .git/COMMIT_EDITMSG` to apply the commit message from the file.
+    3.  If the issue persists or is different, inform the user about the failure and await guidance.
+*   **Commit Message Creation**: When crafting commit messages, focus solely on the staged diff. Disregard the Gemini CLI conversation history, as the commit message should accurately reflect the changes introduced by the commit itself.
