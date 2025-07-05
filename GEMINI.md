@@ -59,6 +59,7 @@ poetry run pytest
 *   Follow the style of the existing codebase (indentation, naming conventions, etc.).
 *   Actively use type hints.
 *   Write comments in English.
+*   Ensure all files end with a single newline character.
 
 ## 6. Git Workflow
 
@@ -75,4 +76,4 @@ poetry run pytest
     1.  Write the desired commit message to `.git/COMMIT_EDITMSG`.
     2.  Execute `git commit -F .git/COMMIT_EDITMSG` to apply the commit message from the file.
     3.  If the issue persists or is different, inform the user about the failure and await guidance.
-*   **Commit Message Creation**: When crafting commit messages, focus solely on the staged diff. Disregard the Gemini CLI conversation history, as the commit message should accurately reflect the changes introduced by the commit itself.
+*   **Commit Message Creation**: When crafting commit messages, focus solely on the staged diff. Disregard the Gemini CLI conversation history, as the commit message should accurately reflect the changes introduced by the commit itself. **Always run `git diff --staged` before proposing a commit message to ensure it accurately reflects only the staged changes.**
