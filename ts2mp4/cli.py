@@ -1,12 +1,17 @@
-import argparse
 from pathlib import Path
+from typing import Annotated
+
+import typer
 
 from ts2mp4.ts2mp4 import ts2mp4
 
+app = typer.Typer()
 
-def cli():
-    parser = argparse.ArgumentParser()
-    parser.add_argument("path", type=Path)
-    args = parser.parse_args()
 
-    ts2mp4(ts=args.path)
+@app.command()
+def main(
+    path: Annotated[
+        Path, typer.Argument(exists=True, file_okay=True, dir_okay=False, readable=True)
+    ],
+):
+    ts2mp4(ts=path)
