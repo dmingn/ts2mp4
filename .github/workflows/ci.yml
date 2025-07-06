@@ -28,8 +28,13 @@ jobs:
       - name: Install dependencies
         run: poetry sync
 
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - name: Download and install ffmpeg static build
+        run: |
+          FFMPEG_URL="https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz"
+          curl -L $FFMPEG_URL -o ffmpeg-static.tar.xz
+          tar -xf ffmpeg-static.tar.xz
+          FFMPEG_DIR=$(find . -maxdepth 1 -type d -name "ffmpeg-*-amd64-static")
+          echo "$FFMPEG_DIR" >> $GITHUB_PATH
 
       - name: Generate test assets
         run: make tests/assets/test_video.ts
