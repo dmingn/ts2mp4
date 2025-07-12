@@ -34,17 +34,5 @@ jobs:
       - name: Generate test assets
         run: make tests/assets/test_video.ts
 
-      - name: Check formatting with black
-        run: poetry run black --check .
-
-      - name: Check import order with isort
-        run: poetry run isort --check .
-
-      - name: Lint with flake8
-        run: poetry run flake8 .
-
-      - name: Check types with mypy
-        run: poetry run mypy .
-
-      - name: Run tests with pytest
-        run: poetry run pytest
+      - name: Run all checks
+        run: make check
