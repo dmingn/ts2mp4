@@ -47,7 +47,12 @@ def mock_dependencies(mocker):
 def test_ts2mp4_custom_crf_preset(mock_dependencies, crf_value, preset_value):
     """Test ts2mp4 with custom crf and preset values."""
     ts_path = Path("test.ts")
-    ts2mp4(ts_path, crf=crf_value, preset=preset_value)
+    ts2mp4(
+        input_file=ts_path,
+        output_file=ts_path.with_suffix(".mp4.part"),
+        crf=crf_value,
+        preset=preset_value,
+    )
     subprocess_run_mock = mock_dependencies
     expected_command = [
         "ffmpeg",

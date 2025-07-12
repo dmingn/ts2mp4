@@ -14,22 +14,14 @@ def _get_ts2mp4_version() -> str:
         return "Unknown"
 
 
-def ts2mp4(ts: Path, crf: int, preset: str):
-    ts = ts.resolve()
-    mp4 = ts.with_suffix(".mp4")
-    mp4_part = ts.with_suffix(".mp4.part")
-
-    if mp4.exists():
-        logger.info(f"Output file {mp4.name} already exists. Skipping conversion.")
-        return
-
+def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str):
     ffmpeg_command = [
         "ffmpeg",
         "-fflags",
         "+discardcorrupt",
         "-y",
         "-i",
-        str(ts),
+        str(input_file),
         "-f",
         "mp4",
         "-vsync",
@@ -46,7 +38,7 @@ def ts2mp4(ts: Path, crf: int, preset: str):
         "copy",
         "-bsf:a",
         "aac_adtstoasc",
-        str(mp4_part),
+        str(output_file),
     ]
     logger.info(f"FFmpeg Command: {' '.join(ffmpeg_command)}")
 
@@ -56,12 +48,7 @@ def ts2mp4(ts: Path, crf: int, preset: str):
         capture_output=True,
         text=True,
     )
-    logger.info("Conversion Status: Success")
     logger.info("FFmpeg Stdout:\n" + process.stdout)
     logger.info("FFmpeg Stderr:\n" + process.stderr)
 
-    verify_audio_stream_integrity(ts, mp4_part)
-
-    mp4_part.replace(mp4)
-    logger.info(f"Output File: {mp4.resolve()}")
-    logger.info(f"Output File Size: {mp4.stat().st_size} bytes")
+    verify_audio_stream_integrity(input_file=input_file, output_file=output_file)
