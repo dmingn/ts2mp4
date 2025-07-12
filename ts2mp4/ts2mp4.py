@@ -16,7 +16,7 @@ def _get_ts2mp4_version() -> str:
         return "Unknown"
 
 
-def ts2mp4(ts: Path, crf: int = 22, preset: str = "medium"):
+def ts2mp4(ts: Path, crf: int, preset: str):
     start_time = datetime.datetime.now()
     logger.info(f"Conversion Log for {ts.name}")
     logger.info(f"Start Time: {start_time}")
