@@ -3,6 +3,8 @@ import json
 import subprocess
 from pathlib import Path
 
+from logzero import logger
+
 
 def _get_audio_stream_count(file_path: Path) -> int:
     """Returns the number of audio streams in a given file.
@@ -93,7 +95,11 @@ def verify_audio_stream_integrity(input_file: Path, output_file: Path):
     Raises:
         RuntimeError: If audio stream MD5 hashes do not match.
     """
+    logger.info(
+        f"Verifying audio stream integrity for {input_file.name} and {output_file.name}"
+    )
     audio_stream_count = _get_audio_stream_count(input_file)
+    logger.info(f"Detected {audio_stream_count} audio streams in input file.")
 
     input_audio_md5s = [
         _get_audio_stream_md5(input_file, i) for i in range(audio_stream_count)
@@ -106,3 +112,5 @@ def verify_audio_stream_integrity(input_file: Path, output_file: Path):
         raise RuntimeError(
             f"Audio stream MD5 mismatch! Input: {input_audio_md5s}, Output: {output_audio_md5s}"
         )
+    else:
+        logger.info("Audio stream integrity verified successfully. MD5 hashes match.")

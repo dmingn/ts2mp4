@@ -1,6 +1,9 @@
 [tool.isort]
 profile = "black"
 
+[tool.mypy]
+ignore_missing_imports = true
+
 [tool.poetry]
 name = "ts2mp4"
 version = "2022.07.29.1"
@@ -9,6 +12,7 @@ authors = ["dmingn <dmingn@users.noreply.github.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
+logzero = "^1.7.0"
 typer = "^0.16.0"
 
 [tool.poetry.group.dev.dependencies]

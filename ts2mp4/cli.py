@@ -1,7 +1,9 @@
 from pathlib import Path
 from typing import Annotated
 
+import logzero
 import typer
+from logzero import logger
 
 from ts2mp4.ts2mp4 import ts2mp4
 
@@ -13,5 +15,16 @@ def main(
     path: Annotated[
         Path, typer.Argument(exists=True, file_okay=True, dir_okay=False, readable=True)
     ],
+    log_file: Annotated[
+        Path | None,
+        typer.Option(help="Path to the log file. Defaults to <input_file>.log"),
+    ] = None,
 ):
-    ts2mp4(ts=path)
+    if log_file is None:
+        log_file = path.with_suffix(".log")
+    logzero.logfile(str(log_file))
+
+    try:
+        ts2mp4(ts=path)
+    except Exception:
+        logger.exception("An error occurred during conversion.")
