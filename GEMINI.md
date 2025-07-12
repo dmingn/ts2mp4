@@ -77,3 +77,8 @@ poetry run pytest
     2.  Execute `git commit -F .git/COMMIT_EDITMSG` to apply the commit message from the file.
     3.  If the issue persists or is different, inform the user about the failure and await guidance.
 *   **Commit Message Creation**: When crafting commit messages, focus solely on the staged diff. Disregard the Gemini CLI conversation history, as the commit message should accurately reflect the changes introduced by the commit itself. **Always run `git diff --staged` before proposing a commit message to ensure it accurately reflects only the staged changes.**
+*   **Test Failure Debugging Principle**: When a test fails, **prioritize factual problem isolation over speculative cause analysis**. Do not attempt to fix based on assumptions. Instead, systematically gather concrete evidence from the failing environment to pinpoint the exact point of failure and its direct cause. This involves: 
+    1.  **Literal Interpretation of Error Messages**: Understand what the error message *literally* states, without adding unverified interpretations.
+    2.  **Verification of Assumptions**: If an assumption is made (e.g., "file exists"), programmatically verify it within the context where the failure occurs (e.g., inside a subprocess).
+    3.  **Systematic Isolation**: Use debugging techniques (e.g., temporary logging, conditional breakpoints) to narrow down the problem to the smallest possible scope.
+    4.  **Avoid Premature Solutions**: Do not propose or implement solutions until the root cause is definitively identified through factual evidence.
