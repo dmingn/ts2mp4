@@ -24,13 +24,19 @@ def main(
             writable=True,
         ),
     ] = None,
+    crf: Annotated[
+        int, typer.Option(help="CRF value for encoding. Defaults to 22.")
+    ] = 22,
+    preset: Annotated[
+        str, typer.Option(help="Encoding preset. Defaults to 'medium'.")
+    ] = "medium",
 ):
     if log_file is None:
         log_file = path.with_suffix(".log")
     logzero.logfile(str(log_file))
 
     try:
-        ts2mp4(ts=path)
+        ts2mp4(ts=path, crf=crf, preset=preset)
     except Exception:
         logger.exception("An error occurred during conversion.")
         raise typer.Exit(code=1)
