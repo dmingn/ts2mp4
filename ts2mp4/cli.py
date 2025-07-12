@@ -8,7 +8,8 @@ import logzero
 import typer
 from logzero import logger
 
-from ts2mp4.ts2mp4 import _get_ts2mp4_version, ts2mp4
+from ts2mp4 import _get_ts2mp4_version
+from ts2mp4.ts2mp4 import ts2mp4
 
 
 class Preset(str, Enum):

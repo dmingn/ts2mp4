@@ -1,17 +1,9 @@
-import importlib.metadata
 import subprocess
 from pathlib import Path
 
 from logzero import logger
 
 from .audio_integrity import verify_audio_stream_integrity
-
-
-def _get_ts2mp4_version() -> str:
-    try:
-        return importlib.metadata.version("ts2mp4")
-    except importlib.metadata.PackageNotFoundError:
-        return "Unknown"
 
 
 def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str):
