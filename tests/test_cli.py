@@ -18,7 +18,7 @@ def test_cli_entry_points_start_correctly(command):
     assert "Usage:" in result.stdout
 
 
-def test_cli_options_recognized(mocker):
+def test_cli_options_recognized(mocker, tmp_path):
     """Test that the CLI recognizes the --crf and --preset options."""
     mock_ts2mp4 = mocker.patch("ts2mp4.ts2mp4.ts2mp4")
 
@@ -32,8 +32,10 @@ def test_cli_options_recognized(mocker):
 
     from ts2mp4.cli import app
 
+    dummy_ts_path = tmp_path / "dummy.ts"
+    dummy_ts_path.write_text("dummy")
     runner = CliRunner()
-    result = runner.invoke(app, ["dummy.ts", "--crf", "20", "--preset", "slow"])
+    result = runner.invoke(app, [str(dummy_ts_path), "--crf", "20", "--preset", "slow"])
 
     assert result.exit_code == 0
     mock_ts2mp4.assert_called_once_with(
@@ -43,25 +45,24 @@ def test_cli_options_recognized(mocker):
     )
 
 
-def test_cli_invalid_crf_value():
+def test_cli_invalid_crf_value(tmp_path):
     """Test that the CLI handles invalid CRF values gracefully."""
+    dummy_ts_path = tmp_path / "dummy.ts"
+    dummy_ts_path.write_text("dummy")
     command = [
         "poetry",
         "run",
         "ts2mp4",
-        "dummy.ts",
+        str(dummy_ts_path),
         "--crf",
         "invalid",
     ]
-    # Create a dummy file
-    with open("dummy.ts", "w") as f:
-        f.write("dummy")
     result = subprocess.run(command, capture_output=True, text=True)
     assert result.returncode != 0
     assert "Invalid value for '--crf'" in result.stderr
 
 
-def test_cli_invalid_preset_value(mocker):
+def test_cli_invalid_preset_value(mocker, tmp_path):
     """Test that the CLI handles invalid preset values gracefully."""
     mock_ts2mp4 = mocker.patch("ts2mp4.ts2mp4.ts2mp4")
 
@@ -75,8 +76,10 @@ def test_cli_invalid_preset_value(mocker):
 
     from ts2mp4.cli import app
 
+    dummy_ts_path = tmp_path / "dummy.ts"
+    dummy_ts_path.write_text("dummy")
     runner = CliRunner()
-    result = runner.invoke(app, ["dummy.ts", "--preset", "invalid_preset"])
+    result = runner.invoke(app, [str(dummy_ts_path), "--preset", "invalid_preset"])
 
     assert result.exit_code != 0
     assert isinstance(result.exception, SystemExit)
