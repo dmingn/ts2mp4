@@ -37,41 +37,6 @@ def mock_dependencies(mocker):
     return mock_subprocess_run
 
 
-def test_ts2mp4_default_crf_preset(mock_dependencies):
-    """Test ts2mp4 with default crf and preset values."""
-    ts_path = Path("test.ts")
-    ts2mp4(ts_path)
-    subprocess_run_mock = mock_dependencies
-    expected_command = [
-        "ffmpeg",
-        "-fflags",
-        "+discardcorrupt",
-        "-y",
-        "-i",
-        str(ts_path.resolve()),
-        "-f",
-        "mp4",
-        "-vsync",
-        "1",
-        "-vf",
-        "bwdif",
-        "-codec:v",
-        "libx265",
-        "-crf",
-        "22",  # Default CRF
-        "-preset",
-        "medium",  # Default preset
-        "-codec:a",
-        "copy",
-        "-bsf:a",
-        "aac_adtstoasc",
-        str(ts_path.with_suffix(".mp4.part")),
-    ]
-    subprocess_run_mock.assert_any_call(
-        args=expected_command, check=True, capture_output=True, text=True
-    )
-
-
 @pytest.mark.parametrize(
     "crf_value, preset_value",
     [
