@@ -28,3 +28,4 @@ def main(
         ts2mp4(ts=path)
     except Exception:
         logger.exception("An error occurred during conversion.")
+        raise typer.Exit(code=1)
