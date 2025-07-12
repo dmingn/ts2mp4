@@ -17,7 +17,12 @@ def main(
     ],
     log_file: Annotated[
         Union[Path, None],
-        typer.Option(help="Path to the log file. Defaults to <input_file>.log"),
+        typer.Option(
+            help="Path to the log file. Defaults to <input_file>.log",
+            file_okay=True,
+            dir_okay=False,
+            writable=True,
+        ),
     ] = None,
 ):
     if log_file is None:
