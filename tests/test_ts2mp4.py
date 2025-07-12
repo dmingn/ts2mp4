@@ -1,61 +1,39 @@
-import importlib.metadata
+import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
-from ts2mp4.ts2mp4 import _get_ts2mp4_version, ts2mp4
+from ts2mp4.ts2mp4 import ts2mp4
 
 
-def test_get_ts2mp4_version_success(mocker):
-    mocker.patch("importlib.metadata.version", return_value="1.2.3")
-    assert _get_ts2mp4_version() == "1.2.3"
+def test_ts2mp4_successful_conversion(mocker):
+    # Arrange
+    input_file = Path("input.ts")
+    output_file = Path("output.mp4")
+    crf = 23
+    preset = "medium"
 
-
-def test_get_ts2mp4_version_package_not_found(mocker):
-    mocker.patch(
-        "importlib.metadata.version",
-        side_effect=importlib.metadata.PackageNotFoundError,
+    mock_subprocess_run = mocker.patch("subprocess.run")
+    mock_verify_audio_stream_integrity = mocker.patch(
+        "ts2mp4.ts2mp4.verify_audio_stream_integrity"
     )
-    assert _get_ts2mp4_version() == "Unknown"
 
-
-@pytest.fixture
-def mock_dependencies(mocker):
-    mock_subprocess_run = mocker.patch(
-        "ts2mp4.ts2mp4.subprocess.run", return_value=MagicMock(stdout="", stderr="")
+    mock_subprocess_run.return_value = MagicMock(
+        stdout="ffmpeg stdout", stderr="ffmpeg stderr"
     )
-    mocker.patch("pathlib.Path.exists", return_value=False)
-    mocker.patch("pathlib.Path.resolve", return_value=Path("test.ts"))
-    mocker.patch(
-        "pathlib.Path.with_suffix", side_effect=lambda suffix: Path(f"test{suffix}")
-    )
-    mocker.patch("pathlib.Path.stat", return_value=MagicMock(st_size=100))
-    mocker.patch("pathlib.Path.replace")
-    mocker.patch("logzero.logfile")
-    mocker.patch("ts2mp4.ts2mp4.verify_audio_stream_integrity")
-    return mock_subprocess_run
 
+    # Act
+    ts2mp4(input_file, output_file, crf, preset)
 
-@pytest.mark.parametrize(
-    "crf_value, preset_value",
-    [
-        (20, "slow"),
-        (25, "fast"),
-    ],
-)
-def test_ts2mp4_custom_crf_preset(mock_dependencies, crf_value, preset_value):
-    """Test ts2mp4 with custom crf and preset values."""
-    ts_path = Path("test.ts")
-    ts2mp4(ts_path, crf=crf_value, preset=preset_value)
-    subprocess_run_mock = mock_dependencies
+    # Assert
     expected_command = [
         "ffmpeg",
         "-fflags",
         "+discardcorrupt",
         "-y",
         "-i",
-        str(ts_path.resolve()),
+        str(input_file),
         "-f",
         "mp4",
         "-vsync",
@@ -65,15 +43,41 @@ def test_ts2mp4_custom_crf_preset(mock_dependencies, crf_value, preset_value):
         "-codec:v",
         "libx265",
         "-crf",
-        str(crf_value),
+        str(crf),
         "-preset",
-        preset_value,
+        preset,
         "-codec:a",
         "copy",
         "-bsf:a",
         "aac_adtstoasc",
-        str(ts_path.with_suffix(".mp4.part")),
+        str(output_file),
     ]
-    subprocess_run_mock.assert_any_call(
+    mock_subprocess_run.assert_called_once_with(
         args=expected_command, check=True, capture_output=True, text=True
     )
+    mock_verify_audio_stream_integrity.assert_called_once_with(
+        input_file=input_file, output_file=output_file
+    )
+
+
+def test_ts2mp4_ffmpeg_failure(mocker):
+    # Arrange
+    input_file = Path("input.ts")
+    output_file = Path("output.mp4")
+    crf = 23
+    preset = "medium"
+
+    mock_subprocess_run = mocker.patch("subprocess.run")
+    mock_verify_audio_stream_integrity = mocker.patch(
+        "ts2mp4.ts2mp4.verify_audio_stream_integrity"
+    )
+
+    mock_subprocess_run.side_effect = subprocess.CalledProcessError(
+        returncode=1, cmd="ffmpeg", stderr="ffmpeg error"
+    )
+
+    # Act & Assert
+    with pytest.raises(subprocess.CalledProcessError):
+        ts2mp4(input_file, output_file, crf, preset)
+
+    mock_verify_audio_stream_integrity.assert_not_called()

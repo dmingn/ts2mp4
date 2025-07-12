@@ -1,6 +1,3 @@
-import datetime
-import importlib.metadata
-import platform
 import subprocess
 from pathlib import Path
 
@@ -9,35 +6,28 @@ from logzero import logger
 from .audio_integrity import verify_audio_stream_integrity
 
 
-def _get_ts2mp4_version() -> str:
-    try:
-        return importlib.metadata.version("ts2mp4")
-    except importlib.metadata.PackageNotFoundError:
-        return "Unknown"
+def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str):
+    """Converts a Transport Stream (TS) file to MP4 format using FFmpeg.
 
+    This function constructs and executes an FFmpeg command to perform the video
+    conversion. It also logs the FFmpeg output and verifies the audio stream
+    integrity of the converted file.
 
-def ts2mp4(ts: Path, crf: int, preset: str):
-    start_time = datetime.datetime.now()
-    logger.info(f"Conversion Log for {ts.name}")
-    logger.info(f"Start Time: {start_time}")
-    logger.info(f"Input File: {ts.resolve()}")
-    logger.info(f"Input File Size: {ts.stat().st_size} bytes")
-
-    ts = ts.resolve()
-    mp4 = ts.with_suffix(".mp4")
-    mp4_part = ts.with_suffix(".mp4.part")
-
-    if mp4.exists():
-        logger.info(f"Output file {mp4.name} already exists. Skipping conversion.")
-        return
-
+    Args:
+        input_file: The path to the input TS file.
+        output_file: The path where the output MP4 file will be saved.
+        crf: The Constant Rate Factor (CRF) value for video encoding. Lower
+            values result in higher quality and larger file sizes.
+        preset: The encoding preset for FFmpeg. This affects the compression
+            speed and efficiency (e.g., 'medium', 'fast', 'slow').
+    """
     ffmpeg_command = [
         "ffmpeg",
         "-fflags",
         "+discardcorrupt",
         "-y",
         "-i",
-        str(ts),
+        str(input_file),
         "-f",
         "mp4",
         "-vsync",
@@ -54,7 +44,7 @@ def ts2mp4(ts: Path, crf: int, preset: str):
         "copy",
         "-bsf:a",
         "aac_adtstoasc",
-        str(mp4_part),
+        str(output_file),
     ]
     logger.info(f"FFmpeg Command: {' '.join(ffmpeg_command)}")
 
@@ -64,19 +54,7 @@ def ts2mp4(ts: Path, crf: int, preset: str):
         capture_output=True,
         text=True,
     )
-    logger.info("Conversion Status: Success")
     logger.info("FFmpeg Stdout:\n" + process.stdout)
     logger.info("FFmpeg Stderr:\n" + process.stderr)
 
-    verify_audio_stream_integrity(ts, mp4_part)
-
-    mp4_part.replace(mp4)
-    logger.info(f"Output File: {mp4.resolve()}")
-    logger.info(f"Output File Size: {mp4.stat().st_size} bytes")
-
-    end_time = datetime.datetime.now()
-    logger.info(f"End Time: {end_time}")
-    logger.info(f"Duration: {end_time - start_time}")
-    logger.info(f"ts2mp4 Version: {_get_ts2mp4_version()}")
-    logger.info(f"Python Version: {platform.python_version()}")
-    logger.info(f"Platform: {platform.platform()}")
+    verify_audio_stream_integrity(input_file=input_file, output_file=output_file)

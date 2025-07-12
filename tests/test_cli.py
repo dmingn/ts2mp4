@@ -21,6 +21,9 @@ def test_cli_entry_points_start_correctly(command):
 def test_cli_options_recognized(mocker, tmp_path):
     """Test that the CLI recognizes the --crf and --preset options."""
     mock_ts2mp4 = mocker.patch("ts2mp4.ts2mp4.ts2mp4")
+    mocker.patch("pathlib.Path.replace")
+    mocker.patch("pathlib.Path.stat", return_value=mocker.MagicMock(st_size=100))
+    mocker.patch("pathlib.Path.exists", return_value=False)
 
     # Simulate command-line arguments
     # Imports are placed inside the test function to ensure that the `app` object
@@ -39,7 +42,8 @@ def test_cli_options_recognized(mocker, tmp_path):
 
     assert result.exit_code == 0
     mock_ts2mp4.assert_called_once_with(
-        ts=mocker.ANY,
+        input_file=mocker.ANY,
+        output_file=mocker.ANY,
         crf=20,
         preset="slow",
     )
