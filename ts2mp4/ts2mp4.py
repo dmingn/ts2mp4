@@ -16,7 +16,7 @@ def _get_ts2mp4_version() -> str:
         return "Unknown"
 
 
-def ts2mp4(ts: Path):
+def ts2mp4(ts: Path, crf: int = 22, preset: str = "medium"):
     start_time = datetime.datetime.now()
     logger.info(f"Conversion Log for {ts.name}")
     logger.info(f"Start Time: {start_time}")
@@ -47,7 +47,9 @@ def ts2mp4(ts: Path):
         "-codec:v",
         "libx265",
         "-crf",
-        "22",
+        str(crf),
+        "-preset",
+        preset,
         "-codec:a",
         "copy",
         "-bsf:a",

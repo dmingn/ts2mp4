@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 from typing import Annotated, Union
 
@@ -6,6 +7,20 @@ import typer
 from logzero import logger
 
 from ts2mp4.ts2mp4 import ts2mp4
+
+
+class Preset(str, Enum):
+    ultrafast = "ultrafast"
+    superfast = "superfast"
+    veryfast = "veryfast"
+    faster = "faster"
+    fast = "fast"
+    medium = "medium"
+    slow = "slow"
+    slower = "slower"
+    veryslow = "veryslow"
+    placebo = "placebo"
+
 
 app = typer.Typer()
 
@@ -24,13 +39,19 @@ def main(
             writable=True,
         ),
     ] = None,
+    crf: Annotated[
+        int, typer.Option(help="CRF value for encoding. Defaults to 22.")
+    ] = 22,
+    preset: Annotated[
+        Preset, typer.Option(help="Encoding preset. Defaults to 'medium'.")
+    ] = Preset.medium,
 ):
     if log_file is None:
         log_file = path.with_suffix(".log")
     logzero.logfile(str(log_file))
 
     try:
-        ts2mp4(ts=path)
+        ts2mp4(ts=path, crf=crf, preset=preset)
     except Exception:
         logger.exception("An error occurred during conversion.")
         raise typer.Exit(code=1)
