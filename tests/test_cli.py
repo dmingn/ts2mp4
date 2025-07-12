@@ -1,3 +1,4 @@
+import os
 import subprocess
 
 import pytest
@@ -57,9 +58,11 @@ def test_cli_invalid_crf_value(tmp_path):
         "--crf",
         "invalid",
     ]
-    result = subprocess.run(command, capture_output=True, text=True)
+    result = subprocess.run(
+        command, capture_output=True, text=True, env={"NO_COLOR": "1", **os.environ}
+    )
     assert result.returncode != 0
-    assert "Invalid value for '--crf'" in result.stderr
+    assert "Invalid value" in result.stderr and "--crf" in result.stderr
 
 
 def test_cli_invalid_preset_value(mocker, tmp_path):
@@ -79,10 +82,14 @@ def test_cli_invalid_preset_value(mocker, tmp_path):
     dummy_ts_path = tmp_path / "dummy.ts"
     dummy_ts_path.write_text("dummy")
     runner = CliRunner()
-    result = runner.invoke(app, [str(dummy_ts_path), "--preset", "invalid_preset"])
+    result = runner.invoke(
+        app,
+        [str(dummy_ts_path), "--preset", "invalid_preset"],
+        env={"NO_COLOR": "1", **os.environ},
+    )
 
     assert result.exit_code != 0
     assert isinstance(result.exception, SystemExit)
     assert result.exception.code == 2  # Typer exits with code 2 for BadParameter
-    assert "Invalid value for '--preset'" in result.output
+    assert "Invalid value" in result.output and "--preset" in result.output
     mock_ts2mp4.assert_not_called()
