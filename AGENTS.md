@@ -1,4 +1,4 @@
-# GEMINI.md - Project Guide for AI Agents
+# AGENTS.md - Project Guide for AI Agents
 
 This file provides guidelines and context for AI agents (like me) working on the `ts2mp4` project.
 
