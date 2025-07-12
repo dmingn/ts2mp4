@@ -44,13 +44,28 @@ poetry run pytest
 
 ### 4.3. Code Quality Checks
 
+To run all code quality checks and tests:
+
+```bash
+make check
+```
+
+This command executes:
+*   `black --check .` (code formatting)
+*   `isort --check .` (import sorting)
+*   `flake8 .` (linting)
+*   `mypy .` (type checking)
+*   `pytest` (unit and integration tests)
+
+Alternatively, you can run individual checks:
+
 *   **Linting (flake8)**:
     ```bash
-    poetry run flake8 ts2mp4 tests
+    poetry run flake8 .
     ```
 *   **Type Checking (mypy)**:
     ```bash
-    poetry run mypy ts2mp4 tests
+    poetry run mypy .
     ```
 
 ## 5. Coding Standards

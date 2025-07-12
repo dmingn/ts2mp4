@@ -1,3 +1,11 @@
+.PHONY: check
+check:
+	poetry run black --check .
+	poetry run isort --check .
+	poetry run flake8 .
+	poetry run mypy .
+	poetry run pytest
+
 TEST_ASSETS_DIR = tests/assets
 
 $(TEST_ASSETS_DIR)/test_video.ts: Makefile
