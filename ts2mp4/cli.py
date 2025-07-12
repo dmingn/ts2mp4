@@ -1,3 +1,4 @@
+from enum import Enum
 from pathlib import Path
 from typing import Annotated, Union
 
@@ -6,6 +7,20 @@ import typer
 from logzero import logger
 
 from ts2mp4.ts2mp4 import ts2mp4
+
+
+class Preset(str, Enum):
+    ultrafast = "ultrafast"
+    superfast = "superfast"
+    veryfast = "veryfast"
+    faster = "faster"
+    fast = "fast"
+    medium = "medium"
+    slow = "slow"
+    slower = "slower"
+    veryslow = "veryslow"
+    placebo = "placebo"
+
 
 app = typer.Typer()
 
@@ -28,26 +43,9 @@ def main(
         int, typer.Option(help="CRF value for encoding. Defaults to 22.")
     ] = 22,
     preset: Annotated[
-        str, typer.Option(help="Encoding preset. Defaults to 'medium'.")
-    ] = "medium",
+        Preset, typer.Option(help="Encoding preset. Defaults to 'medium'.")
+    ] = Preset.medium,
 ):
-    valid_presets = [
-        "ultrafast",
-        "superfast",
-        "veryfast",
-        "faster",
-        "fast",
-        "medium",
-        "slow",
-        "slower",
-        "veryslow",
-        "placebo",
-    ]
-    if preset not in valid_presets:
-        raise typer.BadParameter(
-            f"Invalid value for '--preset': '{preset}'. "
-            f"Valid presets are: {', '.join(valid_presets)}"
-        )
     if log_file is None:
         log_file = path.with_suffix(".log")
     logzero.logfile(str(log_file))
