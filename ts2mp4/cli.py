@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Union
 
 import logzero
 import typer
@@ -16,7 +16,7 @@ def main(
         Path, typer.Argument(exists=True, file_okay=True, dir_okay=False, readable=True)
     ],
     log_file: Annotated[
-        Path | None,
+        Union[Path, None],
         typer.Option(help="Path to the log file. Defaults to <input_file>.log"),
     ] = None,
 ):
