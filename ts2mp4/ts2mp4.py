@@ -1,6 +1,4 @@
-import datetime
 import importlib.metadata
-import platform
 import subprocess
 from pathlib import Path
 
@@ -17,12 +15,6 @@ def _get_ts2mp4_version() -> str:
 
 
 def ts2mp4(ts: Path, crf: int, preset: str):
-    start_time = datetime.datetime.now()
-    logger.info(f"Conversion Log for {ts.name}")
-    logger.info(f"Start Time: {start_time}")
-    logger.info(f"Input File: {ts.resolve()}")
-    logger.info(f"Input File Size: {ts.stat().st_size} bytes")
-
     ts = ts.resolve()
     mp4 = ts.with_suffix(".mp4")
     mp4_part = ts.with_suffix(".mp4.part")
@@ -73,10 +65,3 @@ def ts2mp4(ts: Path, crf: int, preset: str):
     mp4_part.replace(mp4)
     logger.info(f"Output File: {mp4.resolve()}")
     logger.info(f"Output File Size: {mp4.stat().st_size} bytes")
-
-    end_time = datetime.datetime.now()
-    logger.info(f"End Time: {end_time}")
-    logger.info(f"Duration: {end_time - start_time}")
-    logger.info(f"ts2mp4 Version: {_get_ts2mp4_version()}")
-    logger.info(f"Python Version: {platform.python_version()}")
-    logger.info(f"Platform: {platform.platform()}")

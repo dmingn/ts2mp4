@@ -1,3 +1,5 @@
+import datetime
+import platform
 from enum import Enum
 from pathlib import Path
 from typing import Annotated, Union
@@ -6,7 +8,7 @@ import logzero
 import typer
 from logzero import logger
 
-from ts2mp4.ts2mp4 import ts2mp4
+from ts2mp4.ts2mp4 import _get_ts2mp4_version, ts2mp4
 
 
 class Preset(str, Enum):
@@ -51,7 +53,20 @@ def main(
     logzero.logfile(str(log_file))
 
     try:
+        start_time = datetime.datetime.now()
+        logger.info(f"Conversion Log for {path.name}")
+        logger.info(f"Start Time: {start_time}")
+        logger.info(f"Input File: {path.resolve()}")
+        logger.info(f"Input File Size: {path.stat().st_size} bytes")
+
         ts2mp4(ts=path, crf=crf, preset=preset)
+
+        end_time = datetime.datetime.now()
+        logger.info(f"End Time: {end_time}")
+        logger.info(f"Duration: {end_time - start_time}")
+        logger.info(f"ts2mp4 Version: {_get_ts2mp4_version()}")
+        logger.info(f"Python Version: {platform.python_version()}")
+        logger.info(f"Platform: {platform.platform()}")
     except Exception:
         logger.exception("An error occurred during conversion.")
         raise typer.Exit(code=1)
