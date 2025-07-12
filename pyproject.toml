@@ -3,6 +3,7 @@ profile = "black"
 
 [tool.mypy]
 ignore_missing_imports = true
+exclude = [".venv", "build", "dist"]
 
 [tool.poetry]
 name = "ts2mp4"
@@ -16,11 +17,11 @@ logzero = "^1.7.0"
 typer = "^0.16.0"
 
 [tool.poetry.group.dev.dependencies]
-black = "*"
-isort = {extras = ["pyproject"], version = "*"}
+black = "^23.3.0"
+isort = {extras = ["pyproject"], version = "^5.11.5"}
 flake8 = "^7.3.0"
-mypy = "*"
-pydocstyle = "*"
+mypy = "^1.4.1"
+pydocstyle = "^6.3.0"
 pytest = "^8.4.1"
 pytest-mock = "^3.14.1"
 
