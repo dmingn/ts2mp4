@@ -43,8 +43,8 @@ def main(
         int, typer.Option(help="CRF value for encoding. Defaults to 22.")
     ] = 22,
     preset: Annotated[
-        Preset, typer.Option(help="Encoding preset. Defaults to 'medium'.")
-    ] = Preset.medium,
+        Preset, typer.Option(help="Encoding preset. Defaults to 'slow'.")
+    ] = Preset.slow,
 ):
     if log_file is None:
         log_file = path.with_suffix(".log")
