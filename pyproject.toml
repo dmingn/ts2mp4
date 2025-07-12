@@ -1,6 +1,10 @@
 [tool.isort]
 profile = "black"
 
+[tool.mypy]
+ignore_missing_imports = true
+exclude = [".venv", "build", "dist"]
+
 [tool.poetry]
 name = "ts2mp4"
 version = "2022.07.29.1"
@@ -9,6 +13,7 @@ authors = ["dmingn <dmingn@users.noreply.github.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
+logzero = "^1.7.0"
 typer = "^0.16.0"
 
 [tool.poetry.group.dev.dependencies]
@@ -26,6 +31,3 @@ ts2mp4 = "ts2mp4.cli:app"
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.mypy]
-exclude = [".venv", "build", "dist"]
