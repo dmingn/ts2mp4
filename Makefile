@@ -1,3 +1,4 @@
+.PHONY: check
 check:
 	poetry run black --check .
 	poetry run isort --check .
