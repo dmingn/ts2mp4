@@ -1,0 +1,98 @@
+name: CI and Release
+
+on:
+  push:
+    branches: [master]
+    tags: ["*"]
+  pull_request:
+    branches: ["**"]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.1.7
+
+      - name: Install poetry
+        run: pipx install poetry
+
+      - name: Set up Python
+        uses: actions/setup-python@v5.1.0
+        with:
+          python-version-file: ".python-version"
+          cache: "poetry"
+
+      - name: Check lock file consistency
+        run: poetry check --lock
+
+      - name: Install dependencies
+        run: poetry sync
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Generate test assets
+        run: make tests/assets/test_video.ts
+
+      - name: Run all checks
+        run: make check
+
+  validate_release_tag:
+    runs-on: ubuntu-latest
+    outputs:
+      is_valid_tag: ${{ steps.check_tag.outputs.is_valid_tag }}
+    if: startsWith(github.ref, 'refs/tags/') # Only run if it's a tag push
+    steps:
+      - name: Check tag format
+        id: check_tag
+        run: |
+          TAG_NAME=${{ github.ref }}
+          TAG_VERSION=$(echo $TAG_NAME | sed 's/^refs\/tags\///') # Remove refs/tags/
+
+          if [[ "$TAG_VERSION" =~ ^[0-9]{4}\.[0-9]{2}\.[0-9]{2}\.[0-9]+$ ]]; then
+            echo "Tag format is valid: $TAG_VERSION"
+            echo "is_valid_tag=true" >> $GITHUB_OUTPUT
+          else
+            echo "Tag format is invalid: $TAG_VERSION. Expected YYYY.MM.DD.X format."
+            echo "is_valid_tag=false" >> $GITHUB_OUTPUT
+          fi
+
+  release:
+    needs: [build, validate_release_tag]
+    runs-on: ubuntu-latest
+    if: needs.validate_release_tag.outputs.is_valid_tag == 'true'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.1.7
+
+      - name: Validate pyproject.toml version
+        id: validate_version
+        run: |
+          TAG_NAME=${{ github.ref }}
+          TAG_VERSION=$(echo $TAG_NAME | sed 's/^refs\/tags\///') # Remove refs/tags/
+
+          # Extract version from pyproject.toml using grep and sed
+          PYPROJECT_VERSION=$(grep '^version = ' pyproject.toml | sed -E 's/version = "(.*)"/\1/')
+
+          echo "Tag version: $TAG_VERSION"
+          echo "pyproject.toml version: $PYPROJECT_VERSION"
+
+          if [ "$TAG_VERSION" != "$PYPROJECT_VERSION" ]; then
+            echo "Error: Tag version ($TAG_VERSION) does not match pyproject.toml version ($PYPROJECT_VERSION)."
+            exit 1
+          fi
+          echo "Tag and pyproject.toml versions match."
+          echo "release_version=$TAG_VERSION" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG_NAME=${{ github.ref }}
+          RELEASE_NAME="Release ${{ steps.validate_version.outputs.release_version }}"
+
+          gh release create "$TAG_NAME" \
+            --generate-notes \
+            --draft=false \
+            --prerelease=false
