@@ -7,7 +7,7 @@ exclude = [".venv", "build", "dist"]
 
 [tool.poetry]
 name = "ts2mp4"
-version = "2022.07.29.1"
+version = "2025.07.13.1"
 description = ""
 authors = ["dmingn <dmingn@users.noreply.github.com>"]
 
