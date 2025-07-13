@@ -12,13 +12,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
 
       - name: Install poetry
         run: pipx install poetry
 
       - name: Set up Python
-        uses: actions/setup-python@v5.1.0
+        uses: actions/setup-python@v5.6.0
         with:
           python-version-file: ".python-version"
           cache: "poetry"
@@ -64,7 +64,7 @@ jobs:
     if: needs.validate_release_tag.outputs.is_valid_tag == 'true'
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4.1.7
+        uses: actions/checkout@v4.2.2
 
       - name: Validate pyproject.toml version
         id: validate_version
