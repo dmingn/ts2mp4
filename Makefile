@@ -6,7 +6,8 @@ check: $(TEST_ASSETS_DIR)/test_video.ts
 	poetry run isort --check .
 	poetry run flake8 .
 	poetry run mypy .
-	poetry run pytest
+	poetry run pytest --ignore=tests/test_e2e.py
+	poetry run pytest tests/test_e2e.py
 
 $(TEST_ASSETS_DIR)/test_video.ts: Makefile
 	@mkdir -p $(TEST_ASSETS_DIR)
