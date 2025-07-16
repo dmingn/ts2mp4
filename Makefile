@@ -8,6 +8,11 @@ check: $(TEST_ASSETS_DIR)/test_video.ts
 	poetry run mypy .
 	poetry run pytest
 
+.PHONY: format
+format:
+	poetry run black .
+	poetry run isort .
+
 $(TEST_ASSETS_DIR)/test_video.ts: Makefile
 	@mkdir -p $(TEST_ASSETS_DIR)
 	@echo "Generating a 10-second dummy video and audio for testing..."

@@ -68,6 +68,14 @@ Alternatively, you can run individual checks:
     poetry run mypy .
     ```
 
+### 4.4. Code Formatting
+
+To format the code using `black` and `isort`:
+
+```bash
+make format
+```
+
 ## 5. Coding Standards
 
 *   Adhere to PEP 8.
