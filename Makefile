@@ -10,8 +10,8 @@ check: $(TEST_ASSETS_DIR)/test_video.ts
 
 .PHONY: format
 format:
-	poetry run black .
 	poetry run isort .
+	poetry run black .
 
 $(TEST_ASSETS_DIR)/test_video.ts: Makefile
 	@mkdir -p $(TEST_ASSETS_DIR)
