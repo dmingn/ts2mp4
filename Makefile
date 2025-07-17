@@ -9,6 +9,11 @@ check: $(TEST_ASSETS_DIR)/test_video.ts
 	poetry run pytest --ignore=tests/test_e2e.py
 	poetry run pytest tests/test_e2e.py
 
+.PHONY: format
+format:
+	poetry run isort .
+	poetry run black .
+
 $(TEST_ASSETS_DIR)/test_video.ts: Makefile
 	@mkdir -p $(TEST_ASSETS_DIR)
 	@echo "Generating a 10-second dummy video and audio for testing..."
