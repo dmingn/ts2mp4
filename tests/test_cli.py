@@ -1,6 +1,5 @@
 import subprocess
 from pathlib import Path
-from typing import List
 
 import pytest
 from pytest_mock import MockerFixture
@@ -13,7 +12,7 @@ from pytest_mock import MockerFixture
         ["poetry", "run", "python", "-m", "ts2mp4", "--help"],
     ],
 )
-def test_cli_entry_points_start_correctly(command: List[str]) -> None:
+def test_cli_entry_points_start_correctly(command: list[str]) -> None:
     """Test that CLI entry points run without error and show help message."""
     result = subprocess.run(command, capture_output=True, text=True, check=True)
 
