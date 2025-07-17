@@ -2,7 +2,7 @@ import subprocess
 from pathlib import Path
 
 
-def test_log_file_creation_and_content(tmp_path: Path, project_root: Path):
+def test_log_file_creation_and_content(tmp_path: Path, project_root: Path) -> None:
     """Test that a log file is created and contains expected messages."""
 
     # Define paths directly using tmp_path

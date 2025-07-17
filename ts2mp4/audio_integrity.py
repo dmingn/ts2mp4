@@ -85,7 +85,7 @@ def _get_audio_stream_md5(file_path: Path, stream_index: int) -> str:
     return hashlib.md5(result.stdout).hexdigest()
 
 
-def verify_audio_stream_integrity(input_file: Path, output_file: Path):
+def verify_audio_stream_integrity(input_file: Path, output_file: Path) -> None:
     """Verifies the integrity of audio streams by comparing MD5 hashes before and after conversion.
 
     Args:

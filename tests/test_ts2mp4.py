@@ -3,11 +3,12 @@ from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
+from pytest_mock import MockerFixture
 
 from ts2mp4.ts2mp4 import ts2mp4
 
 
-def test_ts2mp4_successful_conversion(mocker):
+def test_ts2mp4_successful_conversion(mocker: MockerFixture) -> None:
     # Arrange
     input_file = Path("input.ts")
     output_file = Path("output.mp4")
@@ -66,7 +67,7 @@ def test_ts2mp4_successful_conversion(mocker):
     )
 
 
-def test_ts2mp4_handles_non_utf8_ffmpeg_output(mocker):
+def test_ts2mp4_handles_non_utf8_ffmpeg_output(mocker: MockerFixture) -> None:
     # Arrange
     input_file = Path("input.ts")
     output_file = Path("output.mp4")
@@ -89,7 +90,7 @@ def test_ts2mp4_handles_non_utf8_ffmpeg_output(mocker):
         pytest.fail("ts2mp4 should not raise UnicodeDecodeError")
 
 
-def test_ts2mp4_ffmpeg_failure(mocker):
+def test_ts2mp4_ffmpeg_failure(mocker: MockerFixture) -> None:
     # Arrange
     input_file = Path("input.ts")
     output_file = Path("output.mp4")

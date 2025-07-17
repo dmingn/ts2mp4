@@ -1,6 +1,9 @@
 import subprocess
+from pathlib import Path
+from typing import List
 
 import pytest
+from pytest_mock import MockerFixture
 
 
 @pytest.mark.parametrize(
@@ -10,7 +13,7 @@ import pytest
         ["poetry", "run", "python", "-m", "ts2mp4", "--help"],
     ],
 )
-def test_cli_entry_points_start_correctly(command):
+def test_cli_entry_points_start_correctly(command: List[str]) -> None:
     """Test that CLI entry points run without error and show help message."""
     result = subprocess.run(command, capture_output=True, text=True, check=True)
 
@@ -18,7 +21,7 @@ def test_cli_entry_points_start_correctly(command):
     assert "Usage:" in result.stdout
 
 
-def test_cli_options_recognized(mocker, tmp_path):
+def test_cli_options_recognized(mocker: MockerFixture, tmp_path: Path) -> None:
     """Test that the CLI recognizes the --crf and --preset options."""
     mock_ts2mp4 = mocker.patch("ts2mp4.ts2mp4.ts2mp4")
     mocker.patch("pathlib.Path.replace")
@@ -49,7 +52,7 @@ def test_cli_options_recognized(mocker, tmp_path):
     )
 
 
-def test_cli_invalid_crf_value(tmp_path):
+def test_cli_invalid_crf_value(tmp_path: Path) -> None:
     """Test that the CLI handles invalid CRF values gracefully."""
     dummy_ts_path = tmp_path / "dummy.ts"
     dummy_ts_path.write_text("dummy")
@@ -65,7 +68,7 @@ def test_cli_invalid_crf_value(tmp_path):
     assert result.returncode != 0
 
 
-def test_cli_invalid_preset_value(mocker, tmp_path):
+def test_cli_invalid_preset_value(mocker: MockerFixture, tmp_path: Path) -> None:
     """Test that the CLI handles invalid preset values gracefully."""
     mock_ts2mp4 = mocker.patch("ts2mp4.ts2mp4.ts2mp4")
 
