@@ -2,8 +2,12 @@
 profile = "black"
 
 [tool.mypy]
-ignore_missing_imports = true
+strict = true
 exclude = [".venv", "build", "dist"]
+
+[[tool.mypy.overrides]]
+module = "logzero"
+ignore_missing_imports = true
 
 [tool.poetry]
 name = "ts2mp4"

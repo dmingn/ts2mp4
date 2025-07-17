@@ -48,7 +48,7 @@ def main(
     preset: Annotated[
         Preset, typer.Option(help="Encoding preset. Defaults to 'slow'.")
     ] = Preset.slow,
-):
+) -> None:
     if log_file is None:
         log_file = path.with_suffix(".log")
     logzero.logfile(str(log_file))

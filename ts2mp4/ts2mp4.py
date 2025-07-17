@@ -6,7 +6,7 @@ from logzero import logger
 from .audio_integrity import verify_audio_stream_integrity
 
 
-def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str):
+def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
     """Converts a Transport Stream (TS) file to MP4 format using FFmpeg.
 
     This function constructs and executes an FFmpeg command to perform the video
