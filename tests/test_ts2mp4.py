@@ -8,7 +8,7 @@ from pytest_mock import MockerFixture
 from ts2mp4.ts2mp4 import ts2mp4
 
 
-def test_ts2mp4_successful_conversion(mocker: MockerFixture) -> None:
+def test_calls_ffmpeg_with_correct_args(mocker: MockerFixture) -> None:
     # Arrange
     input_file = Path("input.ts")
     output_file = Path("output.mp4")
@@ -16,9 +16,7 @@ def test_ts2mp4_successful_conversion(mocker: MockerFixture) -> None:
     preset = "medium"
 
     mock_subprocess_run = mocker.patch("subprocess.run")
-    mock_verify_audio_stream_integrity = mocker.patch(
-        "ts2mp4.ts2mp4.verify_audio_stream_integrity"
-    )
+    mocker.patch("ts2mp4.ts2mp4.verify_audio_stream_integrity")
 
     mock_subprocess_run.return_value = MagicMock(
         stdout="ffmpeg stdout", stderr="ffmpeg stderr"
@@ -70,12 +68,30 @@ def test_ts2mp4_successful_conversion(mocker: MockerFixture) -> None:
         encoding="utf-8",
         errors="replace",
     )
+
+
+def test_calls_verify_audio_stream_integrity_on_success(mocker: MockerFixture) -> None:
+    # Arrange
+    input_file = Path("input.ts")
+    output_file = Path("output.mp4")
+    crf = 23
+    preset = "medium"
+
+    mocker.patch("subprocess.run")
+    mock_verify_audio_stream_integrity = mocker.patch(
+        "ts2mp4.ts2mp4.verify_audio_stream_integrity"
+    )
+
+    # Act
+    ts2mp4(input_file, output_file, crf, preset)
+
+    # Assert
     mock_verify_audio_stream_integrity.assert_called_once_with(
         input_file=input_file, output_file=output_file
     )
 
 
-def test_ts2mp4_handles_non_utf8_ffmpeg_output(mocker: MockerFixture) -> None:
+def test_handles_non_utf8_ffmpeg_output(mocker: MockerFixture) -> None:
     # Arrange
     input_file = Path("input.ts")
     output_file = Path("output.mp4")
@@ -98,7 +114,27 @@ def test_ts2mp4_handles_non_utf8_ffmpeg_output(mocker: MockerFixture) -> None:
         pytest.fail("ts2mp4 should not raise UnicodeDecodeError")
 
 
-def test_ts2mp4_ffmpeg_failure(mocker: MockerFixture) -> None:
+def test_raises_called_process_error_on_ffmpeg_failure(mocker: MockerFixture) -> None:
+    # Arrange
+    input_file = Path("input.ts")
+    output_file = Path("output.mp4")
+    crf = 23
+    preset = "medium"
+
+    mocker.patch("ts2mp4.ts2mp4.verify_audio_stream_integrity")
+    mock_subprocess_run = mocker.patch("subprocess.run")
+    mock_subprocess_run.side_effect = subprocess.CalledProcessError(
+        returncode=1, cmd="ffmpeg"
+    )
+
+    # Act & Assert
+    with pytest.raises(subprocess.CalledProcessError):
+        ts2mp4(input_file, output_file, crf, preset)
+
+
+def test_does_not_call_verify_audio_stream_integrity_on_ffmpeg_failure(
+    mocker: MockerFixture,
+) -> None:
     # Arrange
     input_file = Path("input.ts")
     output_file = Path("output.mp4")
@@ -109,6 +145,26 @@ def test_ts2mp4_ffmpeg_failure(mocker: MockerFixture) -> None:
     mock_verify_audio_stream_integrity = mocker.patch(
         "ts2mp4.ts2mp4.verify_audio_stream_integrity"
     )
+    mock_subprocess_run.side_effect = subprocess.CalledProcessError(
+        returncode=1, cmd="ffmpeg"
+    )
+
+    # Act & Assert
+    with pytest.raises(subprocess.CalledProcessError):
+        ts2mp4(input_file, output_file, crf, preset)
+
+    mock_verify_audio_stream_integrity.assert_not_called()
+
+
+def test_logs_error_on_ffmpeg_failure(mocker: MockerFixture) -> None:
+    # Arrange
+    input_file = Path("input.ts")
+    output_file = Path("output.mp4")
+    crf = 23
+    preset = "medium"
+
+    mocker.patch("ts2mp4.ts2mp4.verify_audio_stream_integrity")
+    mock_subprocess_run = mocker.patch("subprocess.run")
     mock_logger_error = mocker.patch("ts2mp4.ts2mp4.logger.error")
     mock_logger_info = mocker.patch("ts2mp4.ts2mp4.logger.info")
 
@@ -122,7 +178,6 @@ def test_ts2mp4_ffmpeg_failure(mocker: MockerFixture) -> None:
     with pytest.raises(subprocess.CalledProcessError):
         ts2mp4(input_file, output_file, crf, preset)
 
-    mock_verify_audio_stream_integrity.assert_not_called()
     mock_logger_error.assert_any_call("FFmpeg failed to execute.")
     mock_logger_info.assert_any_call("FFmpeg Stdout:\nffmpeg stdout")
     mock_logger_info.assert_any_call("FFmpeg Stderr:\nffmpeg error")
