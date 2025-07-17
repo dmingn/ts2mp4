@@ -29,6 +29,7 @@ def test_ts2mp4_successful_conversion(mocker):
     # Assert
     expected_command = [
         "ffmpeg",
+        "-nostats",
         "-fflags",
         "+discardcorrupt",
         "-y",
