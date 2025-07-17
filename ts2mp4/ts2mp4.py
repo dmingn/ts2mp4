@@ -54,6 +54,8 @@ def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str):
             check=True,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
         )
         logger.info("FFmpeg Stdout:\n" + process.stdout)
         logger.info("FFmpeg Stderr:\n" + process.stderr)
