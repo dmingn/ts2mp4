@@ -53,11 +53,39 @@ def test_ts2mp4_successful_conversion(mocker):
         str(output_file),
     ]
     mock_subprocess_run.assert_called_once_with(
-        args=expected_command, check=True, capture_output=True, text=True
+        args=expected_command,
+        check=True,
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
     )
     mock_verify_audio_stream_integrity.assert_called_once_with(
         input_file=input_file, output_file=output_file
     )
+
+
+def test_ts2mp4_handles_non_utf8_ffmpeg_output(mocker):
+    # Arrange
+    input_file = Path("input.ts")
+    output_file = Path("output.mp4")
+    crf = 23
+    preset = "medium"
+
+    mock_subprocess_run = mocker.patch("subprocess.run")
+    mocker.patch("ts2mp4.ts2mp4.verify_audio_stream_integrity")
+
+    # Simulate ffmpeg output with invalid UTF-8 bytes
+    non_utf8_stderr = b"ffmpeg stderr with invalid byte: \xc6"
+    mock_subprocess_run.return_value = MagicMock(
+        stdout="ffmpeg stdout", stderr=non_utf8_stderr.decode("utf-8", errors="replace")
+    )
+
+    # Act & Assert
+    try:
+        ts2mp4(input_file, output_file, crf, preset)
+    except UnicodeDecodeError:
+        pytest.fail("ts2mp4 should not raise UnicodeDecodeError")
 
 
 def test_ts2mp4_ffmpeg_failure(mocker):
