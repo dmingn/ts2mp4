@@ -59,8 +59,8 @@ def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str):
         logger.info("FFmpeg Stderr:\n" + process.stderr)
     except subprocess.CalledProcessError as e:
         logger.error("FFmpeg failed to execute.")
-        logger.error("FFmpeg Stdout:\n" + e.stdout)
-        logger.error("FFmpeg Stderr:\n" + e.stderr)
+        logger.info("FFmpeg Stdout:\n" + e.stdout)
+        logger.info("FFmpeg Stderr:\n" + e.stderr)
         raise
 
     verify_audio_stream_integrity(input_file=input_file, output_file=output_file)
