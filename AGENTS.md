@@ -7,7 +7,7 @@ This file provides guidelines and context for AI agents (like me) working on the
 *   Adhere to PEP 8.
 *   Follow the style of the existing codebase (indentation, naming conventions, etc.).
 *   Actively use type hints.
-*   Write comments in English.
+*   Write comments and commit messages in English.
 *   Ensure all files end with a single newline character.
 
 ## 2. Git Workflow
