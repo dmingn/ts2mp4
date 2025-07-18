@@ -27,7 +27,7 @@
 To install project dependencies:
 
 ```bash
-poetry install
+poetry sync
 ```
 
 ### Running Tests and Code Quality Checks
