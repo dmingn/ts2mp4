@@ -23,6 +23,7 @@ def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
     """
     ffmpeg_command = [
         "ffmpeg",
+        "-hide_banner",
         "-nostats",
         "-fflags",
         "+discardcorrupt",

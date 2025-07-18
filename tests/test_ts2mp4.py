@@ -28,6 +28,7 @@ def test_calls_ffmpeg_with_correct_args(mocker: MockerFixture) -> None:
     # Assert
     expected_command = [
         "ffmpeg",
+        "-hide_banner",
         "-nostats",
         "-fflags",
         "+discardcorrupt",
