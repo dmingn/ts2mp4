@@ -2,6 +2,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from freezegun import freeze_time
 from pytest_mock import MockerFixture
 
 
@@ -90,3 +91,29 @@ def test_cli_invalid_preset_value(mocker: MockerFixture, tmp_path: Path) -> None
     assert isinstance(result.exception, SystemExit)
     assert result.exception.code == 2  # Typer exits with code 2 for BadParameter
     mock_ts2mp4.assert_not_called()
+
+
+@freeze_time("2023-01-01 12:00:00")
+def test_log_file_creation(mocker: MockerFixture, tmp_path: Path) -> None:
+    """Test that a log file is created with the correct naming convention."""
+    mock_ts2mp4 = mocker.patch("ts2mp4.cli.ts2mp4")
+    mocker.patch("pathlib.Path.replace")
+    mocker.patch("pathlib.Path.stat", return_value=mocker.MagicMock(st_size=100))
+    mocker.patch("pathlib.Path.exists", return_value=False)
+    mock_logfile = mocker.patch("logzero.logfile")
+
+    from typer.testing import CliRunner
+
+    from ts2mp4.cli import app
+
+    dummy_ts_path = tmp_path / "dummy.ts"
+    dummy_ts_path.write_text("dummy")
+    runner = CliRunner()
+    result = runner.invoke(app, [str(dummy_ts_path)])
+
+    assert result.exit_code == 0
+    mock_ts2mp4.assert_called_once()
+    mock_logfile.assert_called_once()
+
+    expected_log_file = tmp_path / "dummy-20230101120000.log"
+    mock_logfile.assert_called_with(str(expected_log_file))
