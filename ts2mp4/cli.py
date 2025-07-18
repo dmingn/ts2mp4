@@ -50,7 +50,8 @@ def main(
     ] = Preset.slow,
 ) -> None:
     if log_file is None:
-        log_file = path.with_suffix(".log")
+        timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
+        log_file = path.with_stem(f"{path.stem}-{timestamp}").with_suffix(".log")
     logzero.logfile(str(log_file))
 
     try:
