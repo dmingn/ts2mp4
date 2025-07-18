@@ -20,6 +20,7 @@ def _get_audio_stream_count(file_path: Path) -> int:
     """
     command = [
         "ffprobe",
+        "-hide_banner",
         "-v",
         "error",
         "-show_entries",
@@ -61,6 +62,7 @@ def _get_audio_stream_md5(file_path: Path, stream_index: int) -> str:
     """
     command = [
         "ffmpeg",
+        "-hide_banner",
         "-i",
         str(file_path),
         "-map",
