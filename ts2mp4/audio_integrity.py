@@ -1,9 +1,10 @@
 import hashlib
 import json
-import subprocess
 from pathlib import Path
 
 from logzero import logger
+
+from .ffmpeg import execute_ffmpeg, execute_ffprobe
 
 
 def _get_audio_stream_count(file_path: Path) -> int:
@@ -18,8 +19,7 @@ def _get_audio_stream_count(file_path: Path) -> int:
     Raises:
         RuntimeError: If ffprobe fails to get stream information.
     """
-    command = [
-        "ffprobe",
+    ffprobe_args = [
         "-hide_banner",
         "-v",
         "error",
@@ -29,19 +29,13 @@ def _get_audio_stream_count(file_path: Path) -> int:
         "json",
         str(file_path),
     ]
-    try:
-        result = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True,
-        )
-    except subprocess.CalledProcessError as e:
+    result = execute_ffprobe(ffprobe_args)
+    if result.returncode != 0:
         raise RuntimeError(
-            f"ffprobe failed to get stream information for {file_path}. Error: {e.stderr.decode()}"
-        ) from e
-
-    data = json.loads(result.stdout)
+            f"ffprobe failed to get stream information for {file_path}. "
+            f"Return code: {result.returncode}"
+        )
+    data = json.loads(result.stdout.decode("utf-8"))
     return sum(
         1 for stream in data.get("streams", []) if stream.get("codec_type") == "audio"
     )
@@ -58,10 +52,9 @@ def _get_audio_stream_md5(file_path: Path, stream_index: int) -> str:
         The MD5 hash of the decoded audio stream as a hexadecimal string.
 
     Raises:
-        RuntimeError: If FFmpeg fails to extract the audio stream.
+        RuntimeError: If ffmpeg fails to extract the audio stream.
     """
-    command = [
-        "ffmpeg",
+    ffmpeg_args = [
         "-hide_banner",
         "-i",
         str(file_path),
@@ -72,18 +65,12 @@ def _get_audio_stream_md5(file_path: Path, stream_index: int) -> str:
         "s16le",  # Output raw signed 16-bit little-endian PCM
         "-",  # Output to stdout
     ]
-    try:
-        result = subprocess.run(
-            command,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            check=True,  # Raise CalledProcessError for non-zero exit codes
-        )
-    except subprocess.CalledProcessError as e:
+    result = execute_ffmpeg(ffmpeg_args)
+    if result.returncode != 0:
         raise RuntimeError(
-            f"FFmpeg failed to get decoded audio stream for {file_path}. Error: {e.stderr.decode()}"
-        ) from e
-
+            f"ffmpeg failed to get decoded audio stream for {file_path}. "
+            f"Return code: {result.returncode}"
+        )
     return hashlib.md5(result.stdout).hexdigest()
 
 
