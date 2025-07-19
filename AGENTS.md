@@ -12,7 +12,7 @@ For general project information, including project overview, technology stack, p
 
 ### 1.2. Comments
 
-*   Write comments in English.
+*   Write comments in English. This rule applies regardless of the user's interaction language.
 
 ### 1.3. File Endings
 
@@ -42,6 +42,10 @@ For general project information, including project overview, technology stack, p
 #### 2.2.2. Formatting
 
 *   When using `git commit -m`, always enclose the entire commit message in single quotes to prevent shell interpretation of inline code blocks or special characters.
+
+#### 2.2.3. Language
+
+*   Commit messages must be written in English. This rule applies regardless of the user's interaction language.
 
 ### 2.3. Commit Failures
 
