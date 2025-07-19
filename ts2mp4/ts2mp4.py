@@ -1,9 +1,7 @@
-import subprocess
 from pathlib import Path
 
-from logzero import logger
-
 from .audio_integrity import verify_audio_stream_integrity
+from .command import execute_command
 
 
 def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
@@ -56,25 +54,6 @@ def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
         "aac_adtstoasc",
         str(output_file),
     ]
-    logger.info(f"FFmpeg Command: {' '.join(ffmpeg_command)}")
-
-    try:
-        process = subprocess.run(
-            args=ffmpeg_command,
-            check=True,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        logger.info("FFmpeg Stdout:\n" + process.stdout)
-        logger.info("FFmpeg Stderr:\n" + process.stderr)
-    except subprocess.CalledProcessError as e:
-        logger.error("FFmpeg failed to execute.")
-        if e.stdout:
-            logger.info(f"FFmpeg Stdout:\n{e.stdout}")
-        if e.stderr:
-            logger.info(f"FFmpeg Stderr:\n{e.stderr}")
-        raise
+    execute_command(ffmpeg_command)
 
     verify_audio_stream_integrity(input_file=input_file, output_file=output_file)
