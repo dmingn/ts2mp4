@@ -11,8 +11,9 @@ def cleanup_files(mp4_file: Path) -> Generator[None, None, None]:
 
     def _cleanup() -> None:
         mp4_file.unlink(missing_ok=True)
-        for log_file in mp4_file.parent.glob(f"{mp4_file.stem}-*.log"):
-            log_file.unlink(missing_ok=True)
+        for log_file in mp4_file.parent.glob("*.log"):
+            if log_file.stem.startswith(f"{mp4_file.stem}-"):
+                log_file.unlink(missing_ok=True)
 
     _cleanup()
     yield
