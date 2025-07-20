@@ -19,8 +19,8 @@ def _check_stream_integrity(
         True if the stream hashes match and hash generation is successful, False otherwise.
     """
     try:
-        input_md5 = get_stream_md5(input_file, input_stream.index)
-        output_md5 = get_stream_md5(output_file, output_stream.index)
+        input_md5 = get_stream_md5(input_file, input_stream)
+        output_md5 = get_stream_md5(output_file, output_stream)
 
         if input_md5 != output_md5:
             logger.warning(

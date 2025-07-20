@@ -1,11 +1,12 @@
 import hashlib
 from pathlib import Path
 
+from ts2mp4.media_info import Stream
+
 from .ffmpeg import execute_ffmpeg
-from .media_info import get_media_info
 
 
-def get_stream_md5(file_path: Path, stream_index: int) -> str:
+def get_stream_md5(file_path: Path, stream: Stream) -> str:
     """Calculate the MD5 hash of a decoded stream of a given file using its stream index.
 
     Args:
@@ -23,13 +24,6 @@ def get_stream_md5(file_path: Path, stream_index: int) -> str:
         RuntimeError: If ffmpeg fails to extract the stream.
 
     """
-    media_info = get_media_info(file_path)
-
-    if stream_index >= len(media_info.streams) or stream_index < 0:
-        raise ValueError(f"Invalid stream index: {stream_index}")
-
-    stream = media_info.streams[stream_index]
-
     if stream.codec_type == "audio":
         output_format = "s16le"
         stream_disabling_arg = "-vn"  # Disable video stream
@@ -48,7 +42,7 @@ def get_stream_md5(file_path: Path, stream_index: int) -> str:
         str(file_path),
         stream_disabling_arg,
         "-map",
-        f"0:{stream_index}",
+        f"0:{stream.index}",
         "-f",
         output_format,
         "-",  # Output to stdout
