@@ -6,13 +6,23 @@ import pytest
 
 
 @pytest.fixture(autouse=True)
-def cleanup_mp4_file(mp4_file: Path) -> Generator[None, None, None]:
-    """Ensures the .mp4 file is removed before and after each test."""
+def cleanup_files(mp4_file: Path) -> Generator[None, None, None]:
+    """Ensures the .mp4 and .log files are removed before and after each test."""
     if mp4_file.exists():
         mp4_file.unlink()
+
+    log_files = list(mp4_file.parent.glob("*.log"))
+    for log_file in log_files:
+        log_file.unlink()
+
     yield
+
     if mp4_file.exists():
         mp4_file.unlink()
+
+    log_files = list(mp4_file.parent.glob("*.log"))
+    for log_file in log_files:
+        log_file.unlink()
 
 
 def test_ts2mp4_conversion_success(
