@@ -166,11 +166,11 @@ def test_get_mismatched_audio_stream_indices_no_audio_streams(
             MediaInfo(streams=no_audio_streams),
         ],
     )
-    mocker.patch("ts2mp4.audio_integrity.get_stream_md5")
+    mock_get_stream_md5 = mocker.patch("ts2mp4.audio_integrity.get_stream_md5")
 
     result = get_mismatched_audio_stream_indices(input_file, output_file)
     assert result == []
-    mocker.patch("ts2mp4.audio_integrity.get_stream_md5").assert_not_called()
+    mock_get_stream_md5.assert_not_called()
 
 
 @pytest.mark.unit
@@ -192,11 +192,11 @@ def test_get_mismatched_audio_stream_indices_missing_output_stream(
             MediaInfo(streams=(Stream(codec_type="video", index=0),)),
         ],
     )
-    mocker.patch("ts2mp4.audio_integrity.get_stream_md5")
+    mock_get_stream_md5 = mocker.patch("ts2mp4.audio_integrity.get_stream_md5")
 
     result = get_mismatched_audio_stream_indices(input_file, output_file)
     assert result == [1]
-    mocker.patch("ts2mp4.audio_integrity.get_stream_md5").assert_not_called()
+    mock_get_stream_md5.assert_not_called()
 
 
 @pytest.mark.unit
@@ -223,8 +223,8 @@ def test_get_mismatched_audio_stream_indices_output_stream_type_mismatch(
             ),
         ],
     )
-    mocker.patch("ts2mp4.audio_integrity.get_stream_md5")
+    mock_get_stream_md5 = mocker.patch("ts2mp4.audio_integrity.get_stream_md5")
 
     result = get_mismatched_audio_stream_indices(input_file, output_file)
     assert result == [1]
-    mocker.patch("ts2mp4.audio_integrity.get_stream_md5").assert_not_called()
+    mock_get_stream_md5.assert_not_called()
