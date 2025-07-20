@@ -2,9 +2,8 @@ TEST_ASSETS_DIR = tests/assets
 
 .PHONY: check
 check: $(TEST_ASSETS_DIR)/test_video.ts
-	poetry run black --check .
-	poetry run isort --check .
-	poetry run flake8 .
+	poetry run ruff check .
+	poetry run ruff format --check .
 	poetry run mypy .
 	@echo "Running unit tests..."
 	poetry run pytest -m unit
@@ -15,8 +14,8 @@ check: $(TEST_ASSETS_DIR)/test_video.ts
 
 .PHONY: format
 format:
-	poetry run isort .
-	poetry run black .
+	poetry run ruff check . --fix
+	poetry run ruff format .
 
 $(TEST_ASSETS_DIR)/test_video.ts: Makefile
 	@mkdir -p $(TEST_ASSETS_DIR)

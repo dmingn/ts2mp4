@@ -9,12 +9,16 @@ from .ffmpeg import execute_ffprobe
 
 
 class Stream(BaseModel):
+    """A class to hold information about a single stream."""
+
     model_config = ConfigDict(frozen=True)
 
     codec_type: Optional[str] = None
 
 
 class Format(BaseModel):
+    """A class to hold information about the format of a media file."""
+
     model_config = ConfigDict(frozen=True)
 
     format_name: Optional[str] = None
@@ -29,17 +33,20 @@ class MediaInfo(BaseModel):
 
 @cache
 def get_media_info(file_path: Path) -> MediaInfo:
-    """
-    Returns media information for a given file.
+    """Returns media information for a given file.
 
     Args:
+    ----
         file_path: The path to the input file.
 
     Returns:
+    -------
         A MediaInfo object with the media information.
 
     Raises:
+    ------
         RuntimeError: If ffprobe fails to get media information.
+
     """
     ffprobe_args = [
         "-hide_banner",

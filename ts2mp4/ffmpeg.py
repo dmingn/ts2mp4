@@ -5,6 +5,8 @@ from logzero import logger
 
 
 class FFmpegResult(NamedTuple):
+    """A class to hold the results of an FFmpeg command."""
+
     stdout: bytes
     stderr: str
     returncode: int
@@ -30,26 +32,30 @@ def _execute_process(
 
 
 def execute_ffmpeg(args: list[str]) -> FFmpegResult:
-    """
-    Executes ffmpeg and returns the result.
+    """Execute ffmpeg and returns the result.
 
     Args:
+    ----
         args: A list of arguments for the command.
 
     Returns:
+    -------
         An FFmpegResult object with the command's results.
+
     """
     return _execute_process("ffmpeg", args)
 
 
 def execute_ffprobe(args: list[str]) -> FFmpegResult:
-    """
-    Executes ffprobe and returns the result.
+    """Execute ffprobe and returns the result.
 
     Args:
+    ----
         args: A list of arguments for the command.
 
     Returns:
+    -------
         An FFmpegResult object with the command's results.
+
     """
     return _execute_process("ffprobe", args)

@@ -8,18 +8,22 @@ StreamType = Literal["audio", "video"]
 
 
 def get_stream_md5(file_path: Path, stream_type: StreamType, stream_index: int) -> str:
-    """Calculates the MD5 hash of a decoded stream of a given file.
+    """Calculate the MD5 hash of a decoded stream of a given file.
 
     Args:
+    ----
         file_path: The path to the input file.
         stream_type: The type of the stream to process ('audio' or 'video').
         stream_index: The index of the stream to process.
 
     Returns:
+    -------
         The MD5 hash of the decoded stream as a hexadecimal string.
 
     Raises:
+    ------
         RuntimeError: If ffmpeg fails to extract the stream.
+
     """
     if stream_type == "audio":
         map_specifier = f"0:a:{stream_index}"

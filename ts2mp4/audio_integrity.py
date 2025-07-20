@@ -7,13 +7,16 @@ from .media_info import get_media_info
 
 
 def _get_audio_stream_count(file_path: Path) -> int:
-    """Returns the number of audio streams in a given file.
+    """Return the number of audio streams in a given file.
 
     Args:
+    ----
         file_path: The path to the input file.
 
     Returns:
+    -------
         The number of audio streams.
+
     """
     media_info = get_media_info(file_path)
     return sum(1 for stream in media_info.streams if stream.codec_type == "audio")

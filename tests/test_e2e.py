@@ -7,7 +7,7 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def cleanup_files(mp4_file: Path) -> Generator[None, None, None]:
-    """Ensures the .mp4 and .log files are removed before and after each test."""
+    """Ensure the .mp4 and .log files are removed before and after each test."""
 
     def _cleanup() -> None:
         mp4_file.unlink(missing_ok=True)
