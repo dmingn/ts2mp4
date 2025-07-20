@@ -27,10 +27,12 @@ def test_get_mismatched_audio_stream_indices_matches(mocker: MockerFixture) -> N
     mocker.patch(
         "ts2mp4.audio_integrity.get_stream_md5",
         side_effect=[
-            "hash1_input",
-            "hash1_input",
-            "hash2_input",
-            "hash2_input",
+            # Stream 0: Match
+            "stream_0_hash",
+            "stream_0_hash",
+            # Stream 1: Match
+            "stream_1_hash",
+            "stream_1_hash",
         ],
     )
 
@@ -48,12 +50,15 @@ def test_get_mismatched_audio_stream_indices_mismatch(mocker: MockerFixture) -> 
     mocker.patch(
         "ts2mp4.audio_integrity.get_stream_md5",
         side_effect=[
-            "hash1_input",
-            "hash1_input",  # Match
-            "hash2_input",
-            "hash2_output",  # Mismatch
-            "hash3_input",
-            "hash3_input",  # Match
+            # Stream 0: Match
+            "stream_0_hash",
+            "stream_0_hash",
+            # Stream 1: Mismatch
+            "stream_1_input_hash",
+            "stream_1_output_hash_mismatch",
+            # Stream 2: Match
+            "stream_2_hash",
+            "stream_2_hash",
         ],
     )
 
@@ -73,14 +78,18 @@ def test_get_mismatched_audio_stream_indices_hash_failure(
     mocker.patch(
         "ts2mp4.audio_integrity.get_stream_md5",
         side_effect=[
-            "hash1_input",
-            "hash1_input",  # Match
-            "hash2_input",
-            RuntimeError("ffmpeg error"),  # Output hash fails
-            RuntimeError("ffmpeg error"),  # Input hash fails
-            "hash3_output",
-            "hash4_input",
-            "hash4_output",  # Mismatch
+            # Stream 0: Match
+            "stream_0_hash",
+            "stream_0_hash",
+            # Stream 1: Output hash fails
+            "stream_1_input_hash",
+            RuntimeError("ffmpeg error: stream 1 output hash failed"),
+            # Stream 2: Input hash fails
+            RuntimeError("ffmpeg error: stream 2 input hash failed"),
+            "stream_2_output_hash_dummy",  # This won't be reached
+            # Stream 3: Both hashes fail (input fails first)
+            RuntimeError("ffmpeg error: stream 3 input hash failed"),
+            "stream_3_output_hash_dummy",  # This won't be reached
         ],
     )
 
