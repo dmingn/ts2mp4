@@ -5,7 +5,7 @@ from pytest_mock import MockerFixture
 
 from ts2mp4.audio_integrity import (
     _get_audio_stream_count,
-    verify_audio_stream_integrity,
+    get_mismatched_audio_stream_indices,
 )
 
 
@@ -18,7 +18,8 @@ def test_get_audio_stream_count(ts_file: Path) -> None:
 
 
 @pytest.mark.unit
-def test_verify_audio_stream_integrity_matches(mocker: MockerFixture) -> None:
+def test_get_mismatched_audio_stream_indices_matches(mocker: MockerFixture) -> None:
+    """Tests that an empty list is returned when all stream hashes match."""
     input_file = Path("dummy_input.ts")
     output_file = Path("dummy_output.mp4.part")
 
@@ -26,34 +27,74 @@ def test_verify_audio_stream_integrity_matches(mocker: MockerFixture) -> None:
     mocker.patch(
         "ts2mp4.audio_integrity.get_stream_md5",
         side_effect=[
-            "hash1_input",
-            "hash2_input",  # input_file のMD5
-            "hash1_input",
-            "hash2_input",  # output_file のMD5 (一致)
+            # Stream 0: Match
+            "stream_0_hash",
+            "stream_0_hash",
+            # Stream 1: Match
+            "stream_1_hash",
+            "stream_1_hash",
         ],
     )
 
-    verify_audio_stream_integrity(input_file, output_file)
+    result = get_mismatched_audio_stream_indices(input_file, output_file)
+    assert result == []
 
 
 @pytest.mark.unit
-def test_verify_audio_stream_integrity_mismatch(mocker: MockerFixture) -> None:
+def test_get_mismatched_audio_stream_indices_mismatch(mocker: MockerFixture) -> None:
+    """Tests that a list of mismatched indices is returned correctly."""
     input_file = Path("dummy_input.ts")
     output_file = Path("dummy_output.mp4.part")
 
-    mocker.patch("ts2mp4.audio_integrity._get_audio_stream_count", return_value=1)
+    mocker.patch("ts2mp4.audio_integrity._get_audio_stream_count", return_value=3)
     mocker.patch(
         "ts2mp4.audio_integrity.get_stream_md5",
         side_effect=[
-            "hash_input",  # input_file のMD5
-            "hash_output",  # output_file のMD5 (不一致)
+            # Stream 0: Match
+            "stream_0_hash",
+            "stream_0_hash",
+            # Stream 1: Mismatch
+            "stream_1_input_hash",
+            "stream_1_output_hash_mismatch",
+            # Stream 2: Match
+            "stream_2_hash",
+            "stream_2_hash",
         ],
     )
 
-    with pytest.raises(RuntimeError) as excinfo:
-        verify_audio_stream_integrity(input_file, output_file)
+    result = get_mismatched_audio_stream_indices(input_file, output_file)
+    assert result == [1]
 
-    assert "Audio stream MD5 mismatch!" in str(excinfo.value)
+
+@pytest.mark.unit
+def test_get_mismatched_audio_stream_indices_hash_failure(
+    mocker: MockerFixture,
+) -> None:
+    """Tests that indices with hash generation failures are reported."""
+    input_file = Path("dummy_input.ts")
+    output_file = Path("dummy_output.mp4.part")
+
+    mocker.patch("ts2mp4.audio_integrity._get_audio_stream_count", return_value=4)
+    mocker.patch(
+        "ts2mp4.audio_integrity.get_stream_md5",
+        side_effect=[
+            # Stream 0: Match
+            "stream_0_hash",
+            "stream_0_hash",
+            # Stream 1: Output hash fails
+            "stream_1_input_hash",
+            RuntimeError("ffmpeg error: stream 1 output hash failed"),
+            # Stream 2: Input hash fails
+            RuntimeError("ffmpeg error: stream 2 input hash failed"),
+            "stream_2_output_hash_dummy",  # This won't be reached
+            # Stream 3: Both hashes fail (input fails first)
+            RuntimeError("ffmpeg error: stream 3 input hash failed"),
+            "stream_3_output_hash_dummy",  # This won't be reached
+        ],
+    )
+
+    result = get_mismatched_audio_stream_indices(input_file, output_file)
+    assert result == [1, 2, 3]
 
 
 @pytest.mark.unit
@@ -68,15 +109,15 @@ def test_get_audio_stream_count_failure(mocker: MockerFixture, ts_file: Path) ->
 
 
 @pytest.mark.unit
-def test_verify_audio_stream_integrity_no_audio_streams(
+def test_get_mismatched_audio_stream_indices_no_audio_streams(
     mocker: MockerFixture,
 ) -> None:
+    """Tests correct handling when there are no audio streams."""
     input_file = Path("dummy_input_no_audio.ts")
     output_file = Path("dummy_output_no_audio.mp4.part")
 
     mocker.patch("ts2mp4.audio_integrity._get_audio_stream_count", return_value=0)
-    mocker.patch(
-        "ts2mp4.audio_integrity.get_stream_md5", return_value=""
-    )  # 呼ばれないが念のため
+    mocker.patch("ts2mp4.audio_integrity.get_stream_md5", return_value="")
 
-    verify_audio_stream_integrity(input_file, output_file)
+    result = get_mismatched_audio_stream_indices(input_file, output_file)
+    assert result == []

@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from .audio_integrity import verify_audio_stream_integrity
+from .audio_integrity import get_mismatched_audio_stream_indices
 from .ffmpeg import execute_ffmpeg
 
 
@@ -57,4 +57,10 @@ def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
 
-    verify_audio_stream_integrity(input_file=input_file, output_file=output_file)
+    mismatched_indices = get_mismatched_audio_stream_indices(
+        input_file=input_file, output_file=output_file
+    )
+    if mismatched_indices:
+        raise RuntimeError(
+            f"Audio stream integrity check failed for indices: {mismatched_indices}"
+        )
