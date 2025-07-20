@@ -10,11 +10,9 @@ def cleanup_files(mp4_file: Path) -> Generator[None, None, None]:
     """Ensures the .mp4 and .log files are removed before and after each test."""
 
     def _cleanup() -> None:
-        if mp4_file.exists():
-            mp4_file.unlink()
-
+        mp4_file.unlink(missing_ok=True)
         for log_file in mp4_file.parent.glob("*.log"):
-            log_file.unlink()
+            log_file.unlink(missing_ok=True)
 
     _cleanup()
     yield
