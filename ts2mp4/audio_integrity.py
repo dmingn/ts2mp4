@@ -1,10 +1,10 @@
 import hashlib
-import json
 from pathlib import Path
 
 from logzero import logger
 
-from .ffmpeg import execute_ffmpeg, execute_ffprobe
+from .ffmpeg import execute_ffmpeg
+from .media_info import get_media_info
 
 
 def _get_audio_stream_count(file_path: Path) -> int:
@@ -15,30 +15,9 @@ def _get_audio_stream_count(file_path: Path) -> int:
 
     Returns:
         The number of audio streams.
-
-    Raises:
-        RuntimeError: If ffprobe fails to get stream information.
     """
-    ffprobe_args = [
-        "-hide_banner",
-        "-v",
-        "error",
-        "-show_entries",
-        "stream=codec_type",
-        "-of",
-        "json",
-        str(file_path),
-    ]
-    result = execute_ffprobe(ffprobe_args)
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"ffprobe failed to get stream information for {file_path}. "
-            f"Return code: {result.returncode}"
-        )
-    data = json.loads(result.stdout.decode("utf-8"))
-    return sum(
-        1 for stream in data.get("streams", []) if stream.get("codec_type") == "audio"
-    )
+    media_info = get_media_info(file_path)
+    return sum(1 for stream in media_info.streams if stream.codec_type == "audio")
 
 
 def _get_audio_stream_md5(file_path: Path, stream_index: int) -> str:

@@ -69,9 +69,9 @@ def test_verify_audio_stream_integrity_mismatch(mocker: MockerFixture) -> None:
 @pytest.mark.unit
 def test_get_audio_stream_count_failure(mocker: MockerFixture, ts_file: Path) -> None:
     """Test _get_audio_stream_count with a non-zero return code."""
-    mock_execute_ffprobe = mocker.patch("ts2mp4.audio_integrity.execute_ffprobe")
-    mock_execute_ffprobe.return_value = FFmpegResult(
-        stdout=b"", stderr="ffprobe error", returncode=1
+    mocker.patch(
+        "ts2mp4.audio_integrity.get_media_info",
+        side_effect=RuntimeError("ffprobe failed"),
     )
     with pytest.raises(RuntimeError, match="ffprobe failed"):
         _get_audio_stream_count(ts_file)
