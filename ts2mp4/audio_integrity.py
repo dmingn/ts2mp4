@@ -4,6 +4,7 @@ from logzero import logger
 
 from .hashing import get_stream_md5
 from .media_info import get_media_info
+from .types import AudioStreamIndex
 
 
 def _get_audio_stream_count(file_path: Path) -> int:
@@ -21,7 +22,7 @@ def _get_audio_stream_count(file_path: Path) -> int:
 
 def get_mismatched_audio_stream_indices(
     input_file: Path, output_file: Path
-) -> list[int]:
+) -> list[AudioStreamIndex]:
     """
     Verifies audio stream integrity by comparing MD5 hashes, returning problematic indices.
 
@@ -34,7 +35,7 @@ def get_mismatched_audio_stream_indices(
         output_file: Path to the converted output file.
 
     Returns:
-        A list of integer indices for audio streams that have mismatched or failed MD5 hashes.
+        A list of audio stream indices for streams that have mismatched or failed MD5 hashes.
         An empty list is returned if all audio streams are verified successfully.
     """
     logger.info(
@@ -54,10 +55,10 @@ def get_mismatched_audio_stream_indices(
                     f"Mismatch in audio stream {i}: "
                     f"Input MD5: {input_md5}, Output MD5: {output_md5}"
                 )
-                mismatched_indices.append(i)
+                mismatched_indices.append(AudioStreamIndex(i))
         except RuntimeError as e:
             logger.warning(f"Failed to get MD5 for audio stream {i}: {e}")
-            mismatched_indices.append(i)
+            mismatched_indices.append(AudioStreamIndex(i))
 
     if not mismatched_indices:
         logger.info(
