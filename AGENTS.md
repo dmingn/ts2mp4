@@ -10,9 +10,9 @@ For general project information, including project overview, technology stack, p
 
 *   Follow the style of the existing codebase (indentation, naming conventions, etc.).
 
-### 1.2. Comments
+### 1.2. Comments and Docstrings
 
-*   Write comments in English. This rule applies regardless of the user's interaction language.
+*   Write comments and docstrings in English. This rule applies regardless of the user's interaction language.
 
 ### 1.3. File Endings
 
