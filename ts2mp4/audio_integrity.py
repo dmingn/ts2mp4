@@ -63,35 +63,36 @@ def get_mismatched_audio_stream_indices(
     output_media_info = get_media_info(output_file)
 
     mismatched_indices = []
-    for input_stream, output_stream in itertools.zip_longest(
-        input_media_info.streams, output_media_info.streams
+    for input_audio_stream, output_audio_stream in itertools.zip_longest(
+        (
+            audio_stream
+            for audio_stream in input_media_info.streams
+            if audio_stream.codec_type == "audio"
+        ),
+        (
+            audio_stream
+            for audio_stream in output_media_info.streams
+            if audio_stream.codec_type == "audio"
+        ),
     ):
-        if (
-            input_stream is None
-        ):  # Should not happen if input_media_info.streams is the primary source
+        if input_audio_stream is None:
+            logger.warning(
+                f"Audio stream at index {output_audio_stream.index} in output file has no corresponding stream in input file."
+            )
+            mismatched_indices.append(output_audio_stream.index)
             continue
 
-        if input_stream.codec_type == "audio":
-            stream_index = input_stream.index
+        if output_audio_stream is None:
+            logger.warning(
+                f"Audio stream at index {input_audio_stream.index} in input file has no corresponding stream in output file."
+            )
+            mismatched_indices.append(input_audio_stream.index)
+            continue
 
-            if output_stream is None:
-                logger.warning(
-                    f"Audio stream at index {stream_index} in input file has no corresponding stream in output file."
-                )
-                mismatched_indices.append(stream_index)
-                continue
-
-            if output_stream.codec_type != "audio":
-                logger.warning(
-                    f"Stream at index {stream_index} in output file is not an audio stream (found {output_stream.codec_type})."
-                )
-                mismatched_indices.append(stream_index)
-                continue
-
-            if not _check_stream_integrity(
-                input_file, output_file, input_stream, output_stream
-            ):
-                mismatched_indices.append(stream_index)
+        if not _check_stream_integrity(
+            input_file, output_file, input_audio_stream, output_audio_stream
+        ):
+            mismatched_indices.append(input_audio_stream.index)
 
     if not mismatched_indices:
         logger.info(
