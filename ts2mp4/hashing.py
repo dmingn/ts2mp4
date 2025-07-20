@@ -28,7 +28,9 @@ def get_stream_md5(file_path: Path, stream_type: StreamType, stream_index: int) 
         map_specifier = f"0:v:{stream_index}"
         output_format = "rawvideo"
     else:
-        raise ValueError("Invalid stream_type. Must be 'audio' or 'video'.")
+        raise ValueError(
+            f"Invalid stream_type: {stream_type}. Must be 'audio' or 'video'."
+        )
 
     ffmpeg_args = [
         "-hide_banner",
