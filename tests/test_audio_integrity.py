@@ -19,6 +19,7 @@ def test_get_audio_stream_count(ts_file: Path) -> None:
 
 @pytest.mark.unit
 def test_verify_audio_stream_integrity_matches(mocker: MockerFixture) -> None:
+    """Test that verify_audio_stream_integrity passes when MD5s match."""
     input_file = Path("dummy_input.ts")
     output_file = Path("dummy_output.mp4.part")
 
@@ -38,6 +39,7 @@ def test_verify_audio_stream_integrity_matches(mocker: MockerFixture) -> None:
 
 @pytest.mark.unit
 def test_verify_audio_stream_integrity_mismatch(mocker: MockerFixture) -> None:
+    """Test that verify_audio_stream_integrity raises RuntimeError on MD5 mismatch."""
     input_file = Path("dummy_input.ts")
     output_file = Path("dummy_output.mp4.part")
 
@@ -71,6 +73,7 @@ def test_get_audio_stream_count_failure(mocker: MockerFixture, ts_file: Path) ->
 def test_verify_audio_stream_integrity_no_audio_streams(
     mocker: MockerFixture,
 ) -> None:
+    """Test that verify_audio_stream_integrity passes with no audio streams."""
     input_file = Path("dummy_input_no_audio.ts")
     output_file = Path("dummy_output_no_audio.mp4.part")
 

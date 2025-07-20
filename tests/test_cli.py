@@ -18,7 +18,8 @@ def test_cli_entry_points_start_correctly(command: list[str]) -> None:
     """Test that CLI entry points run without error and show help message."""
     result = subprocess.run(command, capture_output=True, text=True, check=True)
 
-    # Check that the output contains the usage string to ensure the Typer CLI is running.
+    # Check that the output contains the usage string to ensure the Typer CLI is
+    # running.
     assert "Usage:" in result.stdout
 
 

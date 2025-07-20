@@ -15,6 +15,7 @@ def _clear_cache() -> None:
 
 @pytest.mark.unit
 def test_get_media_info_success(mocker: MockerFixture) -> None:
+    """Test that get_media_info returns a MediaInfo object on success."""
     # Arrange
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
     file_path = Path("test.ts")
@@ -44,6 +45,7 @@ def test_get_media_info_success(mocker: MockerFixture) -> None:
 
 @pytest.mark.unit
 def test_get_media_info_failure(mocker: MockerFixture) -> None:
+    """Test that get_media_info raises a RuntimeError on ffprobe failure."""
     # Arrange
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
     file_path = Path("test.ts")
@@ -58,6 +60,7 @@ def test_get_media_info_failure(mocker: MockerFixture) -> None:
 
 @pytest.mark.unit
 def test_get_media_info_invalid_json(mocker: MockerFixture) -> None:
+    """Test that get_media_info raises a RuntimeError on invalid JSON."""
     # Arrange
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
     file_path = Path("test.ts")
@@ -73,6 +76,7 @@ def test_get_media_info_invalid_json(mocker: MockerFixture) -> None:
 
 @pytest.mark.unit
 def test_get_media_info_ignores_unknown_fields(mocker: MockerFixture) -> None:
+    """Test that get_media_info ignores unknown fields in the JSON output."""
     # Arrange
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
     file_path = Path("test.ts")
@@ -101,6 +105,7 @@ def test_get_media_info_ignores_unknown_fields(mocker: MockerFixture) -> None:
 
 @pytest.mark.unit
 def test_get_media_info_cached(mocker: MockerFixture) -> None:
+    """Test that get_media_info caches the result."""
     # Arrange
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
     file_path = Path("test.ts")
@@ -124,6 +129,7 @@ def test_get_media_info_cached(mocker: MockerFixture) -> None:
 
 @pytest.mark.integration
 def test_get_media_info_integration(ts_file: Path) -> None:
+    """Test that get_media_info works with a real ts file."""
     # Act
     result = get_media_info(ts_file)
 
