@@ -30,15 +30,15 @@ pydocstyle = "^6.3.0"
 pytest = "^8.4.1"
 pytest-mock = "^3.14.1"
 
+[tool.poetry.scripts]
+ts2mp4 = "ts2mp4.cli:app"
+
 [tool.pytest.ini_options]
 markers = [
     "unit: mark a test as a unit test.",
     "integration: mark a test as an integration test.",
     "e2e: mark a test as an end-to-end test.",
 ]
-
-[tool.poetry.scripts]
-ts2mp4 = "ts2mp4.cli:app"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
