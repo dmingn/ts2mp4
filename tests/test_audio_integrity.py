@@ -6,7 +6,7 @@ from pytest_mock import MockerFixture
 from ts2mp4.audio_integrity import (
     _get_audio_stream_count,
     _get_audio_stream_md5,
-    verify_audio_stream_integrity,
+    get_failed_audio_stream_indices_by_integrity_check,
 )
 from ts2mp4.ffmpeg import FFmpegResult
 
@@ -25,7 +25,9 @@ def test_get_audio_stream_md5(ts_file: Path) -> None:
     assert actual_md5 == expected_md5
 
 
-def test_verify_audio_stream_integrity_matches(mocker: MockerFixture) -> None:
+def test_get_failed_audio_stream_indices_by_integrity_check_matches(
+    mocker: MockerFixture,
+) -> None:
     input_file = Path("dummy_input.ts")
     output_file = Path("dummy_output.mp4.part")
 
@@ -34,32 +36,62 @@ def test_verify_audio_stream_integrity_matches(mocker: MockerFixture) -> None:
         "ts2mp4.audio_integrity._get_audio_stream_md5",
         side_effect=[
             "hash1_input",
-            "hash2_input",  # input_file のMD5
             "hash1_input",
-            "hash2_input",  # output_file のMD5 (一致)
+            "hash2_input",
+            "hash2_input",
         ],
     )
 
-    verify_audio_stream_integrity(input_file, output_file)
+    failed_streams = get_failed_audio_stream_indices_by_integrity_check(
+        input_file, output_file
+    )
+    assert failed_streams == []
 
 
-def test_verify_audio_stream_integrity_mismatch(mocker: MockerFixture) -> None:
+def test_get_failed_audio_stream_indices_by_integrity_check_mismatch(
+    mocker: MockerFixture,
+) -> None:
     input_file = Path("dummy_input.ts")
     output_file = Path("dummy_output.mp4.part")
 
-    mocker.patch("ts2mp4.audio_integrity._get_audio_stream_count", return_value=1)
+    mocker.patch("ts2mp4.audio_integrity._get_audio_stream_count", return_value=2)
     mocker.patch(
         "ts2mp4.audio_integrity._get_audio_stream_md5",
         side_effect=[
-            "hash_input",  # input_file のMD5
-            "hash_output",  # output_file のMD5 (不一致)
+            "hash1_input",
+            "hash1_output_mismatch",
+            "hash2_input",
+            "hash2_input",
         ],
     )
 
-    with pytest.raises(RuntimeError) as excinfo:
-        verify_audio_stream_integrity(input_file, output_file)
+    failed_streams = get_failed_audio_stream_indices_by_integrity_check(
+        input_file, output_file
+    )
+    assert failed_streams == [0]
 
-    assert "Audio stream MD5 mismatch!" in str(excinfo.value)
+
+def test_get_failed_audio_stream_indices_by_integrity_check_md5_generation_fails(
+    mocker: MockerFixture,
+) -> None:
+    input_file = Path("dummy_input.ts")
+    output_file = Path("dummy_output.mp4.part")
+
+    mocker.patch("ts2mp4.audio_integrity._get_audio_stream_count", return_value=2)
+    mocker.patch(
+        "ts2mp4.audio_integrity._get_audio_stream_md5",
+        side_effect=[
+            "hash1_input",
+            RuntimeError("ffmpeg failed"),
+            "hash2_input",
+            "hash2_input",
+        ],
+    )
+
+    failed_streams = get_failed_audio_stream_indices_by_integrity_check(
+        input_file, output_file
+    )
+    assert failed_streams == [0]
 
 
 def test_get_audio_stream_count_failure(mocker: MockerFixture, ts_file: Path) -> None:
@@ -82,15 +114,16 @@ def test_get_audio_stream_md5_failure(mocker: MockerFixture, ts_file: Path) -> N
         _get_audio_stream_md5(ts_file, 0)
 
 
-def test_verify_audio_stream_integrity_no_audio_streams(
+def test_get_failed_audio_stream_indices_by_integrity_check_no_audio_streams(
     mocker: MockerFixture,
 ) -> None:
     input_file = Path("dummy_input_no_audio.ts")
     output_file = Path("dummy_output_no_audio.mp4.part")
 
     mocker.patch("ts2mp4.audio_integrity._get_audio_stream_count", return_value=0)
-    mocker.patch(
-        "ts2mp4.audio_integrity._get_audio_stream_md5", return_value=""
-    )  # 呼ばれないが念のため
+    mocker.patch("ts2mp4.audio_integrity._get_audio_stream_md5", return_value="")
 
-    verify_audio_stream_integrity(input_file, output_file)
+    failed_streams = get_failed_audio_stream_indices_by_integrity_check(
+        input_file, output_file
+    )
+    assert failed_streams == []

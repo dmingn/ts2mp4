@@ -60,10 +60,10 @@ def _get_audio_stream_md5(file_path: Path, stream_index: int) -> str:
         str(file_path),
         "-map",
         f"0:a:{stream_index}",
-        "-vn",  # No video
+        "-vn",
         "-f",
-        "s16le",  # Output raw signed 16-bit little-endian PCM
-        "-",  # Output to stdout
+        "s16le",
+        "-",
     ]
     result = execute_ffmpeg(ffmpeg_args)
     if result.returncode != 0:
@@ -74,15 +74,23 @@ def _get_audio_stream_md5(file_path: Path, stream_index: int) -> str:
     return hashlib.md5(result.stdout).hexdigest()
 
 
-def verify_audio_stream_integrity(input_file: Path, output_file: Path) -> None:
-    """Verifies the integrity of audio streams by comparing MD5 hashes before and after conversion.
+def get_failed_audio_stream_indices_by_integrity_check(
+    input_file: Path, output_file: Path
+) -> list[int]:
+    """
+    Verifies the integrity of audio streams by comparing MD5 hashes and returns a list of failed stream indices.
+
+    This function compares the MD5 hash of each audio stream in the input file with the corresponding stream
+    in the output file. A stream is considered to have failed the integrity check if the MD5 hashes do not
+    match, or if the MD5 hash could not be generated for either the input or output stream.
 
     Args:
-        input_file: The path to the original input file.
-        output_file: The path to the converted output file.
+        input_file: The path to the original input file (e.g., TS file).
+        output_file: The path to the converted output file (e.g., MP4 file).
 
-    Raises:
-        RuntimeError: If audio stream MD5 hashes do not match.
+    Returns:
+        A list of integer indices for the audio streams that failed the integrity check.
+        An empty list is returned if all audio streams are verified successfully.
     """
     logger.info(
         f"Verifying audio stream integrity for {input_file.name} and {output_file.name}"
@@ -90,16 +98,33 @@ def verify_audio_stream_integrity(input_file: Path, output_file: Path) -> None:
     audio_stream_count = _get_audio_stream_count(input_file)
     logger.info(f"Detected {audio_stream_count} audio streams in input file.")
 
-    input_audio_md5s = [
-        _get_audio_stream_md5(input_file, i) for i in range(audio_stream_count)
-    ]
-    output_audio_md5s = [
-        _get_audio_stream_md5(output_file, i) for i in range(audio_stream_count)
-    ]
+    failed_stream_indices = []
+    for i in range(audio_stream_count):
+        logger.info(f"Verifying audio stream {i}...")
+        try:
+            input_md5 = _get_audio_stream_md5(input_file, i)
+            output_md5 = _get_audio_stream_md5(output_file, i)
+        except RuntimeError as e:
+            logger.warning(f"MD5 hash generation failed for stream {i}: {e}")
+            failed_stream_indices.append(i)
+            continue
 
-    if input_audio_md5s != output_audio_md5s:
-        raise RuntimeError(
-            f"Audio stream MD5 mismatch! Input: {input_audio_md5s}, Output: {output_audio_md5s}"
+        if input_md5 != output_md5:
+            logger.warning(
+                f"MD5 mismatch for stream {i}. Input: {input_md5}, Output: {output_md5}. "
+                "Adding to re-encode list."
+            )
+            failed_stream_indices.append(i)
+        else:
+            logger.info(f"Stream {i} MD5 hash matches: {input_md5}")
+
+    if not failed_stream_indices:
+        logger.info(
+            "Audio stream integrity verified successfully. All MD5 hashes match."
         )
     else:
-        logger.info("Audio stream integrity verified successfully. MD5 hashes match.")
+        logger.warning(
+            f"Audio stream integrity check failed for streams: {failed_stream_indices}"
+        )
+
+    return failed_stream_indices
