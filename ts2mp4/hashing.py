@@ -7,12 +7,12 @@ from .ffmpeg import execute_ffmpeg
 
 
 def get_stream_md5(file_path: Path, stream: Stream) -> str:
-    """Calculate the MD5 hash of a decoded stream of a given file using its stream index.
+    """Calculate the MD5 hash of a decoded stream of a given file.
 
     Args:
     ----
         file_path: The path to the input file.
-        stream_index: The 0-based index of the stream to process within the file.
+        stream: The stream object to process.
 
     Returns:
     -------
@@ -20,7 +20,7 @@ def get_stream_md5(file_path: Path, stream: Stream) -> str:
 
     Raises:
     ------
-        ValueError: If the stream index is invalid or the stream type is unsupported.
+        ValueError: If the stream type is unsupported.
         RuntimeError: If ffmpeg fails to extract the stream.
 
     """
