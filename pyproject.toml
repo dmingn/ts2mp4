@@ -50,6 +50,7 @@ select = [
   "I",  # isort
   # "D",  # pydocstyle - Temporarily disabled
 ]
+ignore = ["E501"]
 
 [tool.ruff.lint.pydocstyle]
 convention = "numpy"
