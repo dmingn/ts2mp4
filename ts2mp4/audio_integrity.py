@@ -46,6 +46,7 @@ def get_mismatched_audio_stream_indices(
     This function compares the MD5 hashes of audio streams between an input and output file.
     It identifies streams where the hashes do not match or where hash generation fails for
     either the input or output stream.
+    It assumes that the order of audio streams in the input and output files corresponds.
 
     Args:
         input_file: Path to the original input file.
