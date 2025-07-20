@@ -1,15 +1,18 @@
 import importlib.metadata
 
+import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4 import _get_ts2mp4_version
 
 
+@pytest.mark.unit
 def test_get_ts2mp4_version_success(mocker: MockerFixture) -> None:
     mocker.patch("importlib.metadata.version", return_value="1.2.3")
     assert _get_ts2mp4_version() == "1.2.3"
 
 
+@pytest.mark.unit
 def test_get_ts2mp4_version_package_not_found(mocker: MockerFixture) -> None:
     mocker.patch(
         "importlib.metadata.version",

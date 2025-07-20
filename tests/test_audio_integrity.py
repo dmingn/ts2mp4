@@ -11,6 +11,7 @@ from ts2mp4.audio_integrity import (
 from ts2mp4.ffmpeg import FFmpegResult
 
 
+@pytest.mark.integration
 def test_get_audio_stream_count(ts_file: Path) -> None:
     """Test the _get_audio_stream_count helper function."""
     expected_stream_count = 1
@@ -18,6 +19,7 @@ def test_get_audio_stream_count(ts_file: Path) -> None:
     assert actual_stream_count == expected_stream_count
 
 
+@pytest.mark.integration
 def test_get_audio_stream_md5(ts_file: Path) -> None:
     """Test the _get_audio_stream_md5 helper function."""
     expected_md5 = "9db9dd4cb46b9678894578946158955b"
@@ -25,6 +27,7 @@ def test_get_audio_stream_md5(ts_file: Path) -> None:
     assert actual_md5 == expected_md5
 
 
+@pytest.mark.unit
 def test_verify_audio_stream_integrity_matches(mocker: MockerFixture) -> None:
     input_file = Path("dummy_input.ts")
     output_file = Path("dummy_output.mp4.part")
@@ -43,6 +46,7 @@ def test_verify_audio_stream_integrity_matches(mocker: MockerFixture) -> None:
     verify_audio_stream_integrity(input_file, output_file)
 
 
+@pytest.mark.unit
 def test_verify_audio_stream_integrity_mismatch(mocker: MockerFixture) -> None:
     input_file = Path("dummy_input.ts")
     output_file = Path("dummy_output.mp4.part")
@@ -62,6 +66,7 @@ def test_verify_audio_stream_integrity_mismatch(mocker: MockerFixture) -> None:
     assert "Audio stream MD5 mismatch!" in str(excinfo.value)
 
 
+@pytest.mark.unit
 def test_get_audio_stream_count_failure(mocker: MockerFixture, ts_file: Path) -> None:
     """Test _get_audio_stream_count with a non-zero return code."""
     mock_execute_ffprobe = mocker.patch("ts2mp4.audio_integrity.execute_ffprobe")
@@ -72,6 +77,7 @@ def test_get_audio_stream_count_failure(mocker: MockerFixture, ts_file: Path) ->
         _get_audio_stream_count(ts_file)
 
 
+@pytest.mark.unit
 def test_get_audio_stream_md5_failure(mocker: MockerFixture, ts_file: Path) -> None:
     """Test _get_audio_stream_md5 with a non-zero return code."""
     mock_execute_ffmpeg = mocker.patch("ts2mp4.audio_integrity.execute_ffmpeg")
@@ -82,6 +88,7 @@ def test_get_audio_stream_md5_failure(mocker: MockerFixture, ts_file: Path) -> N
         _get_audio_stream_md5(ts_file, 0)
 
 
+@pytest.mark.unit
 def test_verify_audio_stream_integrity_no_audio_streams(
     mocker: MockerFixture,
 ) -> None:

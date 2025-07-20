@@ -7,6 +7,7 @@ from ts2mp4.ffmpeg import FFmpegResult
 from ts2mp4.ts2mp4 import ts2mp4
 
 
+@pytest.mark.unit
 def test_calls_execute_ffmpeg_with_correct_args(mocker: MockerFixture) -> None:
     # Arrange
     input_file = Path("input.ts")
@@ -59,6 +60,7 @@ def test_calls_execute_ffmpeg_with_correct_args(mocker: MockerFixture) -> None:
     mock_execute_ffmpeg.assert_called_once_with(expected_args)
 
 
+@pytest.mark.unit
 def test_calls_verify_audio_stream_integrity_on_success(mocker: MockerFixture) -> None:
     # Arrange
     input_file = Path("input.ts")
@@ -81,6 +83,7 @@ def test_calls_verify_audio_stream_integrity_on_success(mocker: MockerFixture) -
     )
 
 
+@pytest.mark.unit
 def test_ts2mp4_raises_runtime_error_on_failure(mocker: MockerFixture) -> None:
     # Arrange
     input_file = Path("input.ts")
@@ -99,6 +102,7 @@ def test_ts2mp4_raises_runtime_error_on_failure(mocker: MockerFixture) -> None:
         ts2mp4(input_file, output_file, crf, preset)
 
 
+@pytest.mark.unit
 def test_does_not_call_verify_audio_stream_integrity_on_failure(
     mocker: MockerFixture,
 ) -> None:
