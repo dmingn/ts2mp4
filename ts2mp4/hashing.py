@@ -4,15 +4,15 @@ from typing import Literal
 
 from .ffmpeg import execute_ffmpeg
 
+StreamType = Literal["audio", "video"]
 
-def get_stream_md5(
-    file_path: Path, stream_type: Literal["a", "v"], stream_index: int
-) -> str:
+
+def get_stream_md5(file_path: Path, stream_type: StreamType, stream_index: int) -> str:
     """Calculates the MD5 hash of a decoded stream of a given file.
 
     Args:
         file_path: The path to the input file.
-        stream_type: The type of the stream to process ('a' for audio, 'v' for video).
+        stream_type: The type of the stream to process ('audio' or 'video').
         stream_index: The index of the stream to process.
 
     Returns:
@@ -21,8 +21,14 @@ def get_stream_md5(
     Raises:
         RuntimeError: If ffmpeg fails to extract the stream.
     """
-    map_specifier = f"0:{stream_type}:{stream_index}"
-    output_format = "s16le" if stream_type == "a" else "rawvideo"
+    if stream_type == "audio":
+        map_specifier = f"0:a:{stream_index}"
+        output_format = "s16le"
+    elif stream_type == "video":
+        map_specifier = f"0:v:{stream_index}"
+        output_format = "rawvideo"
+    else:
+        raise ValueError("Invalid stream_type. Must be 'audio' or 'video'.")
 
     ffmpeg_args = [
         "-hide_banner",

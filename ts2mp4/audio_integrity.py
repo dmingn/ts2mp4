@@ -36,10 +36,10 @@ def verify_audio_stream_integrity(input_file: Path, output_file: Path) -> None:
     logger.info(f"Detected {audio_stream_count} audio streams in input file.")
 
     input_audio_md5s = [
-        get_stream_md5(input_file, "a", i) for i in range(audio_stream_count)
+        get_stream_md5(input_file, "audio", i) for i in range(audio_stream_count)
     ]
     output_audio_md5s = [
-        get_stream_md5(output_file, "a", i) for i in range(audio_stream_count)
+        get_stream_md5(output_file, "audio", i) for i in range(audio_stream_count)
     ]
 
     if input_audio_md5s != output_audio_md5s:
