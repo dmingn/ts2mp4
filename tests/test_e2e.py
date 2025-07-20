@@ -8,21 +8,17 @@ import pytest
 @pytest.fixture(autouse=True)
 def cleanup_files(mp4_file: Path) -> Generator[None, None, None]:
     """Ensures the .mp4 and .log files are removed before and after each test."""
-    if mp4_file.exists():
-        mp4_file.unlink()
 
-    log_files = list(mp4_file.parent.glob("*.log"))
-    for log_file in log_files:
-        log_file.unlink()
+    def _cleanup() -> None:
+        if mp4_file.exists():
+            mp4_file.unlink()
 
+        for log_file in mp4_file.parent.glob("*.log"):
+            log_file.unlink()
+
+    _cleanup()
     yield
-
-    if mp4_file.exists():
-        mp4_file.unlink()
-
-    log_files = list(mp4_file.parent.glob("*.log"))
-    for log_file in log_files:
-        log_file.unlink()
+    _cleanup()
 
 
 def test_ts2mp4_conversion_success(
