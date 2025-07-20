@@ -7,6 +7,7 @@ from ts2mp4.audio_integrity import (
     _get_audio_stream_count,
     get_mismatched_audio_stream_indices,
 )
+from ts2mp4.types import AudioStreamIndex
 
 
 @pytest.mark.integration
@@ -63,7 +64,7 @@ def test_get_mismatched_audio_stream_indices_mismatch(mocker: MockerFixture) -> 
     )
 
     result = get_mismatched_audio_stream_indices(input_file, output_file)
-    assert result == [1]
+    assert result == [AudioStreamIndex(1)]
 
 
 @pytest.mark.unit
@@ -94,7 +95,7 @@ def test_get_mismatched_audio_stream_indices_hash_failure(
     )
 
     result = get_mismatched_audio_stream_indices(input_file, output_file)
-    assert result == [1, 2, 3]
+    assert result == [AudioStreamIndex(1), AudioStreamIndex(2), AudioStreamIndex(3)]
 
 
 @pytest.mark.unit
