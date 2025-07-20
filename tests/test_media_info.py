@@ -20,7 +20,10 @@ def test_get_media_info_success(mocker: MockerFixture) -> None:
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
     file_path = Path("test.ts")
     ffprobe_output = {
-        "streams": [{"codec_type": "video"}, {"codec_type": "audio"}],
+        "streams": [
+            {"codec_type": "video", "index": 0},
+            {"codec_type": "audio", "index": 1},
+        ],
         "format": {"format_name": "mpegts"},
     }
     mock_result = MagicMock()
@@ -34,8 +37,8 @@ def test_get_media_info_success(mocker: MockerFixture) -> None:
     # Assert
     expected = MediaInfo(
         streams=(
-            Stream(codec_type="video"),
-            Stream(codec_type="audio"),
+            Stream(codec_type="video", index=0),
+            Stream(codec_type="audio", index=1),
         ),
         format=Format(format_name="mpegts"),
     )
@@ -110,7 +113,10 @@ def test_get_media_info_cached(mocker: MockerFixture) -> None:
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
     file_path = Path("test.ts")
     ffprobe_output = {
-        "streams": [{"codec_type": "video"}, {"codec_type": "audio"}],
+        "streams": [
+            {"codec_type": "video", "index": 0},
+            {"codec_type": "audio", "index": 1},
+        ],
         "format": {"format_name": "mpegts"},
     }
     mock_result = MagicMock()
@@ -134,10 +140,11 @@ def test_get_media_info_integration(ts_file: Path) -> None:
     result = get_media_info(ts_file)
 
     # Assert
+    # Assuming a real ts file has at least one video and one audio stream at indices 0 and 1
     expected = MediaInfo(
         streams=(
-            Stream(codec_type="video"),
-            Stream(codec_type="audio"),
+            Stream(codec_type="video", index=0),
+            Stream(codec_type="audio", index=1),
         ),
         format=Format(format_name="mpegts"),
     )

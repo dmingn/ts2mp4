@@ -5,7 +5,6 @@ from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import FFmpegResult
 from ts2mp4.ts2mp4 import ts2mp4
-from ts2mp4.types import AudioStreamIndex
 
 
 @pytest.mark.unit
@@ -146,12 +145,12 @@ def test_ts2mp4_raises_runtime_error_on_audio_integrity_failure(
     mock_execute_ffmpeg.return_value = FFmpegResult(stdout=b"", stderr="", returncode=0)
     mocker.patch(
         "ts2mp4.ts2mp4.get_mismatched_audio_stream_indices",
-        return_value=[AudioStreamIndex(0), AudioStreamIndex(2)],
+        return_value=[0, 2],
     )
 
     # Act & Assert
     with pytest.raises(
         RuntimeError,
-        match="Audio stream integrity check failed for indices: \\[0, 2\\]",
+        match=r"Audio stream integrity check failed for indices: \[0, 2\]",
     ):
         ts2mp4(input_file, output_file, crf, preset)

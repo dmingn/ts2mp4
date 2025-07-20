@@ -1,20 +1,17 @@
 import hashlib
 from pathlib import Path
-from typing import Literal
 
 from .ffmpeg import execute_ffmpeg
+from .media_info import get_media_info
 
-StreamType = Literal["audio", "video"]
 
-
-def get_stream_md5(file_path: Path, stream_type: StreamType, stream_index: int) -> str:
-    """Calculate the MD5 hash of a decoded stream of a given file.
+def get_stream_md5(file_path: Path, stream_index: int) -> str:
+    """Calculate the MD5 hash of a decoded stream of a given file using its stream index.
 
     Args:
     ----
         file_path: The path to the input file.
-        stream_type: The type of the stream to process ('audio' or 'video').
-        stream_index: The index of the stream to process.
+        stream_index: The 0-based index of the stream to process within the file.
 
     Returns:
     -------
@@ -22,20 +19,27 @@ def get_stream_md5(file_path: Path, stream_type: StreamType, stream_index: int) 
 
     Raises:
     ------
+        ValueError: If the stream index is invalid or the stream type is unsupported.
         RuntimeError: If ffmpeg fails to extract the stream.
 
     """
-    if stream_type == "audio":
-        map_specifier = f"0:a:{stream_index}"
+    media_info = get_media_info(file_path)
+
+    if stream_index >= len(media_info.streams) or stream_index < 0:
+        raise ValueError(f"Invalid stream index: {stream_index}")
+
+    stream = media_info.streams[stream_index]
+
+    if stream.codec_type == "audio":
         output_format = "s16le"
         stream_disabling_arg = "-vn"  # Disable video stream
-    elif stream_type == "video":
-        map_specifier = f"0:v:{stream_index}"
+    elif stream.codec_type == "video":
         output_format = "rawvideo"
         stream_disabling_arg = "-an"  # Disable audio stream
     else:
         raise ValueError(
-            f"Invalid stream_type: {stream_type}. Must be 'audio' or 'video'."
+            f"Unsupported stream type for MD5 calculation: {stream.codec_type}. "
+            "Only 'audio' and 'video' are supported."
         )
 
     ffmpeg_args = [
@@ -44,7 +48,7 @@ def get_stream_md5(file_path: Path, stream_type: StreamType, stream_index: int) 
         str(file_path),
         stream_disabling_arg,
         "-map",
-        map_specifier,
+        f"0:{stream_index}",
         "-f",
         output_format,
         "-",  # Output to stdout
@@ -52,7 +56,7 @@ def get_stream_md5(file_path: Path, stream_type: StreamType, stream_index: int) 
     result = execute_ffmpeg(ffmpeg_args)
     if result.returncode != 0:
         raise RuntimeError(
-            f"ffmpeg failed to get decoded {stream_type} stream for {file_path}. "
+            f"ffmpeg failed to get decoded {stream.codec_type} stream for {file_path}. "
             f"Return code: {result.returncode}"
         )
     return hashlib.md5(result.stdout).hexdigest()
