@@ -6,8 +6,12 @@ check: $(TEST_ASSETS_DIR)/test_video.ts
 	poetry run isort --check .
 	poetry run flake8 .
 	poetry run mypy .
-	poetry run pytest --ignore=tests/test_e2e.py
-	poetry run pytest tests/test_e2e.py
+	@echo "Running unit tests..."
+	poetry run pytest -m unit
+	@echo "Running integration tests..."
+	poetry run pytest -m integration
+	@echo "Running E2E tests..."
+	poetry run pytest -m e2e
 
 .PHONY: format
 format:

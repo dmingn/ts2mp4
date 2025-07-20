@@ -3,11 +3,13 @@ import logging
 from unittest.mock import MagicMock
 
 import logzero
+import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import execute_ffmpeg, execute_ffprobe
 
 
+@pytest.mark.integration
 def test_execute_ffmpeg_success() -> None:
     """Test that execute_ffmpeg runs ffmpeg successfully."""
     result = execute_ffmpeg(["-version"])
@@ -15,12 +17,14 @@ def test_execute_ffmpeg_success() -> None:
     assert b"ffmpeg version" in result.stdout or "ffmpeg version" in result.stderr
 
 
+@pytest.mark.integration
 def test_execute_ffmpeg_failure() -> None:
     """Test that execute_ffmpeg returns a non-zero return code on failure."""
     result = execute_ffmpeg(["-invalid_option"])
     assert result.returncode != 0
 
 
+@pytest.mark.integration
 def test_execute_ffprobe_success() -> None:
     """Test that execute_ffprobe runs ffprobe successfully."""
     result = execute_ffprobe(["-version"])
@@ -28,6 +32,7 @@ def test_execute_ffprobe_success() -> None:
     assert b"ffprobe version" in result.stdout or "ffprobe version" in result.stderr
 
 
+@pytest.mark.integration
 def test_handles_non_utf8_output(mocker: MockerFixture) -> None:
     """Test that _execute_process handles non-UTF-8 output correctly."""
     mock_popen = mocker.patch("subprocess.Popen")
@@ -42,6 +47,7 @@ def test_handles_non_utf8_output(mocker: MockerFixture) -> None:
     assert "�" in result.stderr
 
 
+@pytest.mark.integration
 def test_logs_stderr_as_info() -> None:
     """Test that the execution logs stderr as info."""
     log_stream = io.StringIO()

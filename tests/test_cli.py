@@ -6,6 +6,7 @@ from freezegun import freeze_time
 from pytest_mock import MockerFixture
 
 
+@pytest.mark.integration
 @pytest.mark.parametrize(
     "command",
     [
@@ -21,6 +22,7 @@ def test_cli_entry_points_start_correctly(command: list[str]) -> None:
     assert "Usage:" in result.stdout
 
 
+@pytest.mark.integration
 def test_cli_options_recognized(mocker: MockerFixture, tmp_path: Path) -> None:
     """Test that the CLI recognizes the --crf and --preset options."""
     mock_ts2mp4 = mocker.patch("ts2mp4.ts2mp4.ts2mp4")
@@ -52,6 +54,7 @@ def test_cli_options_recognized(mocker: MockerFixture, tmp_path: Path) -> None:
     )
 
 
+@pytest.mark.integration
 def test_cli_invalid_crf_value(tmp_path: Path) -> None:
     """Test that the CLI handles invalid CRF values gracefully."""
     dummy_ts_path = tmp_path / "dummy.ts"
@@ -68,6 +71,7 @@ def test_cli_invalid_crf_value(tmp_path: Path) -> None:
     assert result.returncode != 0
 
 
+@pytest.mark.integration
 def test_cli_invalid_preset_value(mocker: MockerFixture, tmp_path: Path) -> None:
     """Test that the CLI handles invalid preset values gracefully."""
     mock_ts2mp4 = mocker.patch("ts2mp4.ts2mp4.ts2mp4")
@@ -93,6 +97,7 @@ def test_cli_invalid_preset_value(mocker: MockerFixture, tmp_path: Path) -> None
     mock_ts2mp4.assert_not_called()
 
 
+@pytest.mark.integration
 @freeze_time("2023-01-01 12:00:00")
 def test_log_file_creation(mocker: MockerFixture, tmp_path: Path) -> None:
     """Test that a log file is created with the correct naming convention."""

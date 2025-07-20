@@ -20,6 +20,7 @@ def cleanup_files(mp4_file: Path) -> Generator[None, None, None]:
     _cleanup()
 
 
+@pytest.mark.e2e
 def test_ts2mp4_conversion_success(
     ts_file: Path, mp4_file: Path, project_root: Path
 ) -> None:
@@ -31,6 +32,7 @@ def test_ts2mp4_conversion_success(
     assert mp4_file.stat().st_size > 0
 
 
+@pytest.mark.e2e
 def test_ts2mp4_file_not_found_error(mp4_file: Path, project_root: Path) -> None:
     """Test error handling when the input .ts file does not exist."""
     non_existent_file = project_root / "non_existent.ts"
@@ -40,6 +42,7 @@ def test_ts2mp4_file_not_found_error(mp4_file: Path, project_root: Path) -> None
     assert not mp4_file.exists()
 
 
+@pytest.mark.e2e
 def test_ts2mp4_no_input_file_error(mp4_file: Path, project_root: Path) -> None:
     """Test error handling when no input file is provided."""
     command = ["poetry", "run", "ts2mp4"]
