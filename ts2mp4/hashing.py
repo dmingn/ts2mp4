@@ -24,9 +24,11 @@ def get_stream_md5(file_path: Path, stream_type: StreamType, stream_index: int) 
     if stream_type == "audio":
         map_specifier = f"0:a:{stream_index}"
         output_format = "s16le"
+        stream_disabling_arg = "-vn"  # Disable video stream
     elif stream_type == "video":
         map_specifier = f"0:v:{stream_index}"
         output_format = "rawvideo"
+        stream_disabling_arg = "-an"  # Disable audio stream
     else:
         raise ValueError(
             f"Invalid stream_type: {stream_type}. Must be 'audio' or 'video'."
@@ -36,6 +38,7 @@ def get_stream_md5(file_path: Path, stream_type: StreamType, stream_index: int) 
         "-hide_banner",
         "-i",
         str(file_path),
+        stream_disabling_arg,
         "-map",
         map_specifier,
         "-f",
