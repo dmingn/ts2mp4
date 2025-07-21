@@ -34,9 +34,29 @@ def test_get_media_info_success(mocker: MockerFixture, mock_path: MagicMock) -> 
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
     ffprobe_output = {
         "streams": [
-            {"codec_type": "video", "index": 0, "codec_name": "h264"},
-            {"codec_type": "audio", "index": 1, "codec_name": "aac"},
-            {"codec_type": "audio", "index": 2, "codec_name": "mp3"},
+            {
+                "codec_type": "video",
+                "index": 0,
+                "codec_name": "h264",
+            },
+            {
+                "codec_type": "audio",
+                "index": 1,
+                "codec_name": "aac",
+                "profile": "LC",
+                "channels": 2,
+                "sample_rate": 48000,
+                "bit_rate": 192000,
+            },
+            {
+                "codec_type": "audio",
+                "index": 2,
+                "codec_name": "mp3",
+                "profile": "unknown",
+                "channels": 1,
+                "sample_rate": 44100,
+                "bit_rate": 128000,
+            },
         ],
         "format": {"format_name": "mpegts"},
     }
@@ -52,8 +72,24 @@ def test_get_media_info_success(mocker: MockerFixture, mock_path: MagicMock) -> 
     expected = MediaInfo(
         streams=(
             Stream(codec_type="video", index=0, codec_name="h264"),
-            Stream(codec_type="audio", index=1, codec_name="aac"),
-            Stream(codec_type="audio", index=2, codec_name="mp3"),
+            Stream(
+                codec_type="audio",
+                index=1,
+                codec_name="aac",
+                profile="LC",
+                channels=2,
+                sample_rate=48000,
+                bit_rate=192000,
+            ),
+            Stream(
+                codec_type="audio",
+                index=2,
+                codec_name="mp3",
+                profile="unknown",
+                channels=1,
+                sample_rate=44100,
+                bit_rate=128000,
+            ),
         ),
         format=Format(format_name="mpegts"),
     )
@@ -190,9 +226,30 @@ def test_get_media_info_integration(ts_file: Path) -> None:
     # Assuming a real ts file has at least one video and one audio stream at indices 0 and 1
     expected = MediaInfo(
         streams=(
-            Stream(codec_type="video", index=0, codec_name="mpeg2video"),
-            Stream(codec_type="audio", index=1, codec_name="aac"),
-            Stream(codec_type="audio", index=2, codec_name="aac"),
+            Stream(
+                codec_type="video",
+                index=0,
+                codec_name="mpeg2video",
+                profile="Main",
+            ),
+            Stream(
+                codec_type="audio",
+                index=1,
+                codec_name="aac",
+                profile="LC",
+                channels=1,
+                sample_rate=44100,
+                bit_rate=5267,
+            ),
+            Stream(
+                codec_type="audio",
+                index=2,
+                codec_name="aac",
+                profile="LC",
+                channels=1,
+                sample_rate=44100,
+                bit_rate=71510,
+            ),
         ),
         format=Format(format_name="mpegts"),
     )

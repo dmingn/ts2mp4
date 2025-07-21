@@ -18,7 +18,7 @@ def test_calls_execute_ffmpeg_with_correct_args(mocker: MockerFixture) -> None:
 
     mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
     mock_execute_ffmpeg.return_value = FFmpegResult(stdout=b"", stderr="", returncode=0)
-    mocker.patch("ts2mp4.ts2mp4.verify_audio_stream_integrity")
+    mocker.patch("ts2mp4.ts2mp4.verify_streams")
 
     # Act
     ts2mp4(input_file, output_file, crf, preset)
@@ -36,8 +36,8 @@ def test_calls_execute_ffmpeg_with_correct_args(mocker: MockerFixture) -> None:
         "0:v",
         "-map",
         "0:a",
-        "-map",
-        "0:s?",
+        # "-map",
+        # "0:s?",
         "-f",
         "mp4",
         "-vsync",
@@ -52,8 +52,8 @@ def test_calls_execute_ffmpeg_with_correct_args(mocker: MockerFixture) -> None:
         preset,
         "-codec:a",
         "copy",
-        "-codec:s",
-        "mov_text",
+        # "-codec:s",
+        # "mov_text",
         "-bsf:a",
         "aac_adtstoasc",
         str(output_file),
@@ -62,9 +62,7 @@ def test_calls_execute_ffmpeg_with_correct_args(mocker: MockerFixture) -> None:
 
 
 @pytest.mark.unit
-def test_calls_verify_audio_stream_integrity_on_success(
-    mocker: MockerFixture,
-) -> None:
+def test_calls_verify_streams_on_success(mocker: MockerFixture) -> None:
     # Arrange
     input_file = Path("input.ts")
     output_file = Path("output.mp4")
@@ -73,16 +71,14 @@ def test_calls_verify_audio_stream_integrity_on_success(
 
     mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
     mock_execute_ffmpeg.return_value = FFmpegResult(stdout=b"", stderr="", returncode=0)
-    mock_verify_audio_stream_integrity = mocker.patch(
-        "ts2mp4.ts2mp4.verify_audio_stream_integrity"
-    )
+    mock_verify_streams = mocker.patch("ts2mp4.ts2mp4.verify_streams")
 
     # Act
     ts2mp4(input_file, output_file, crf, preset)
 
     # Assert
-    mock_verify_audio_stream_integrity.assert_called_once_with(
-        input_file=input_file, output_file=output_file
+    mock_verify_streams.assert_called_once_with(
+        input_file=input_file, output_file=output_file, stream_type="audio"
     )
 
 
@@ -94,7 +90,7 @@ def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(mocker: MockerFixture) ->
     crf = 23
     preset = "medium"
 
-    mocker.patch("ts2mp4.ts2mp4.verify_audio_stream_integrity")
+    mocker.patch("ts2mp4.ts2mp4.verify_streams")
     mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
     mock_execute_ffmpeg.return_value = FFmpegResult(
         stdout=b"", stderr="ffmpeg error", returncode=1
@@ -106,10 +102,10 @@ def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(mocker: MockerFixture) ->
 
 
 @pytest.mark.unit
-def test_does_not_call_verify_audio_stream_integrity_on_ffmpeg_failure(
+def test_does_not_call_verify_streams_on_ffmpeg_failure(
     mocker: MockerFixture,
 ) -> None:
-    """Test that ts2mp4 does not call verify_audio_stream_integrity on failure."""
+    """Test that ts2mp4 does not call verify_streams on failure."""
     # Arrange
     input_file = Path("input.ts")
     output_file = Path("output.mp4")
@@ -117,9 +113,7 @@ def test_does_not_call_verify_audio_stream_integrity_on_ffmpeg_failure(
     preset = "medium"
 
     mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
-    mock_verify_audio_stream_integrity = mocker.patch(
-        "ts2mp4.ts2mp4.verify_audio_stream_integrity"
-    )
+    mock_verify_streams = mocker.patch("ts2mp4.ts2mp4.verify_streams")
     mock_execute_ffmpeg.return_value = FFmpegResult(
         stdout=b"", stderr="ffmpeg error", returncode=1
     )
@@ -128,11 +122,11 @@ def test_does_not_call_verify_audio_stream_integrity_on_ffmpeg_failure(
     with pytest.raises(RuntimeError):
         ts2mp4(input_file, output_file, crf, preset)
 
-    mock_verify_audio_stream_integrity.assert_not_called()
+    mock_verify_streams.assert_not_called()
 
 
 @pytest.mark.unit
-def test_ts2mp4_re_encodes_on_audio_integrity_failure(mocker: MockerFixture) -> None:
+def test_ts2mp4_re_encodes_on_stream_integrity_failure(mocker: MockerFixture) -> None:
     # Arrange
     input_file = Path("input.ts")
     output_file = Path("output.mp4")
@@ -144,7 +138,7 @@ def test_ts2mp4_re_encodes_on_audio_integrity_failure(mocker: MockerFixture) -> 
         return_value=FFmpegResult(stdout=b"", stderr="", returncode=0),
     )
     mocker.patch(
-        "ts2mp4.ts2mp4.verify_audio_stream_integrity",
+        "ts2mp4.ts2mp4.verify_streams",
         side_effect=RuntimeError("Audio stream integrity check failed"),
     )
     mock_re_encode = mocker.patch("ts2mp4.ts2mp4.re_encode_mismatched_audio_streams")
@@ -174,7 +168,7 @@ def test_ts2mp4_re_encode_failure_raises_error(mocker: MockerFixture) -> None:
         return_value=FFmpegResult(stdout=b"", stderr="", returncode=0),
     )
     mocker.patch(
-        "ts2mp4.ts2mp4.verify_audio_stream_integrity",
+        "ts2mp4.ts2mp4.verify_streams",
         side_effect=RuntimeError("Audio stream integrity check failed"),
     )
     mocker.patch(
