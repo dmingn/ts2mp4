@@ -20,7 +20,7 @@ def _clear_cache() -> None:
 
 
 @pytest.fixture()
-def mock_path(mocker: MockerFixture) -> MagicMock:
+def mock_path() -> MagicMock:
     mock = MagicMock(spec=Path)
     mock.resolve.return_value = mock
     mock.stat.return_value = MagicMock(st_mtime=123.45, st_size=67890)
