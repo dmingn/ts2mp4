@@ -4,13 +4,13 @@ from typing import NamedTuple
 
 from logzero import logger
 
-from .ffmpeg import execute_ffmpeg
+from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
 from .media_info import Stream, get_media_info
 from .stream_integrity import compare_stream_hashes, verify_streams
 
 
 class AudioStreamArgs(NamedTuple):
-    """A tuple containing FFmpeg arguments and indices of copied audio streams."""
+    """A-tuple containing FFmpeg arguments and indices of copied audio streams."""
 
     ffmpeg_args: list[str]
     copied_audio_stream_indices: list[int]
@@ -19,11 +19,20 @@ class AudioStreamArgs(NamedTuple):
 def _build_re_encode_args(
     audio_stream_index: int, original_audio_stream: Stream
 ) -> list[str]:
+    codec_name = str(original_audio_stream.codec_name)
+    if original_audio_stream.codec_name == "aac":
+        if is_libfdk_aac_available():
+            codec_name = "libfdk_aac"
+        else:
+            logger.warning(
+                "libfdk_aac is not available. Falling back to the default AAC encoder."
+            )
+
     re_encode_args = [
         "-map",
         f"0:a:{audio_stream_index}",
         f"-codec:a:{audio_stream_index}",
-        str(original_audio_stream.codec_name),
+        codec_name,
     ]
     if original_audio_stream.sample_rate is not None:
         re_encode_args.extend(
