@@ -15,6 +15,7 @@ class Stream(BaseModel):
 
     index: int
     codec_type: Optional[str] = None
+    codec_name: Optional[str] = None
 
 
 class Format(BaseModel):

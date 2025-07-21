@@ -21,9 +21,9 @@ def test_get_media_info_success(mocker: MockerFixture) -> None:
     file_path = Path("test.ts")
     ffprobe_output = {
         "streams": [
-            {"codec_type": "video", "index": 0},
-            {"codec_type": "audio", "index": 1},
-            {"codec_type": "audio", "index": 2},
+            {"codec_type": "video", "index": 0, "codec_name": "h264"},
+            {"codec_type": "audio", "index": 1, "codec_name": "aac"},
+            {"codec_type": "audio", "index": 2, "codec_name": "mp3"},
         ],
         "format": {"format_name": "mpegts"},
     }
@@ -38,9 +38,9 @@ def test_get_media_info_success(mocker: MockerFixture) -> None:
     # Assert
     expected = MediaInfo(
         streams=(
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="audio", index=1),
-            Stream(codec_type="audio", index=2),
+            Stream(codec_type="video", index=0, codec_name="h264"),
+            Stream(codec_type="audio", index=1, codec_name="aac"),
+            Stream(codec_type="audio", index=2, codec_name="mp3"),
         ),
         format=Format(format_name="mpegts"),
     )
@@ -116,8 +116,8 @@ def test_get_media_info_cached(mocker: MockerFixture) -> None:
     file_path = Path("test.ts")
     ffprobe_output = {
         "streams": [
-            {"codec_type": "video", "index": 0},
-            {"codec_type": "audio", "index": 1},
+            {"codec_type": "video", "index": 0, "codec_name": "h264"},
+            {"codec_type": "audio", "index": 1, "codec_name": "aac"},
         ],
         "format": {"format_name": "mpegts"},
     }
@@ -145,9 +145,9 @@ def test_get_media_info_integration(ts_file: Path) -> None:
     # Assuming a real ts file has at least one video and one audio stream at indices 0 and 1
     expected = MediaInfo(
         streams=(
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="audio", index=1),
-            Stream(codec_type="audio", index=2),
+            Stream(codec_type="video", index=0, codec_name="mpeg2video"),
+            Stream(codec_type="audio", index=1, codec_name="aac"),
+            Stream(codec_type="audio", index=2, codec_name="aac"),
         ),
         format=Format(format_name="mpegts"),
     )
