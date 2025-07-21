@@ -61,7 +61,7 @@ release:
 		exit 1; \
 	fi
 	@echo "Getting version from pyproject.toml..."
-	$(eval VERSION := $(shell sed -n 's/version = \"\(.*\)\"/\1/p' pyproject.toml))
+	$(eval VERSION := $(shell poetry version --short))
 	@echo "Version: $(VERSION)"
 	@echo "Creating git tag $(VERSION)..."
 	git tag $(VERSION)
