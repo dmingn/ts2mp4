@@ -19,7 +19,9 @@ format:
 	poetry run ruff format .
 
 .PHONY: format-and-check
-format-and-check: format check
+format-and-check:
+	$(MAKE) format
+	$(MAKE) check
 
 $(TEST_ASSETS_DIR)/test_video.ts: Makefile
 	@mkdir -p $(TEST_ASSETS_DIR)
