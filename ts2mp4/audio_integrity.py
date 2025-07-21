@@ -6,7 +6,7 @@ from logzero import logger
 
 from .ffmpeg import execute_ffmpeg
 from .media_info import get_media_info
-from .stream_integrity import check_stream_integrity, verify_stream_integrity
+from .stream_integrity import compare_stream_hashes, verify_streams
 
 
 class AudioStreamArgs(NamedTuple):
@@ -47,7 +47,7 @@ def _build_args_for_audio_streams(
 
         integrity_check_passes = False
         if encoded_audio_stream is not None:
-            integrity_check_passes = check_stream_integrity(
+            integrity_check_passes = compare_stream_hashes(
                 input_file=original_file,
                 output_file=encoded_file,
                 input_stream=original_audio_stream,
@@ -125,8 +125,8 @@ def re_encode_mismatched_audio_streams(
         """Verifies the integrity of streams after re-encoding."""
         logger.info(f"Verifying stream integrity for {output_file.name}")
 
-        verify_stream_integrity(encoded_file, output_file, "video")
-        verify_stream_integrity(
+        verify_streams(encoded_file, output_file, "video")
+        verify_streams(
             encoded_file,
             output_file,
             "audio",

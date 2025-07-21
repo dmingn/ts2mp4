@@ -23,7 +23,7 @@ def test_build_args_for_audio_streams_no_mismatch(mocker: MockerFixture) -> None
             ]
         ),
     )
-    mocker.patch("ts2mp4.audio_integrity.check_stream_integrity", return_value=True)
+    mocker.patch("ts2mp4.audio_integrity.compare_stream_hashes", return_value=True)
 
     result = _build_args_for_audio_streams(Path("original.ts"), Path("encoded.mp4"))
     assert result.ffmpeg_args == [
@@ -60,7 +60,7 @@ def test_build_args_for_audio_streams_with_mismatch(mocker: MockerFixture) -> No
         ],
     )
     mocker.patch(
-        "ts2mp4.audio_integrity.check_stream_integrity", side_effect=[True, False]
+        "ts2mp4.audio_integrity.compare_stream_hashes", side_effect=[True, False]
     )
 
     result = _build_args_for_audio_streams(Path("original.ts"), Path("encoded.mp4"))
@@ -99,7 +99,7 @@ def test_build_args_for_audio_streams_unsupported_codec(
             ),
         ],
     )
-    mocker.patch("ts2mp4.audio_integrity.check_stream_integrity", return_value=False)
+    mocker.patch("ts2mp4.audio_integrity.compare_stream_hashes", return_value=False)
 
     with pytest.raises(NotImplementedError):
         _build_args_for_audio_streams(Path("original.ts"), Path("encoded.mp4"))
