@@ -237,7 +237,12 @@ def re_encode_mismatched_audio_streams(
             audio_stream_index=audio_stream_index,
         )
         if metrics:
-            logger.info(
-                f"Audio quality for stream {audio_stream_index}: "
-                f"APSNR={metrics.apsnr:.2f}dB, ASDR={metrics.asdr:.2f}dB"
-            )
+            log_parts = []
+            if metrics.apsnr is not None:
+                log_parts.append(f"APSNR={metrics.apsnr:.2f}dB")
+            if metrics.asdr is not None:
+                log_parts.append(f"ASDR={metrics.asdr:.2f}dB")
+            if log_parts:
+                logger.info(
+                    f"Audio quality for stream {audio_stream_index}: {', '.join(log_parts)}"
+                )
