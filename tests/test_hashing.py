@@ -8,6 +8,25 @@ from ts2mp4.hashing import get_stream_md5
 from ts2mp4.media_info import Stream
 
 
+@pytest.mark.unit
+def test_get_stream_md5_caching(mocker: MockerFixture) -> None:
+    """Test that get_stream_md5 caches results."""
+    file_path = Path("test.ts")
+    stream = Stream(index=0, codec_type="video")
+
+    mock_execute_ffmpeg = mocker.patch(
+        "ts2mp4.hashing.execute_ffmpeg",
+        return_value=FFmpegResult(stdout=b"stream_data", stderr="", returncode=0),
+    )
+
+    # Call twice
+    get_stream_md5(file_path, stream)
+    get_stream_md5(file_path, stream)
+
+    # Assert that execute_ffmpeg was only called once
+    mock_execute_ffmpeg.assert_called_once()
+
+
 @pytest.mark.integration
 @pytest.mark.parametrize(
     "stream_index, codec_type",

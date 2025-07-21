@@ -1,4 +1,5 @@
 import hashlib
+from functools import cache
 from pathlib import Path
 
 from ts2mp4.media_info import Stream
@@ -6,6 +7,7 @@ from ts2mp4.media_info import Stream
 from .ffmpeg import execute_ffmpeg
 
 
+@cache
 def get_stream_md5(file_path: Path, stream: Stream) -> str:
     """Calculate the MD5 hash of a decoded stream of a given file.
 
