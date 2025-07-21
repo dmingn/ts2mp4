@@ -73,7 +73,7 @@ def test_get_mismatched_audio_stream_indices_mismatch(mocker: MockerFixture) -> 
     )
 
     result = get_mismatched_audio_stream_indices(input_file, output_file)
-    assert result == [1]  # Index of the mismatched audio stream
+    assert result == [(1, 1)]  # Index of the mismatched audio stream
 
 
 @pytest.mark.unit
@@ -89,7 +89,7 @@ def test_get_mismatched_audio_stream_indices_mismatch(mocker: MockerFixture) -> 
                 "stream_3_hash",
                 "stream_3_hash",
             ],
-            [1],
+            [(1, 1)],
             id="output_hash_failure",
         ),
         pytest.param(
@@ -100,7 +100,7 @@ def test_get_mismatched_audio_stream_indices_mismatch(mocker: MockerFixture) -> 
                 "stream_3_hash",
                 "stream_3_hash",
             ],
-            [2],
+            [(2, 2)],
             id="input_hash_failure",
         ),
         pytest.param(
@@ -111,7 +111,7 @@ def test_get_mismatched_audio_stream_indices_mismatch(mocker: MockerFixture) -> 
                 "stream_3_input_ok",
                 RuntimeError("ffmpeg error: stream 3 output failed"),
             ],
-            [1, 2, 3],
+            [(1, 1), (2, 2), (3, 3)],
             id="multiple_hash_failures",
         ),
     ],
@@ -119,7 +119,7 @@ def test_get_mismatched_audio_stream_indices_mismatch(mocker: MockerFixture) -> 
 def test_get_mismatched_audio_stream_indices_hash_failure(
     mocker: MockerFixture,
     md5_side_effect: Union[list[str], list[RuntimeError]],
-    expected_result: list[int],
+    expected_result: list[Union[tuple[int, int], tuple[int, None], tuple[None, int]]],
 ) -> None:
     """Tests that indices with hash generation failures are reported."""
     input_file = Path("dummy_input.ts")
@@ -195,7 +195,7 @@ def test_get_mismatched_audio_stream_indices_missing_output_stream(
     mock_get_stream_md5 = mocker.patch("ts2mp4.audio_integrity.get_stream_md5")
 
     result = get_mismatched_audio_stream_indices(input_file, output_file)
-    assert result == [1]
+    assert result == [(1, None)]
     mock_get_stream_md5.assert_not_called()
 
 
@@ -226,5 +226,5 @@ def test_get_mismatched_audio_stream_indices_output_stream_type_mismatch(
     mock_get_stream_md5 = mocker.patch("ts2mp4.audio_integrity.get_stream_md5")
 
     result = get_mismatched_audio_stream_indices(input_file, output_file)
-    assert result == [1]
+    assert result == [(1, None)]
     mock_get_stream_md5.assert_not_called()

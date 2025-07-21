@@ -1,5 +1,6 @@
 import itertools
 from pathlib import Path
+from typing import Optional
 
 from logzero import logger
 
@@ -46,9 +47,9 @@ def _check_stream_integrity(
 
 def get_mismatched_audio_stream_indices(
     input_file: Path, output_file: Path
-) -> list[int]:
+) -> list[tuple[Optional[int], Optional[int]]]:
     """
-    Verifies audio stream integrity by comparing MD5 hashes, returning problematic stream indices.
+    Verifies audio stream integrity by comparing MD5 hashes, returning problematic stream index pairs.
 
     This function compares the MD5 hashes of audio streams between an input and output file.
     It identifies streams where the hashes do not match or where hash generation fails for
@@ -60,7 +61,9 @@ def get_mismatched_audio_stream_indices(
         output_file: Path to the converted output file.
 
     Returns:
-        A list of stream indices for audio streams that have mismatched or failed MD5 hashes.
+        A list of tuples, where each tuple contains (input_stream_index, output_stream_index)
+        for audio streams that have mismatched or failed MD5 hashes.
+        If an input or output stream does not have a corresponding stream, its index will be None.
         An empty list is returned if all audio streams are verified successfully.
     """
     logger.info(
@@ -70,7 +73,7 @@ def get_mismatched_audio_stream_indices(
     input_media_info = get_media_info(input_file)
     output_media_info = get_media_info(output_file)
 
-    mismatched_indices = []
+    mismatched_indices: list[tuple[Optional[int], Optional[int]]] = []
     for input_audio_stream, output_audio_stream in itertools.zip_longest(
         (
             audio_stream
@@ -83,24 +86,27 @@ def get_mismatched_audio_stream_indices(
             if audio_stream.codec_type == "audio"
         ),
     ):
+        input_idx = input_audio_stream.index if input_audio_stream else None
+        output_idx = output_audio_stream.index if output_audio_stream else None
+
         if input_audio_stream is None:
             logger.warning(
-                f"Audio stream at index {output_audio_stream.index} in output file has no corresponding stream in input file."
+                f"Audio stream at index {output_idx} in output file has no corresponding stream in input file."
             )
-            mismatched_indices.append(output_audio_stream.index)
+            mismatched_indices.append((None, output_idx))
             continue
 
         if output_audio_stream is None:
             logger.warning(
-                f"Audio stream at index {input_audio_stream.index} in input file has no corresponding stream in output file."
+                f"Audio stream at index {input_idx} in input file has no corresponding stream in output file."
             )
-            mismatched_indices.append(input_audio_stream.index)
+            mismatched_indices.append((input_idx, None))
             continue
 
         if not _check_stream_integrity(
             input_file, output_file, input_audio_stream, output_audio_stream
         ):
-            mismatched_indices.append(input_audio_stream.index)
+            mismatched_indices.append((input_idx, output_idx))
 
     if not mismatched_indices:
         logger.info(
@@ -108,8 +114,7 @@ def get_mismatched_audio_stream_indices(
         )
     else:
         logger.error(
-            f"Found {len(mismatched_indices)} mismatched audio streams at "
-            f"indices: {mismatched_indices}"
+            f"Found {len(mismatched_indices)} mismatched audio stream pairs: {mismatched_indices}"
         )
 
     return mismatched_indices
