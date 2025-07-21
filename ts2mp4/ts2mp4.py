@@ -1,6 +1,11 @@
 from pathlib import Path
 
-from .audio_integrity import verify_audio_stream_integrity
+from logzero import logger
+
+from .audio_integrity import (
+    re_encode_mismatched_audio_streams,
+    verify_audio_stream_integrity,
+)
 from .ffmpeg import execute_ffmpeg
 
 
@@ -59,4 +64,18 @@ def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
 
-    verify_audio_stream_integrity(input_file=input_file, output_file=output_file)
+    try:
+        verify_audio_stream_integrity(input_file=input_file, output_file=output_file)
+    except RuntimeError as e:
+        logger.warning(f"Audio integrity check failed: {e}")
+        logger.info("Attempting to re-encode mismatched audio streams.")
+        temp_output_file = output_file.with_suffix(output_file.suffix + ".temp")
+        re_encode_mismatched_audio_streams(
+            original_file=input_file,
+            encoded_file=output_file,
+            output_file=temp_output_file,
+        )
+        temp_output_file.rename(output_file)
+        logger.info(
+            f"Successfully re-encoded audio for {output_file.name} and replaced original."
+        )

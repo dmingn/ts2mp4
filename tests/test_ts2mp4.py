@@ -132,12 +132,15 @@ def test_does_not_call_verify_audio_stream_integrity_on_ffmpeg_failure(
 
 
 @pytest.mark.unit
-def test_ts2mp4_raises_runtime_error_on_audio_integrity_failure(
-    mocker: MockerFixture,
+def test_ts2mp4_re_encodes_on_audio_integrity_failure(
+    mocker: MockerFixture, tmp_path: Path
 ) -> None:
     # Arrange
-    input_file = Path("input.ts")
-    output_file = Path("output.mp4")
+    input_file = tmp_path / "input.ts"
+    output_file = tmp_path / "output.mp4"
+    input_file.touch()
+    output_file.touch()
+
     crf = 23
     preset = "medium"
 
@@ -147,10 +150,49 @@ def test_ts2mp4_raises_runtime_error_on_audio_integrity_failure(
         "ts2mp4.ts2mp4.verify_audio_stream_integrity",
         side_effect=RuntimeError("Audio stream integrity check failed"),
     )
+    mock_re_encode = mocker.patch("ts2mp4.ts2mp4.re_encode_mismatched_audio_streams")
+
+    def create_temp_file(*args: object, **kwargs: object) -> None:
+        if "output_file" in kwargs and isinstance(kwargs["output_file"], Path):
+            kwargs["output_file"].touch()
+
+    mock_re_encode.side_effect = create_temp_file
+
+    # Act
+    ts2mp4(input_file, output_file, crf, preset)
+
+    # Assert
+    mock_re_encode.assert_called_once()
+    call_args = mock_re_encode.call_args[1]
+    assert call_args["original_file"] == input_file
+    assert call_args["encoded_file"] == output_file
+    assert call_args["output_file"].name == output_file.name + ".temp"
+
+
+@pytest.mark.unit
+def test_ts2mp4_re_encode_failure_raises_error(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    # Arrange
+    input_file = tmp_path / "input.ts"
+    output_file = tmp_path / "output.mp4"
+    input_file.touch()
+    output_file.touch()
+
+    crf = 23
+    preset = "medium"
+
+    mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
+    mock_execute_ffmpeg.return_value = FFmpegResult(stdout=b"", stderr="", returncode=0)
+    mocker.patch(
+        "ts2mp4.ts2mp4.verify_audio_stream_integrity",
+        side_effect=RuntimeError("Audio stream integrity check failed"),
+    )
+    mocker.patch(
+        "ts2mp4.ts2mp4.re_encode_mismatched_audio_streams",
+        side_effect=RuntimeError("Re-encode failed"),
+    )
 
     # Act & Assert
-    with pytest.raises(
-        RuntimeError,
-        match="Audio stream integrity check failed",
-    ):
+    with pytest.raises(RuntimeError, match="Re-encode failed"):
         ts2mp4(input_file, output_file, crf, preset)

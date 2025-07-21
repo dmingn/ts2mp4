@@ -1,9 +1,14 @@
 from pathlib import Path
+from subprocess import CompletedProcess
 
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.audio_integrity import check_stream_integrity, verify_audio_stream_integrity
+from ts2mp4.audio_integrity import (
+    check_stream_integrity,
+    re_encode_mismatched_audio_streams,
+    verify_audio_stream_integrity,
+)
 from ts2mp4.media_info import MediaInfo, Stream
 
 
@@ -160,3 +165,58 @@ def test_verify_audio_stream_integrity_no_audio_streams(mocker: MockerFixture) -
     verify_audio_stream_integrity(input_file, output_file)
 
     mock_check_stream_integrity.assert_not_called()
+
+
+@pytest.mark.unit
+def test_re_encode_mismatched_audio_streams(mocker: MockerFixture) -> None:
+    """Tests the re-encoding function call."""
+    mocker.patch(
+        "ts2mp4.audio_integrity.get_media_info",
+        side_effect=[
+            MediaInfo(
+                streams=[
+                    Stream(codec_type="audio", index=0, codec_name="aac"),
+                    Stream(codec_type="audio", index=1, codec_name="ac3"),
+                ]
+            ),
+            MediaInfo(
+                streams=[
+                    Stream(codec_type="audio", index=0, codec_name="aac"),
+                    Stream(codec_type="audio", index=1, codec_name="ac3"),
+                ]
+            ),
+        ],
+    )
+    mocker.patch(
+        "ts2mp4.audio_integrity.check_stream_integrity", side_effect=[True, False]
+    )
+    mock_execute_ffmpeg = mocker.patch(
+        "ts2mp4.audio_integrity.execute_ffmpeg",
+        return_value=CompletedProcess(args=[], returncode=0),
+    )
+
+    re_encode_mismatched_audio_streams(
+        Path("original.ts"), Path("encoded.mp4"), Path("output.mp4")
+    )
+
+    mock_execute_ffmpeg.assert_called_once()
+    ffmpeg_args = mock_execute_ffmpeg.call_args[0][0]
+    assert "-codec:a:0" in ffmpeg_args
+    assert "copy" in ffmpeg_args
+    assert "-codec:a:1" in ffmpeg_args
+    assert "ac3" in ffmpeg_args
+
+
+@pytest.mark.unit
+def test_re_encode_mismatched_audio_streams_no_args(mocker: MockerFixture) -> None:
+    """Tests that ffmpeg is not called when no arguments are generated."""
+    mocker.patch(
+        "ts2mp4.audio_integrity.get_media_info", return_value=MediaInfo(streams=[])
+    )
+    mock_execute_ffmpeg = mocker.patch("ts2mp4.audio_integrity.execute_ffmpeg")
+
+    re_encode_mismatched_audio_streams(
+        Path("original.ts"), Path("encoded.mp4"), Path("output.mp4")
+    )
+
+    mock_execute_ffmpeg.assert_not_called()
