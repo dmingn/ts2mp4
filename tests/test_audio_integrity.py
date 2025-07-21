@@ -3,8 +3,45 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.audio_integrity import verify_audio_stream_integrity
+from ts2mp4.audio_integrity import check_stream_integrity, verify_audio_stream_integrity
 from ts2mp4.media_info import MediaInfo, Stream
+
+
+@pytest.mark.unit
+def test_check_stream_integrity_matching_hashes(mocker: MockerFixture) -> None:
+    """Tests that check_stream_integrity returns True when MD5 hashes match."""
+    mocker.patch("ts2mp4.audio_integrity.get_stream_md5", return_value="same_hash")
+    input_file = Path("dummy_input.ts")
+    output_file = Path("dummy_output.mp4.part")
+    stream = Stream(codec_type="audio", index=1)
+
+    assert check_stream_integrity(input_file, output_file, stream, stream)
+
+
+@pytest.mark.unit
+def test_check_stream_integrity_mismatching_hashes(mocker: MockerFixture) -> None:
+    """Tests that check_stream_integrity returns False when MD5 hashes mismatch."""
+    mocker.patch(
+        "ts2mp4.audio_integrity.get_stream_md5", side_effect=["hash1", "hash2"]
+    )
+    input_file = Path("dummy_input.ts")
+    output_file = Path("dummy_output.mp4.part")
+    stream = Stream(codec_type="audio", index=1)
+
+    assert not check_stream_integrity(input_file, output_file, stream, stream)
+
+
+@pytest.mark.unit
+def test_check_stream_integrity_hash_generation_fails(mocker: MockerFixture) -> None:
+    """Tests that check_stream_integrity returns False when hash generation fails."""
+    mocker.patch(
+        "ts2mp4.audio_integrity.get_stream_md5", side_effect=RuntimeError("Mock error")
+    )
+    input_file = Path("dummy_input.ts")
+    output_file = Path("dummy_output.mp4.part")
+    stream = Stream(codec_type="audio", index=1)
+
+    assert not check_stream_integrity(input_file, output_file, stream, stream)
 
 
 @pytest.mark.unit
@@ -30,12 +67,13 @@ def test_verify_audio_stream_integrity_matches(mocker: MockerFixture) -> None:
             ),
         ],
     )
-    mocker.patch("ts2mp4.audio_integrity.get_stream_md5", return_value="matching_hash")
+    mock_check_stream_integrity = mocker.patch(
+        "ts2mp4.audio_integrity.check_stream_integrity", return_value=True
+    )
 
-    try:
-        verify_audio_stream_integrity(input_file, output_file)
-    except RuntimeError:
-        pytest.fail("verify_audio_stream_integrity raised RuntimeError unexpectedly")
+    verify_audio_stream_integrity(input_file, output_file)
+
+    mock_check_stream_integrity.assert_called_once()
 
 
 @pytest.mark.unit
@@ -61,16 +99,17 @@ def test_verify_audio_stream_integrity_mismatch(mocker: MockerFixture) -> None:
             ),
         ],
     )
-    mocker.patch(
-        "ts2mp4.audio_integrity.get_stream_md5",
-        side_effect=["hash1", "hash2"],
+    mock_check_stream_integrity = mocker.patch(
+        "ts2mp4.audio_integrity.check_stream_integrity", return_value=False
     )
 
     with pytest.raises(RuntimeError) as excinfo:
         verify_audio_stream_integrity(input_file, output_file)
+
     assert "Audio stream integrity check failed for stream at index 1" in str(
         excinfo.value
     )
+    mock_check_stream_integrity.assert_called_once()
 
 
 @pytest.mark.unit
@@ -114,13 +153,10 @@ def test_verify_audio_stream_integrity_no_audio_streams(mocker: MockerFixture) -
             )
         ),
     )
-    mock_get_stream_md5 = mocker.patch("ts2mp4.audio_integrity.get_stream_md5")
+    mock_check_stream_integrity = mocker.patch(
+        "ts2mp4.audio_integrity.check_stream_integrity"
+    )
 
-    try:
-        verify_audio_stream_integrity(input_file, output_file)
-    except RuntimeError:
-        pytest.fail(
-            "verify_audio_stream_integrity raised RuntimeError unexpectedly "
-            "for no-audio case"
-        )
-    mock_get_stream_md5.assert_not_called()
+    verify_audio_stream_integrity(input_file, output_file)
+
+    mock_check_stream_integrity.assert_not_called()
