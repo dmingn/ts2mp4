@@ -1,3 +1,5 @@
+"""Unit tests for the ts2mp4 module."""
+
 from pathlib import Path
 
 import pytest
@@ -63,6 +65,7 @@ def test_calls_execute_ffmpeg_with_correct_args(mocker: MockerFixture) -> None:
 
 @pytest.mark.unit
 def test_calls_verify_streams_on_success(mocker: MockerFixture) -> None:
+    """Test that verify_streams is called on successful conversion."""
     # Arrange
     input_file = Path("input.ts")
     output_file = Path("output.mp4")
@@ -84,6 +87,7 @@ def test_calls_verify_streams_on_success(mocker: MockerFixture) -> None:
 
 @pytest.mark.unit
 def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(mocker: MockerFixture) -> None:
+    """Test that a RuntimeError is raised on ffmpeg failure."""
     # Arrange
     input_file = Path("input.ts")
     output_file = Path("output.mp4")
@@ -127,6 +131,7 @@ def test_does_not_call_verify_streams_on_ffmpeg_failure(
 
 @pytest.mark.unit
 def test_ts2mp4_re_encodes_on_stream_integrity_failure(mocker: MockerFixture) -> None:
+    """Test that re-encoding is triggered on stream integrity failure."""
     # Arrange
     input_file = Path("input.ts")
     output_file = Path("output.mp4")
@@ -157,6 +162,7 @@ def test_ts2mp4_re_encodes_on_stream_integrity_failure(mocker: MockerFixture) ->
 
 @pytest.mark.unit
 def test_ts2mp4_re_encode_failure_raises_error(mocker: MockerFixture) -> None:
+    """Test that a RuntimeError is raised on re-encode failure."""
     # Arrange
     input_file = Path("input.ts")
     output_file = Path("output.mp4")

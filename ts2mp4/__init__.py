@@ -1,3 +1,5 @@
+"""A tool for converting TS video files to MP4 format."""
+
 import importlib.metadata
 
 

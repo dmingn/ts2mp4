@@ -1,3 +1,5 @@
+"""Unit and integration tests for the ffmpeg module."""
+
 import io
 import logging
 from unittest.mock import MagicMock

@@ -1,3 +1,5 @@
+"""The main module of the ts2mp4 package."""
+
 from pathlib import Path
 
 from logzero import logger
@@ -8,11 +10,12 @@ from .stream_integrity import verify_streams
 
 
 def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
-    """Converts a Transport Stream (TS) file to MP4 format using FFmpeg.
+    """Convert a Transport Stream (TS) file to MP4 format using FFmpeg.
 
     This function constructs and executes an FFmpeg command to perform the video
     conversion. It also logs the FFmpeg output and verifies the audio stream
-    integrity of the converted file.
+    integrity of the converted file. If the audio stream integrity check fails,
+    it attempts to re-encode the mismatched audio streams.
 
     Args:
     ----

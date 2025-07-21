@@ -1,3 +1,5 @@
+"""A module for checking the quality of audio streams."""
+
 import re
 from pathlib import Path
 from typing import NamedTuple, Optional
@@ -8,12 +10,14 @@ from .ffmpeg import execute_ffmpeg
 
 
 class AudioQualityMetrics(NamedTuple):
+    """A class to hold audio quality metrics."""
+
     apsnr: Optional[float]  # Average Peak Signal-to-Noise Ratio
     asdr: Optional[float]  # Average Signal-to-Distortion Ratio
 
 
 def parse_audio_quality_metrics(output: str) -> AudioQualityMetrics:
-    """Parses FFmpeg output and logs APSNR and ASDR metrics."""
+    """Parse FFmpeg output and log APSNR and ASDR metrics."""
     apsnr = None
     asdr = None
 
@@ -52,7 +56,7 @@ def get_audio_quality_metrics(
     re_encoded_file: Path,
     audio_stream_index: int,
 ) -> Optional[AudioQualityMetrics]:
-    """Calculates APSNR and ASDR for an audio stream using FFmpeg.
+    """Calculate APSNR and ASDR for an audio stream using FFmpeg.
 
     Args:
     ----
@@ -60,7 +64,7 @@ def get_audio_quality_metrics(
         re_encoded_file: Path to the re-encoded file.
         audio_stream_index: The index of the audio stream to analyze.
 
-    Returns:
+    Returns
     -------
         An AudioQualityMetrics namedtuple containing apsnr and asdr, or None if metrics could not be calculated.
     """

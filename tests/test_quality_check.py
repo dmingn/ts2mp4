@@ -1,3 +1,5 @@
+"""Unit and integration tests for the quality_check module."""
+
 from pathlib import Path
 from typing import Union
 
@@ -62,6 +64,7 @@ def test_parse_audio_quality_metrics(
     expected_apsnr: Union[float, None],
     expected_asdr: Union[float, None],
 ) -> None:
+    """Test parsing of audio quality metrics from FFmpeg output."""
     metrics = parse_audio_quality_metrics(ffmpeg_output)
     assert metrics.apsnr == expected_apsnr
     assert metrics.asdr == expected_asdr
@@ -90,6 +93,7 @@ def test_get_audio_quality_metrics_unit(
     ffmpeg_stderr: str,
     expected_metrics: Union[AudioQualityMetrics, None],
 ) -> None:
+    """Test the audio quality metrics calculation unit."""
     mock_execute_ffmpeg = mocker.patch("ts2mp4.quality_check.execute_ffmpeg")
     mock_execute_ffmpeg.return_value.returncode = 0 if expected_metrics else 1
     mock_execute_ffmpeg.return_value.stderr = ffmpeg_stderr
