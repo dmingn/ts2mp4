@@ -20,17 +20,24 @@ def _check_stream_integrity(
     """
     try:
         input_md5 = get_stream_md5(input_file, input_stream)
-        output_md5 = get_stream_md5(output_file, output_stream)
-
-        if input_md5 != output_md5:
-            logger.warning(
-                f"Mismatch in stream at index {input_stream.index}: "
-                f"Input MD5: {input_md5}, Output MD5: {output_md5}"
-            )
-            return False
     except RuntimeError as e:
         logger.warning(
-            f"Failed to get MD5 for stream at index {input_stream.index}: {e}"
+            f"Failed to get MD5 for input stream at index {input_stream.index}: {e}"
+        )
+        return False
+
+    try:
+        output_md5 = get_stream_md5(output_file, output_stream)
+    except RuntimeError as e:
+        logger.warning(
+            f"Failed to get MD5 for output stream at index {output_stream.index}: {e}"
+        )
+        return False
+
+    if input_md5 != output_md5:
+        logger.warning(
+            f"Mismatch in stream at index {input_stream.index}: "
+            f"Input MD5: {input_md5}, Output MD5: {output_md5}"
         )
         return False
 
