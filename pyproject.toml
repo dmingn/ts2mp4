@@ -49,7 +49,7 @@ select = [
   "W",  # pycodestyle warnings
   "F",  # pyflakes
   "I",  # isort
-  # "D",  # pydocstyle - Temporarily disabled
+  "D",  # pydocstyle
 ]
 ignore = ["E501"]
 

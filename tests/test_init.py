@@ -1,3 +1,5 @@
+"""Unit tests for the __init__ module."""
+
 import importlib.metadata
 
 import pytest

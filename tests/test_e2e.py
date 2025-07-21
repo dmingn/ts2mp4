@@ -1,3 +1,5 @@
+"""End-to-end tests for the ts2mp4 package."""
+
 import subprocess
 from collections.abc import Generator
 from pathlib import Path

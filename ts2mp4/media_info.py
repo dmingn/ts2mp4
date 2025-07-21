@@ -1,3 +1,5 @@
+"""A module for getting media information."""
+
 import json
 from functools import cache
 from pathlib import Path
@@ -31,6 +33,8 @@ class Format(BaseModel):
 
 
 class MediaInfo(BaseModel):
+    """A class to hold media information."""
+
     model_config = ConfigDict(frozen=True)
 
     streams: tuple[Stream, ...] = Field(default_factory=tuple)
@@ -60,17 +64,17 @@ def _get_media_info_cached(file_path: Path, _mtime: float, _size: int) -> MediaI
 
 
 def get_media_info(file_path: Path) -> MediaInfo:
-    """Returns media information for a given file.
+    """Return media information for a given file.
 
     Args:
     ----
         file_path: The path to the input file.
 
-    Returns:
+    Returns
     -------
         A MediaInfo object with the media information.
 
-    Raises:
+    Raises
     ------
         RuntimeError: If ffprobe fails to get media information.
 
