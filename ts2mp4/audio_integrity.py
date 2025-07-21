@@ -1,5 +1,6 @@
 import itertools
 from pathlib import Path
+from typing import NamedTuple
 
 from logzero import logger
 
@@ -45,10 +46,20 @@ def check_stream_integrity(
     return True
 
 
-def _build_args_for_audio_streams(original_file: Path, encoded_file: Path) -> list[str]:
-    """Builds the FFmpeg arguments for re-encoding mismatched audio streams.
+class AudioStreamArgs(NamedTuple):
+    """A tuple containing FFmpeg arguments and indices of copied audio streams."""
 
-    It assumes that the order of audio streams is preserved between the original and encoded files.
+    ffmpeg_args: list[str]
+    copied_audio_stream_indices: list[int]
+
+
+def _build_args_for_audio_streams(
+    original_file: Path, encoded_file: Path
+) -> AudioStreamArgs:
+    """Builds FFmpeg arguments and identifies copied audio streams.
+
+    It assumes that the order of audio streams is preserved between the
+    original and encoded files.
     """
     original_media_info = get_media_info(original_file)
     encoded_media_info = get_media_info(encoded_file)
@@ -60,7 +71,8 @@ def _build_args_for_audio_streams(original_file: Path, encoded_file: Path) -> li
         stream for stream in encoded_media_info.streams if stream.codec_type == "audio"
     ]
 
-    args = []
+    ffmpeg_args = []
+    copied_audio_stream_indices = []
     for audio_stream_index, (original_audio_stream, encoded_audio_stream) in enumerate(
         itertools.zip_longest(original_audio_streams, encoded_audio_streams)
     ):
@@ -95,7 +107,7 @@ def _build_args_for_audio_streams(original_file: Path, encoded_file: Path) -> li
                 f"from {original_file.name} due to mismatch or absence in {encoded_file.name}."
             )
 
-            args.extend(
+            ffmpeg_args.extend(
                 [
                     "-map",
                     f"0:a:{audio_stream_index}",  # Use original audio stream
@@ -106,7 +118,7 @@ def _build_args_for_audio_streams(original_file: Path, encoded_file: Path) -> li
                 ]
             )
         else:
-            args.extend(
+            ffmpeg_args.extend(
                 [
                     "-map",
                     f"1:a:{audio_stream_index}",  # Use encoded audio stream
@@ -114,8 +126,87 @@ def _build_args_for_audio_streams(original_file: Path, encoded_file: Path) -> li
                     "copy",  # Copy codec without re-encoding
                 ]
             )
+            copied_audio_stream_indices.append(audio_stream_index)
 
-    return args
+    return AudioStreamArgs(
+        ffmpeg_args=ffmpeg_args,
+        copied_audio_stream_indices=copied_audio_stream_indices,
+    )
+
+
+def _verify_re_encoded_stream_integrity(
+    encoded_file: Path,
+    output_file: Path,
+    copied_audio_stream_indices: list[int],
+) -> None:
+    """Verifies the integrity of streams after re-encoding.
+
+    This function checks that the video streams and copied audio streams in the
+    output file match the streams in the encoded file by comparing their MD5
+    hashes.
+
+    Args:
+    ----
+        encoded_file: The path to the file that has been encoded but may have
+                      audio stream issues.
+        output_file: The path where the corrected output file has been saved.
+        copied_audio_stream_indices: A list of indices for audio streams that
+                                     were copied without re-encoding.
+
+    Raises:
+    ------
+        RuntimeError: If there's a mismatch in stream counts or if any stream's
+            MD5 hash does not match between the encoded and output files.
+    """
+    logger.info(f"Verifying stream integrity for {output_file.name}")
+
+    encoded_media_info = get_media_info(encoded_file)
+    output_media_info = get_media_info(output_file)
+
+    encoded_video_streams = [
+        s for s in encoded_media_info.streams if s.codec_type == "video"
+    ]
+    output_video_streams = [
+        s for s in output_media_info.streams if s.codec_type == "video"
+    ]
+
+    if len(encoded_video_streams) != len(output_video_streams):
+        raise RuntimeError(
+            "Mismatch in the number of video streams: "
+            f"{len(encoded_video_streams)} in encoded file, "
+            f"{len(output_video_streams)} in output file."
+        )
+
+    for encoded_stream, output_stream in zip(
+        encoded_video_streams, output_video_streams
+    ):
+        if not check_stream_integrity(
+            encoded_file, output_file, encoded_stream, output_stream
+        ):
+            raise RuntimeError(
+                f"Video stream integrity check failed for stream at index {encoded_stream.index}"
+            )
+
+    encoded_audio_streams = [
+        s for s in encoded_media_info.streams if s.codec_type == "audio"
+    ]
+    output_audio_streams = [
+        s for s in output_media_info.streams if s.codec_type == "audio"
+    ]
+
+    for stream_index in copied_audio_stream_indices:
+        if not check_stream_integrity(
+            encoded_file,
+            output_file,
+            encoded_audio_streams[stream_index],
+            output_audio_streams[stream_index],
+        ):
+            raise RuntimeError(
+                "Copied audio stream integrity check failed for stream at index "
+                f"{stream_index}"
+            )
+
+    logger.info("Stream integrity verified successfully.")
 
 
 def re_encode_mismatched_audio_streams(
@@ -139,11 +230,11 @@ def re_encode_mismatched_audio_streams(
                       audio stream issues.
         output_file: The path where the corrected output file will be saved.
     """
-    args_for_audio_streams = _build_args_for_audio_streams(
+    audio_stream_args = _build_args_for_audio_streams(
         original_file=original_file, encoded_file=encoded_file
     )
 
-    if not args_for_audio_streams:
+    if not audio_stream_args.ffmpeg_args:
         logger.info("No audio streams require re-encoding.")
         return
 
@@ -163,7 +254,7 @@ def re_encode_mismatched_audio_streams(
         "-codec:v",
         "copy",  # Copy video codec without re-encoding
         # for audio streams
-        *args_for_audio_streams,
+        *audio_stream_args.ffmpeg_args,
         # for subtitles
         "-map",
         "1:s?",  # Use subtitle streams from encoded_file if available
@@ -177,6 +268,12 @@ def re_encode_mismatched_audio_streams(
     result = execute_ffmpeg(ffmpeg_args)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
+
+    _verify_re_encoded_stream_integrity(
+        encoded_file=encoded_file,
+        output_file=output_file,
+        copied_audio_stream_indices=audio_stream_args.copied_audio_stream_indices,
+    )
 
 
 def verify_audio_stream_integrity(input_file: Path, output_file: Path) -> None:

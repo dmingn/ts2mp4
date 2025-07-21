@@ -5,6 +5,7 @@ from pytest_mock import MockerFixture
 
 from ts2mp4.audio_integrity import (
     _build_args_for_audio_streams,
+    _verify_re_encoded_stream_integrity,
     check_stream_integrity,
     re_encode_mismatched_audio_streams,
     verify_audio_stream_integrity,
@@ -182,8 +183,8 @@ def test_build_args_for_audio_streams_no_mismatch(mocker: MockerFixture) -> None
     )
     mocker.patch("ts2mp4.audio_integrity.check_stream_integrity", return_value=True)
 
-    args = _build_args_for_audio_streams(Path("original.ts"), Path("encoded.mp4"))
-    assert args == [
+    result = _build_args_for_audio_streams(Path("original.ts"), Path("encoded.mp4"))
+    assert result.ffmpeg_args == [
         "-map",
         "1:a:0",
         "-codec:a:0",
@@ -193,6 +194,7 @@ def test_build_args_for_audio_streams_no_mismatch(mocker: MockerFixture) -> None
         "-codec:a:1",
         "copy",
     ]
+    assert result.copied_audio_stream_indices == [0, 1]
 
 
 @pytest.mark.unit
@@ -219,8 +221,8 @@ def test_build_args_for_audio_streams_with_mismatch(mocker: MockerFixture) -> No
         "ts2mp4.audio_integrity.check_stream_integrity", side_effect=[True, False]
     )
 
-    args = _build_args_for_audio_streams(Path("original.ts"), Path("encoded.mp4"))
-    assert args == [
+    result = _build_args_for_audio_streams(Path("original.ts"), Path("encoded.mp4"))
+    assert result.ffmpeg_args == [
         "-map",
         "1:a:0",
         "-codec:a:0",
@@ -232,6 +234,7 @@ def test_build_args_for_audio_streams_with_mismatch(mocker: MockerFixture) -> No
         "-bsf:a:1",
         "aac_adtstoasc",
     ]
+    assert result.copied_audio_stream_indices == [0]
 
 
 @pytest.mark.unit
@@ -258,6 +261,76 @@ def test_build_args_for_audio_streams_unsupported_codec(
 
     with pytest.raises(NotImplementedError):
         _build_args_for_audio_streams(Path("original.ts"), Path("encoded.mp4"))
+
+
+@pytest.mark.unit
+def test_verify_re_encoded_stream_integrity_success(mocker: MockerFixture) -> None:
+    """Tests that _verify_re_encoded_stream_integrity succeeds when all hashes match."""
+    mocker.patch(
+        "ts2mp4.audio_integrity.get_media_info",
+        return_value=MediaInfo(
+            streams=[
+                Stream(codec_type="video", index=0),
+                Stream(codec_type="audio", index=1),
+            ]
+        ),
+    )
+    mocker.patch("ts2mp4.audio_integrity.check_stream_integrity", return_value=True)
+    _verify_re_encoded_stream_integrity(
+        encoded_file=Path("encoded.mp4"),
+        output_file=Path("output.mp4"),
+        copied_audio_stream_indices=[0],
+    )
+
+
+@pytest.mark.unit
+def test_verify_re_encoded_stream_integrity_video_mismatch(
+    mocker: MockerFixture,
+) -> None:
+    """Tests that _verify_re_encoded_stream_integrity fails on video hash mismatch."""
+    mocker.patch(
+        "ts2mp4.audio_integrity.get_media_info",
+        return_value=MediaInfo(
+            streams=[
+                Stream(codec_type="video", index=0),
+                Stream(codec_type="audio", index=1),
+            ]
+        ),
+    )
+    mocker.patch("ts2mp4.audio_integrity.check_stream_integrity", return_value=False)
+    with pytest.raises(RuntimeError, match="Video stream integrity check failed"):
+        _verify_re_encoded_stream_integrity(
+            encoded_file=Path("encoded.mp4"),
+            output_file=Path("output.mp4"),
+            copied_audio_stream_indices=[0],
+        )
+
+
+@pytest.mark.unit
+def test_verify_re_encoded_stream_integrity_audio_mismatch(
+    mocker: MockerFixture,
+) -> None:
+    """Tests that _verify_re_encoded_stream_integrity fails on audio hash mismatch."""
+    mocker.patch(
+        "ts2mp4.audio_integrity.get_media_info",
+        return_value=MediaInfo(
+            streams=[
+                Stream(codec_type="video", index=0),
+                Stream(codec_type="audio", index=1),
+            ]
+        ),
+    )
+    mocker.patch(
+        "ts2mp4.audio_integrity.check_stream_integrity", side_effect=[True, False]
+    )
+    with pytest.raises(
+        RuntimeError, match="Copied audio stream integrity check failed"
+    ):
+        _verify_re_encoded_stream_integrity(
+            encoded_file=Path("encoded.mp4"),
+            output_file=Path("output.mp4"),
+            copied_audio_stream_indices=[0],
+        )
 
 
 @pytest.mark.integration
