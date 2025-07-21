@@ -1,3 +1,4 @@
+import functools
 import subprocess
 from typing import Literal, NamedTuple
 
@@ -59,3 +60,16 @@ def execute_ffprobe(args: list[str]) -> FFmpegResult:
 
     """
     return _execute_process("ffprobe", args)
+
+
+@functools.cache
+def is_libfdk_aac_available() -> bool:
+    """Check if libfdk_aac is available in ffmpeg.
+
+    Returns
+    -------
+        True if libfdk_aac is available, False otherwise.
+
+    """
+    result = execute_ffmpeg(["-encoders"])
+    return b"libfdk_aac" in result.stdout
