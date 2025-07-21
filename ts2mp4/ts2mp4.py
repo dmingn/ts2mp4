@@ -2,7 +2,7 @@ from pathlib import Path
 
 from logzero import logger
 
-from .audio_integrity import re_encode_mismatched_audio_streams
+from .audio_reencoder import re_encode_mismatched_audio_streams
 from .ffmpeg import execute_ffmpeg
 from .stream_integrity import verify_stream_integrity
 

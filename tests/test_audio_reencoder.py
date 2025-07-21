@@ -3,7 +3,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.audio_integrity import (
+from ts2mp4.audio_reencoder import (
     _build_args_for_audio_streams,
     re_encode_mismatched_audio_streams,
 )
@@ -15,7 +15,7 @@ from ts2mp4.media_info import MediaInfo, Stream, get_media_info
 def test_build_args_for_audio_streams_no_mismatch(mocker: MockerFixture) -> None:
     """Tests that copy arguments are generated when streams match."""
     mocker.patch(
-        "ts2mp4.audio_integrity.get_media_info",
+        "ts2mp4.audio_reencoder.get_media_info",
         return_value=MediaInfo(
             streams=[
                 Stream(codec_type="audio", index=0, codec_name="aac"),
@@ -23,7 +23,7 @@ def test_build_args_for_audio_streams_no_mismatch(mocker: MockerFixture) -> None
             ]
         ),
     )
-    mocker.patch("ts2mp4.audio_integrity.check_stream_integrity", return_value=True)
+    mocker.patch("ts2mp4.audio_reencoder.check_stream_integrity", return_value=True)
 
     result = _build_args_for_audio_streams(Path("original.ts"), Path("encoded.mp4"))
     assert result.ffmpeg_args == [
@@ -43,7 +43,7 @@ def test_build_args_for_audio_streams_no_mismatch(mocker: MockerFixture) -> None
 def test_build_args_for_audio_streams_with_mismatch(mocker: MockerFixture) -> None:
     """Tests that re-encode arguments are generated for mismatched streams."""
     mocker.patch(
-        "ts2mp4.audio_integrity.get_media_info",
+        "ts2mp4.audio_reencoder.get_media_info",
         side_effect=[
             MediaInfo(
                 streams=[
@@ -60,7 +60,7 @@ def test_build_args_for_audio_streams_with_mismatch(mocker: MockerFixture) -> No
         ],
     )
     mocker.patch(
-        "ts2mp4.audio_integrity.check_stream_integrity", side_effect=[True, False]
+        "ts2mp4.audio_reencoder.check_stream_integrity", side_effect=[True, False]
     )
 
     result = _build_args_for_audio_streams(Path("original.ts"), Path("encoded.mp4"))
@@ -85,7 +85,7 @@ def test_build_args_for_audio_streams_unsupported_codec(
 ) -> None:
     """Tests that a NotImplementedError is raised for unsupported codecs."""
     mocker.patch(
-        "ts2mp4.audio_integrity.get_media_info",
+        "ts2mp4.audio_reencoder.get_media_info",
         side_effect=[
             MediaInfo(
                 streams=[
@@ -99,7 +99,7 @@ def test_build_args_for_audio_streams_unsupported_codec(
             ),
         ],
     )
-    mocker.patch("ts2mp4.audio_integrity.check_stream_integrity", return_value=False)
+    mocker.patch("ts2mp4.audio_reencoder.check_stream_integrity", return_value=False)
 
     with pytest.raises(NotImplementedError):
         _build_args_for_audio_streams(Path("original.ts"), Path("encoded.mp4"))
