@@ -39,15 +39,20 @@ make check
 ```
 
 This command executes:
-*   `black --check .` (code formatting)
-*   `isort --check .` (import sorting)
-*   `flake8 .` (linting)
+*   `ruff check .` (linting)
+*   `ruff format --check .` (code formatting check)
 *   `mypy .` (type checking)
 *   `pytest` (unit and integration tests)
 
+For convenience, you can run formatting and all checks at once with the following command:
+
+```bash
+make format-and-check
+```
+
 ### Code Formatting
 
-To format the code using `black` and `isort`:
+To format the code using `ruff`:
 
 ```bash
 make format
