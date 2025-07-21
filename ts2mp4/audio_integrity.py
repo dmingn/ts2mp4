@@ -7,6 +7,7 @@ from logzero import logger
 from .ffmpeg import execute_ffmpeg
 from .hashing import get_stream_md5
 from .media_info import Stream, get_media_info
+from .quality_check import get_audio_quality_metrics
 
 
 def check_stream_integrity(
@@ -47,10 +48,11 @@ def check_stream_integrity(
 
 
 class AudioStreamArgs(NamedTuple):
-    """A tuple containing FFmpeg arguments and indices of copied audio streams."""
+    """A tuple containing FFmpeg arguments and indices of copied/re-encoded audio streams."""
 
     ffmpeg_args: list[str]
     copied_audio_stream_indices: list[int]
+    re_encoded_audio_stream_indices: list[int]
 
 
 def _build_args_for_audio_streams(
@@ -73,6 +75,7 @@ def _build_args_for_audio_streams(
 
     ffmpeg_args = []
     copied_audio_stream_indices = []
+    re_encoded_audio_stream_indices = []
     for audio_stream_index, (original_audio_stream, encoded_audio_stream) in enumerate(
         itertools.zip_longest(original_audio_streams, encoded_audio_streams)
     ):
@@ -117,6 +120,7 @@ def _build_args_for_audio_streams(
                     "aac_adtstoasc",
                 ]
             )
+            re_encoded_audio_stream_indices.append(audio_stream_index)
         else:
             ffmpeg_args.extend(
                 [
@@ -131,6 +135,7 @@ def _build_args_for_audio_streams(
     return AudioStreamArgs(
         ffmpeg_args=ffmpeg_args,
         copied_audio_stream_indices=copied_audio_stream_indices,
+        re_encoded_audio_stream_indices=re_encoded_audio_stream_indices,
     )
 
 
@@ -268,6 +273,18 @@ def re_encode_mismatched_audio_streams(
     result = execute_ffmpeg(ffmpeg_args)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
+
+    for audio_stream_index in audio_stream_args.re_encoded_audio_stream_indices:
+        metrics = get_audio_quality_metrics(
+            original_file=original_file,
+            re_encoded_file=output_file,
+            audio_stream_index=audio_stream_index,
+        )
+        if metrics:
+            logger.info(
+                f"Audio quality for stream {audio_stream_index}: "
+                f"APSNR={metrics.apsnr:.2f}dB, ASDR={metrics.asdr:.2f}dB"
+            )
 
     _verify_re_encoded_stream_integrity(
         encoded_file=encoded_file,
