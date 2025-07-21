@@ -21,10 +21,10 @@ typer = "^0.16.0"
 
 [tool.poetry.group.dev.dependencies]
 freezegun = "^1.5.3"
-mypy = "^1.4.1"
+mypy = "^1.17.0"
 pytest = "^8.4.1"
 pytest-mock = "^3.14.1"
-ruff = "^0.5.5"
+ruff = "^0.12.4"
 
 [tool.poetry.scripts]
 ts2mp4 = "ts2mp4.cli:app"
