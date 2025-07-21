@@ -1,8 +1,15 @@
 TEST_ASSETS_DIR = tests/assets
 TEST_VIDEO_DURATION := 3
 
+.PHONY: all
+all: check
+
+.PHONY: sync
+sync:
+	poetry sync
+
 .PHONY: check
-check: $(TEST_ASSETS_DIR)/test_video.ts
+check: sync $(TEST_ASSETS_DIR)/test_video.ts
 	poetry run ruff check .
 	poetry run ruff format --check .
 	poetry run mypy .
@@ -14,7 +21,7 @@ check: $(TEST_ASSETS_DIR)/test_video.ts
 	poetry run pytest -m e2e
 
 .PHONY: format
-format:
+format: sync
 	poetry run ruff check . --fix
 	poetry run ruff format .
 
