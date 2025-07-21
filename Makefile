@@ -1,4 +1,5 @@
 TEST_ASSETS_DIR = tests/assets
+TEST_VIDEO_DURATION = 3
 
 .PHONY: check
 check: $(TEST_ASSETS_DIR)/test_video.ts
@@ -19,11 +20,11 @@ format:
 
 $(TEST_ASSETS_DIR)/test_video.ts: Makefile
 	@mkdir -p $(TEST_ASSETS_DIR)
-	@echo "Generating a 3-second dummy video and audio for testing..."
+	@echo "Generating a $(TEST_VIDEO_DURATION)-second dummy video and audio for testing..."
 	ffmpeg \
 		-y \
 		-f lavfi \
-		-i "avsynctest=duration=3[out0][out1]" \
+		-i "avsynctest=duration=$(TEST_VIDEO_DURATION)[out0][out1]" \
 		-codec:a aac \
 		$@
 	@echo "Dummy video '$@' generated successfully."
