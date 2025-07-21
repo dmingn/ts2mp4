@@ -34,7 +34,7 @@ class MediaInfo(BaseModel):
 
 
 @cache
-def _get_media_info_cached(file_path: Path, mtime: float, size: int) -> MediaInfo:
+def _get_media_info_cached(file_path: Path, _mtime: float, _size: int) -> MediaInfo:
     ffprobe_args = [
         "-hide_banner",
         "-v",

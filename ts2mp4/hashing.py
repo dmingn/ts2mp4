@@ -9,7 +9,7 @@ from .ffmpeg import execute_ffmpeg
 
 @cache
 def _get_stream_md5_cached(
-    file_path: Path, mtime: float, size: int, stream: Stream
+    file_path: Path, _mtime: float, _size: int, stream: Stream
 ) -> str:
     if stream.codec_type == "audio":
         output_format = "s16le"
