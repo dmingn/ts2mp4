@@ -20,7 +20,11 @@ def test_get_media_info_success(mocker: MockerFixture) -> None:
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
     file_path = Path("test.ts")
     ffprobe_output = {
-        "streams": [{"codec_type": "video"}, {"codec_type": "audio"}],
+        "streams": [
+            {"codec_type": "video"},
+            {"codec_type": "audio"},
+            {"codec_type": "audio"},
+        ],
         "format": {"format_name": "mpegts"},
     }
     mock_result = MagicMock()
@@ -35,6 +39,7 @@ def test_get_media_info_success(mocker: MockerFixture) -> None:
     expected = MediaInfo(
         streams=(
             Stream(codec_type="video"),
+            Stream(codec_type="audio"),
             Stream(codec_type="audio"),
         ),
         format=Format(format_name="mpegts"),
@@ -137,6 +142,7 @@ def test_get_media_info_integration(ts_file: Path) -> None:
     expected = MediaInfo(
         streams=(
             Stream(codec_type="video"),
+            Stream(codec_type="audio"),
             Stream(codec_type="audio"),
         ),
         format=Format(format_name="mpegts"),

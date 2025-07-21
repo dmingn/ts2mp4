@@ -13,7 +13,7 @@ from ts2mp4.types import AudioStreamIndex
 @pytest.mark.integration
 def test_get_audio_stream_count(ts_file: Path) -> None:
     """Test the _get_audio_stream_count helper function."""
-    expected_stream_count = 1
+    expected_stream_count = 2
     actual_stream_count = _get_audio_stream_count(ts_file)
     assert actual_stream_count == expected_stream_count
 
