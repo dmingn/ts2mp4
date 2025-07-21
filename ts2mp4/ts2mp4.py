@@ -64,5 +64,5 @@ def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
     )
     if mismatched_indices:
         raise RuntimeError(
-            f"Audio stream integrity check failed for indices: {mismatched_indices}"
+            f"Audio stream integrity check failed for pairs: {mismatched_indices}"
         )
