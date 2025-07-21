@@ -5,10 +5,48 @@ from pytest_mock import MockerFixture
 
 from ts2mp4.audio_reencoder import (
     _build_args_for_audio_streams,
+    _build_re_encode_args,
     re_encode_mismatched_audio_streams,
 )
 from ts2mp4.ffmpeg import execute_ffmpeg
 from ts2mp4.media_info import MediaInfo, Stream, get_media_info
+
+
+@pytest.mark.unit
+def test_build_re_encode_args() -> None:
+    stream = Stream(
+        index=1,
+        codec_name="aac",
+        codec_type="audio",
+        sample_rate=48000,
+        channels=2,
+        profile="LC",
+        bit_rate=192000,
+    )
+    args = _build_re_encode_args(1, stream)
+    assert args == [
+        "-map",
+        "0:a:1",
+        "-codec:a:1",
+        "aac",
+        "-ar:a:1",
+        "48000",
+        "-ac:a:1",
+        "2",
+        "-profile:a:1",
+        "aac_low",
+        "-b:a:1",
+        "192000",
+        "-bsf:a:1",
+        "aac_adtstoasc",
+    ]
+
+
+@pytest.mark.unit
+def test_build_re_encode_args_with_none_values() -> None:
+    stream = Stream(index=1, codec_name="aac", codec_type="audio")
+    args = _build_re_encode_args(1, stream)
+    assert args == ["-map", "0:a:1", "-codec:a:1", "aac", "-bsf:a:1", "aac_adtstoasc"]
 
 
 @pytest.mark.unit
