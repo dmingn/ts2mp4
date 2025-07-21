@@ -13,6 +13,7 @@ class Stream(BaseModel):
 
     model_config = ConfigDict(frozen=True)
 
+    index: int
     codec_type: Optional[str] = None
 
 

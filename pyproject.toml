@@ -1,6 +1,7 @@
 [tool.mypy]
 strict = true
 exclude = [".venv", "build", "dist"]
+plugins = "pydantic.mypy"
 
 [[tool.mypy.overrides]]
 module = "logzero"
