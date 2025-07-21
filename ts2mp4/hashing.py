@@ -58,5 +58,6 @@ def get_stream_md5(file_path: Path, stream: Stream) -> str:
         RuntimeError: If ffmpeg fails to extract the stream.
 
     """
-    stat = file_path.stat()
-    return _get_stream_md5_cached(file_path, stat.st_mtime, stat.st_size, stream)
+    resolved_path = file_path.resolve(strict=True)
+    stat = resolved_path.stat()
+    return _get_stream_md5_cached(resolved_path, stat.st_mtime, stat.st_size, stream)

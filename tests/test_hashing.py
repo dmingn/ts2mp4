@@ -20,7 +20,8 @@ def test_get_stream_md5_caching(mocker: MockerFixture) -> None:
     file_path = Path("test.ts")
     stream = Stream(index=0, codec_type="video")
 
-    mocker.patch("pathlib.Path.stat", return_value=mocker.Mock(st_mtime=1, st_size=1))
+    mock_resolve = mocker.patch.object(Path, "resolve", return_value=file_path)
+    mocker.patch.object(Path, "stat", return_value=mocker.Mock(st_mtime=1, st_size=1))
 
     mock_execute_ffmpeg = mocker.patch(
         "ts2mp4.hashing.execute_ffmpeg",
@@ -33,6 +34,7 @@ def test_get_stream_md5_caching(mocker: MockerFixture) -> None:
 
     # Assert that execute_ffmpeg was only called once
     mock_execute_ffmpeg.assert_called_once()
+    mock_resolve.assert_called_with(strict=True)
 
 
 @pytest.mark.unit
@@ -41,6 +43,7 @@ def test_get_stream_md5_cache_invalidation(mocker: MockerFixture) -> None:
     file_path = Path("test.ts")
     stream = Stream(index=0, codec_type="video")
 
+    mock_resolve = mocker.patch.object(Path, "resolve", return_value=file_path)
     mock_stat = mocker.patch(
         "pathlib.Path.stat", return_value=mocker.Mock(st_mtime=1, st_size=1)
     )
@@ -61,6 +64,7 @@ def test_get_stream_md5_cache_invalidation(mocker: MockerFixture) -> None:
 
     # Assert that execute_ffmpeg was called twice
     assert mock_execute_ffmpeg.call_count == 2
+    mock_resolve.assert_called_with(strict=True)
 
 
 @pytest.mark.integration
