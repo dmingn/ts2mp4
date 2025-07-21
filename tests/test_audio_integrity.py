@@ -118,7 +118,7 @@ def test_get_mismatched_audio_stream_indices_mismatch(mocker: MockerFixture) -> 
 )
 def test_get_mismatched_audio_stream_indices_hash_failure(
     mocker: MockerFixture,
-    md5_side_effect: Union[list[str], list[RuntimeError]],
+    md5_side_effect: list[Union[str, RuntimeError]],
     expected_result: list[Union[tuple[int, int], tuple[int, None], tuple[None, int]]],
 ) -> None:
     """Tests that indices with hash generation failures are reported."""

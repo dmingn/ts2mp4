@@ -74,17 +74,14 @@ def get_mismatched_audio_stream_indices(
     output_media_info = get_media_info(output_file)
 
     mismatched_indices: list[tuple[Optional[int], Optional[int]]] = []
+    input_audio_streams = (
+        stream for stream in input_media_info.streams if stream.codec_type == "audio"
+    )
+    output_audio_streams = (
+        stream for stream in output_media_info.streams if stream.codec_type == "audio"
+    )
     for input_audio_stream, output_audio_stream in itertools.zip_longest(
-        (
-            audio_stream
-            for audio_stream in input_media_info.streams
-            if audio_stream.codec_type == "audio"
-        ),
-        (
-            audio_stream
-            for audio_stream in output_media_info.streams
-            if audio_stream.codec_type == "audio"
-        ),
+        input_audio_streams, output_audio_streams
     ):
         input_idx = input_audio_stream.index if input_audio_stream else None
         output_idx = output_audio_stream.index if output_audio_stream else None
