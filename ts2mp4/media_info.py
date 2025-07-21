@@ -34,22 +34,7 @@ class MediaInfo(BaseModel):
 
 
 @cache
-def get_media_info(file_path: Path) -> MediaInfo:
-    """Returns media information for a given file.
-
-    Args:
-    ----
-        file_path: The path to the input file.
-
-    Returns:
-    -------
-        A MediaInfo object with the media information.
-
-    Raises:
-    ------
-        RuntimeError: If ffprobe fails to get media information.
-
-    """
+def _get_media_info_cached(file_path: Path, _mtime: float, _size: int) -> MediaInfo:
     ffprobe_args = [
         "-hide_banner",
         "-v",
@@ -68,3 +53,24 @@ def get_media_info(file_path: Path) -> MediaInfo:
         )
     data = json.loads(result.stdout.decode("utf-8"))
     return MediaInfo.model_validate(data)
+
+
+def get_media_info(file_path: Path) -> MediaInfo:
+    """Returns media information for a given file.
+
+    Args:
+    ----
+        file_path: The path to the input file.
+
+    Returns:
+    -------
+        A MediaInfo object with the media information.
+
+    Raises:
+    ------
+        RuntimeError: If ffprobe fails to get media information.
+
+    """
+    resolved_path = file_path.resolve(strict=True)
+    stat = resolved_path.stat()
+    return _get_media_info_cached(resolved_path, stat.st_mtime, stat.st_size)
