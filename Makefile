@@ -18,6 +18,9 @@ format:
 	poetry run ruff check . --fix
 	poetry run ruff format .
 
+.PHONY: format-and-check
+format-and-check: format check
+
 $(TEST_ASSETS_DIR)/test_video.ts: Makefile
 	@mkdir -p $(TEST_ASSETS_DIR)
 	@echo "Generating a $(TEST_VIDEO_DURATION)-second dummy video and audio for testing..."
