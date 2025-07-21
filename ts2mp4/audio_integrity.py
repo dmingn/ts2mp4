@@ -67,7 +67,7 @@ def _build_args_for_audio_streams(original_file: Path, encoded_file: Path) -> li
         if original_audio_stream is None:
             # Unexpected: Original file has fewer audio streams than expected.
             raise RuntimeError(
-                f"Original file {original_file} has fewer audio streams than expected."
+                f"Encoded file {encoded_file.name} has more audio streams than the original {original_file.name}."
             )
 
         integrity_check_passes = False
