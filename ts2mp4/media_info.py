@@ -16,6 +16,10 @@ class Stream(BaseModel):
     index: int
     codec_type: Optional[str] = None
     codec_name: Optional[str] = None
+    profile: Optional[str] = None
+    bit_rate: Optional[int] = None
+    channels: Optional[int] = None
+    sample_rate: Optional[int] = None
 
 
 class Format(BaseModel):
