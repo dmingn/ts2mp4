@@ -14,6 +14,8 @@ def test_get_stream_md5_caching(mocker: MockerFixture) -> None:
     file_path = Path("test.ts")
     stream = Stream(index=0, codec_type="video")
 
+    mocker.patch("pathlib.Path.stat", return_value=mocker.Mock(st_mtime=1, st_size=1))
+
     mock_execute_ffmpeg = mocker.patch(
         "ts2mp4.hashing.execute_ffmpeg",
         return_value=FFmpegResult(stdout=b"stream_data", stderr="", returncode=0),

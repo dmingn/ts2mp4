@@ -8,24 +8,9 @@ from .ffmpeg import execute_ffmpeg
 
 
 @cache
-def get_stream_md5(file_path: Path, stream: Stream) -> str:
-    """Calculate the MD5 hash of a decoded stream of a given file.
-
-    Args:
-    ----
-        file_path: The path to the input file.
-        stream: The stream object to process.
-
-    Returns:
-    -------
-        The MD5 hash of the decoded stream as a hexadecimal string.
-
-    Raises:
-    ------
-        ValueError: If the stream type is unsupported.
-        RuntimeError: If ffmpeg fails to extract the stream.
-
-    """
+def _get_stream_md5_cached(
+    file_path: Path, mtime: float, size: int, stream: Stream
+) -> str:
     if stream.codec_type == "audio":
         output_format = "s16le"
     elif stream.codec_type == "video":
@@ -53,3 +38,25 @@ def get_stream_md5(file_path: Path, stream: Stream) -> str:
             f"Return code: {result.returncode}"
         )
     return hashlib.md5(result.stdout).hexdigest()
+
+
+def get_stream_md5(file_path: Path, stream: Stream) -> str:
+    """Calculate the MD5 hash of a decoded stream of a given file.
+
+    Args:
+    ----
+        file_path: The path to the input file.
+        stream: The stream object to process.
+
+    Returns:
+    -------
+        The MD5 hash of the decoded stream as a hexadecimal string.
+
+    Raises:
+    ------
+        ValueError: If the stream type is unsupported.
+        RuntimeError: If ffmpeg fails to extract the stream.
+
+    """
+    stat = file_path.stat()
+    return _get_stream_md5_cached(file_path, stat.st_mtime, stat.st_size, stream)
