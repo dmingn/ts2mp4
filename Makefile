@@ -14,11 +14,11 @@ check: sync $(TEST_ASSETS_DIR)/test_video.ts
 	poetry run ruff format --check .
 	poetry run mypy .
 	@echo "Running unit tests..."
-	poetry run pytest -m unit
+	poetry run pytest --cov=ts2mp4 --cov-fail-under=60 -m unit
 	@echo "Running integration tests..."
-	poetry run pytest -m integration
+	poetry run pytest --cov=ts2mp4 --cov-fail-under=70 -m integration
 	@echo "Running E2E tests..."
-	poetry run pytest -m e2e
+	poetry run pytest --cov=ts2mp4 --cov-fail-under=70 -m e2e
 
 .PHONY: format
 format: sync
