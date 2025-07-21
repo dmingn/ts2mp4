@@ -6,7 +6,7 @@ from .hashing import get_stream_md5
 from .media_info import Stream, get_media_info
 
 
-def _check_stream_integrity(
+def check_stream_integrity(
     input_file: Path,
     output_file: Path,
     input_stream: Stream,
@@ -85,7 +85,7 @@ def verify_audio_stream_integrity(input_file: Path, output_file: Path) -> None:
         )
 
     for input_stream, output_stream in zip(input_audio_streams, output_audio_streams):
-        if not _check_stream_integrity(
+        if not check_stream_integrity(
             input_file, output_file, input_stream, output_stream
         ):
             raise RuntimeError(
