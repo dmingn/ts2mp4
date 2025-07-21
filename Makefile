@@ -1,5 +1,5 @@
 TEST_ASSETS_DIR = tests/assets
-TEST_VIDEO_DURATION = 3
+TEST_VIDEO_DURATION := 3
 
 .PHONY: check
 check: $(TEST_ASSETS_DIR)/test_video.ts
