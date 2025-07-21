@@ -212,11 +212,11 @@ def re_encode_mismatched_audio_streams(
         "copy",  # Copy video codec without re-encoding
         # for audio streams
         *audio_stream_args.ffmpeg_args,
-        # for subtitles
-        "-map",
-        "1:s?",  # Use subtitle streams from encoded_file if available
-        "-codec:s",
-        "copy",  # Copy subtitle codec without re-encoding
+        # # for subtitles
+        # "-map",
+        # "1:s?",  # Use subtitle streams from encoded_file if available
+        # "-codec:s",
+        # "copy",  # Copy subtitle codec without re-encoding
         # output file
         str(output_file),
     ]
