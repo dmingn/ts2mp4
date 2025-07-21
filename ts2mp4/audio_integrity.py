@@ -53,6 +53,51 @@ class AudioStreamArgs(NamedTuple):
     copied_audio_stream_indices: list[int]
 
 
+def _build_re_encode_args(
+    audio_stream_index: int, original_audio_stream: Stream
+) -> list[str]:
+    re_encode_args = [
+        "-map",
+        f"0:a:{audio_stream_index}",
+        f"-codec:a:{audio_stream_index}",
+        str(original_audio_stream.codec_name),
+    ]
+    if original_audio_stream.sample_rate is not None:
+        re_encode_args.extend(
+            [
+                f"-ar:a:{audio_stream_index}",
+                str(original_audio_stream.sample_rate),
+            ]
+        )
+    if original_audio_stream.channels is not None:
+        re_encode_args.extend(
+            [
+                f"-ac:a:{audio_stream_index}",
+                str(original_audio_stream.channels),
+            ]
+        )
+    if original_audio_stream.profile is not None:
+        profile_map = {"LC": "aac_low"}
+        profile = profile_map.get(
+            original_audio_stream.profile, original_audio_stream.profile
+        )
+        re_encode_args.extend(
+            [
+                f"-profile:a:{audio_stream_index}",
+                profile,
+            ]
+        )
+    if original_audio_stream.bit_rate is not None:
+        re_encode_args.extend(
+            [
+                f"-b:a:{audio_stream_index}",
+                str(original_audio_stream.bit_rate),
+            ]
+        )
+    re_encode_args.extend([f"-bsf:a:{audio_stream_index}", "aac_adtstoasc"])
+    return re_encode_args
+
+
 def _build_args_for_audio_streams(
     original_file: Path, encoded_file: Path
 ) -> AudioStreamArgs:
@@ -108,14 +153,7 @@ def _build_args_for_audio_streams(
             )
 
             ffmpeg_args.extend(
-                [
-                    "-map",
-                    f"0:a:{audio_stream_index}",  # Use original audio stream
-                    f"-codec:a:{audio_stream_index}",
-                    original_audio_stream.codec_name,  # Re-encode with original codec
-                    f"-bsf:a:{audio_stream_index}",
-                    "aac_adtstoasc",
-                ]
+                _build_re_encode_args(audio_stream_index, original_audio_stream)
             )
         else:
             ffmpeg_args.extend(
