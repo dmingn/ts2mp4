@@ -5,20 +5,33 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.media_info import Format, MediaInfo, Stream, get_media_info
+from ts2mp4.media_info import (
+    Format,
+    MediaInfo,
+    Stream,
+    _get_media_info_cached,
+    get_media_info,
+)
 
 
 @pytest.fixture(autouse=True)
 def _clear_cache() -> None:
-    get_media_info.cache_clear()
+    _get_media_info_cached.cache_clear()
+
+
+@pytest.fixture()
+def mock_path(mocker: MockerFixture) -> MagicMock:
+    mock = MagicMock(spec=Path)
+    mock.resolve.return_value = mock
+    mock.stat.return_value = MagicMock(st_mtime=123.45, st_size=67890)
+    return mock
 
 
 @pytest.mark.unit
-def test_get_media_info_success(mocker: MockerFixture) -> None:
+def test_get_media_info_success(mocker: MockerFixture, mock_path: MagicMock) -> None:
     """Test that get_media_info returns a MediaInfo object on success."""
     # Arrange
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
-    file_path = Path("test.ts")
     ffprobe_output = {
         "streams": [
             {"codec_type": "video", "index": 0, "codec_name": "h264"},
@@ -33,7 +46,7 @@ def test_get_media_info_success(mocker: MockerFixture) -> None:
     mock_execute_ffprobe.return_value = mock_result
 
     # Act
-    result = get_media_info(file_path)
+    result = get_media_info(mock_path)
 
     # Assert
     expected = MediaInfo(
@@ -46,29 +59,31 @@ def test_get_media_info_success(mocker: MockerFixture) -> None:
     )
     assert result == expected
     mock_execute_ffprobe.assert_called_once()
+    mock_path.resolve.assert_called_once_with(strict=True)
+    mock_path.stat.assert_called_once()
 
 
 @pytest.mark.unit
-def test_get_media_info_failure(mocker: MockerFixture) -> None:
+def test_get_media_info_failure(mocker: MockerFixture, mock_path: MagicMock) -> None:
     """Test that get_media_info raises a RuntimeError on ffprobe failure."""
     # Arrange
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
-    file_path = Path("test.ts")
     mock_result = MagicMock()
     mock_result.returncode = 1
     mock_execute_ffprobe.return_value = mock_result
 
     # Act & Assert
     with pytest.raises(RuntimeError):
-        get_media_info(file_path)
+        get_media_info(mock_path)
 
 
 @pytest.mark.unit
-def test_get_media_info_invalid_json(mocker: MockerFixture) -> None:
+def test_get_media_info_invalid_json(
+    mocker: MockerFixture, mock_path: MagicMock
+) -> None:
     """Test that get_media_info raises a RuntimeError on invalid JSON."""
     # Arrange
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
-    file_path = Path("test.ts")
     mock_result = MagicMock()
     mock_result.returncode = 0
     mock_result.stdout = b"invalid json"
@@ -76,15 +91,16 @@ def test_get_media_info_invalid_json(mocker: MockerFixture) -> None:
 
     # Act & Assert
     with pytest.raises(json.JSONDecodeError):
-        get_media_info(file_path)
+        get_media_info(mock_path)
 
 
 @pytest.mark.unit
-def test_get_media_info_ignores_unknown_fields(mocker: MockerFixture) -> None:
+def test_get_media_info_ignores_unknown_fields(
+    mocker: MockerFixture, mock_path: MagicMock
+) -> None:
     """Test that get_media_info ignores unknown fields in the JSON output."""
     # Arrange
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
-    file_path = Path("test.ts")
     ffprobe_output = {
         "streams": [],
         "format": {"format_name": "test_format"},
@@ -97,7 +113,7 @@ def test_get_media_info_ignores_unknown_fields(mocker: MockerFixture) -> None:
     mock_execute_ffprobe.return_value = mock_result
 
     # Act
-    result = get_media_info(file_path)
+    result = get_media_info(mock_path)
 
     # Assert
     expected = MediaInfo(
@@ -109,11 +125,10 @@ def test_get_media_info_ignores_unknown_fields(mocker: MockerFixture) -> None:
 
 
 @pytest.mark.unit
-def test_get_media_info_cached(mocker: MockerFixture) -> None:
+def test_get_media_info_cached(mocker: MockerFixture, mock_path: MagicMock) -> None:
     """Test that get_media_info caches the result."""
     # Arrange
     mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
-    file_path = Path("test.ts")
     ffprobe_output = {
         "streams": [
             {"codec_type": "video", "index": 0, "codec_name": "h264"},
@@ -127,12 +142,42 @@ def test_get_media_info_cached(mocker: MockerFixture) -> None:
     mock_execute_ffprobe.return_value = mock_result
 
     # Act
-    result1 = get_media_info(file_path)
-    result2 = get_media_info(file_path)
+    result1 = get_media_info(mock_path)
+    result2 = get_media_info(mock_path)
 
     # Assert
     assert result1 is result2
     mock_execute_ffprobe.assert_called_once()
+
+
+@pytest.mark.unit
+def test_get_media_info_cache_miss(mocker: MockerFixture, mock_path: MagicMock) -> None:
+    """Test that get_media_info misses the cache if the file is modified."""
+    # Arrange
+    mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
+    ffprobe_output = {
+        "streams": [
+            {"codec_type": "video", "index": 0, "codec_name": "h264"},
+            {"codec_type": "audio", "index": 1, "codec_name": "aac"},
+        ],
+        "format": {"format_name": "mpegts"},
+    }
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = json.dumps(ffprobe_output).encode("utf-8")
+    mock_execute_ffprobe.return_value = mock_result
+
+    # Act
+    result1 = get_media_info(mock_path)
+
+    # Simulate file modification by changing stat result
+    mock_path.stat.return_value = MagicMock(st_mtime=678.90, st_size=12345)
+
+    result2 = get_media_info(mock_path)
+
+    # Assert
+    assert result1 is not result2
+    assert mock_execute_ffprobe.call_count == 2
 
 
 @pytest.mark.integration
