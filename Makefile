@@ -25,7 +25,14 @@ $(TEST_ASSETS_DIR)/test_video.ts: Makefile
 		-y \
 		-f lavfi \
 		-i "avsynctest=duration=$(TEST_VIDEO_DURATION)[out0][out1]" \
+		-f lavfi \
+		-i "sine=frequency=1000:duration=$(TEST_VIDEO_DURATION)" \
+		-map 0:v:0 \
+		-map 0:a:0 \
+		-map 1:a:0 \
+		-codec:v mpeg2video \
 		-codec:a aac \
+		-shortest \
 		$@
 	@echo "Dummy video '$@' generated successfully."
 

@@ -23,6 +23,7 @@ def test_get_media_info_success(mocker: MockerFixture) -> None:
         "streams": [
             {"codec_type": "video", "index": 0},
             {"codec_type": "audio", "index": 1},
+            {"codec_type": "audio", "index": 2},
         ],
         "format": {"format_name": "mpegts"},
     }
@@ -39,6 +40,7 @@ def test_get_media_info_success(mocker: MockerFixture) -> None:
         streams=(
             Stream(codec_type="video", index=0),
             Stream(codec_type="audio", index=1),
+            Stream(codec_type="audio", index=2),
         ),
         format=Format(format_name="mpegts"),
     )
@@ -145,6 +147,7 @@ def test_get_media_info_integration(ts_file: Path) -> None:
         streams=(
             Stream(codec_type="video", index=0),
             Stream(codec_type="audio", index=1),
+            Stream(codec_type="audio", index=2),
         ),
         format=Format(format_name="mpegts"),
     )
