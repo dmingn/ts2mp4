@@ -30,6 +30,7 @@ ruff = "^0.5.5"
 ts2mp4 = "ts2mp4.cli:app"
 
 [tool.pytest.ini_options]
+addopts = "-vv"
 markers = [
     "unit: mark a test as a unit test.",
     "integration: mark a test as an integration test.",
