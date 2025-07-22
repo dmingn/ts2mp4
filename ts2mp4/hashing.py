@@ -23,6 +23,7 @@ def _get_stream_md5_cached(
 
     ffmpeg_args = [
         "-hide_banner",
+        "-nostats",
         "-i",
         str(file_path),
         "-map",
