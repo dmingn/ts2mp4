@@ -1,3 +1,5 @@
+"""Unit and integration tests for the CLI."""
+
 import subprocess
 from pathlib import Path
 

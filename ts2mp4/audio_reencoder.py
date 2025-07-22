@@ -1,3 +1,5 @@
+"""Re-encodes audio streams that have integrity issues."""
+
 import itertools
 from pathlib import Path
 from typing import NamedTuple
@@ -75,7 +77,7 @@ def _build_re_encode_args(
 def _build_args_for_audio_streams(
     original_file: Path, encoded_file: Path
 ) -> AudioStreamArgs:
-    """Builds FFmpeg arguments and identifies copied audio streams.
+    """Build FFmpeg arguments and identify copied audio streams.
 
     It assumes that the order of audio streams is preserved between the
     original and encoded files.
@@ -161,7 +163,6 @@ def re_encode_mismatched_audio_streams(
     - Copying matching audio streams from the encoded file.
     - Re-encoding mismatched or missing audio streams from the original file
       using their original codecs.
-    - Copying subtitle streams from the encoded file.
 
     Args:
     ----
@@ -174,7 +175,7 @@ def re_encode_mismatched_audio_streams(
     def _verify_integrity(
         copied_audio_stream_indices: list[int],
     ) -> None:
-        """Verifies the integrity of streams after re-encoding."""
+        """Verify the integrity of streams after re-encoding."""
         logger.info(f"Verifying stream integrity for {output_file.name}")
 
         verify_streams(encoded_file, output_file, "video")

@@ -1,3 +1,5 @@
+"""A module for calculating stream hashes."""
+
 import hashlib
 from functools import cache
 from pathlib import Path
@@ -48,11 +50,11 @@ def get_stream_md5(file_path: Path, stream: Stream) -> str:
         file_path: The path to the input file.
         stream: The stream object to process.
 
-    Returns:
+    Returns
     -------
         The MD5 hash of the decoded stream as a hexadecimal string.
 
-    Raises:
+    Raises
     ------
         ValueError: If the stream type is unsupported.
         RuntimeError: If ffmpeg fails to extract the stream.

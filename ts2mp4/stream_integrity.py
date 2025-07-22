@@ -1,3 +1,5 @@
+"""A module for verifying stream integrity."""
+
 from pathlib import Path
 from typing import Optional
 
@@ -13,9 +15,10 @@ def compare_stream_hashes(
     input_stream: "Stream",
     output_stream: "Stream",
 ) -> bool:
-    """Checks the integrity of a single stream by comparing MD5 hashes.
+    """Check the integrity of a single stream by comparing MD5 hashes.
 
-    Returns:
+    Returns
+    -------
         True if the stream hashes match and hash generation is successful, False otherwise.
     """
     try:
@@ -50,7 +53,7 @@ def verify_streams(
     stream_type: str,
     type_specific_stream_indices: Optional[list[int]] = None,
 ) -> None:
-    """Verifies the integrity of specified streams by comparing their MD5 hashes.
+    """Verify the integrity of specified streams by comparing their MD5 hashes.
 
     Args:
     ----
@@ -61,7 +64,7 @@ def verify_streams(
                                      If None, all streams of the specified
                                      type are checked.
 
-    Raises:
+    Raises
     ------
         RuntimeError: If there's a mismatch in stream counts or if any
             stream's MD5 hash does not match.

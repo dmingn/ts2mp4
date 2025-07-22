@@ -1,3 +1,5 @@
+"""Unit tests for the stream_integrity module."""
+
 from pathlib import Path
 
 import pytest

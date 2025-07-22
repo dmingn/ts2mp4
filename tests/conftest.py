@@ -1,3 +1,5 @@
+"""Pytest configuration file."""
+
 from pathlib import Path
 
 import pytest

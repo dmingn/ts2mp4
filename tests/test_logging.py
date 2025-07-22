@@ -1,3 +1,5 @@
+"""End-to-end tests for the logging functionality."""
+
 import subprocess
 from pathlib import Path
 

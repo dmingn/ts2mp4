@@ -1,3 +1,5 @@
+"""Command-line interface for ts2mp4."""
+
 import datetime
 import platform
 from enum import Enum

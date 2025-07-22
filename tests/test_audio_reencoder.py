@@ -1,3 +1,5 @@
+"""Unit and integration tests for the audio_reencoder module."""
+
 from pathlib import Path
 
 import pytest
@@ -14,6 +16,7 @@ from ts2mp4.media_info import MediaInfo, Stream, get_media_info
 
 @pytest.mark.unit
 def test_build_re_encode_args(mocker: MockerFixture) -> None:
+    """Test that re-encode arguments are built correctly."""
     mocker.patch("ts2mp4.audio_reencoder.is_libfdk_aac_available", return_value=False)
     stream = Stream(
         index=1,
@@ -45,6 +48,7 @@ def test_build_re_encode_args(mocker: MockerFixture) -> None:
 
 @pytest.mark.unit
 def test_build_re_encode_args_with_libfdk_aac(mocker: MockerFixture) -> None:
+    """Test that libfdk_aac is used when available."""
     mocker.patch("ts2mp4.audio_reencoder.is_libfdk_aac_available", return_value=True)
     stream = Stream(
         index=1,
@@ -57,6 +61,7 @@ def test_build_re_encode_args_with_libfdk_aac(mocker: MockerFixture) -> None:
 
 @pytest.mark.unit
 def test_build_re_encode_args_without_libfdk_aac(mocker: MockerFixture) -> None:
+    """Test that a warning is logged when libfdk_aac is not available."""
     mocker.patch("ts2mp4.audio_reencoder.is_libfdk_aac_available", return_value=False)
     mock_logger_warning = mocker.patch("ts2mp4.audio_reencoder.logger.warning")
     stream = Stream(
@@ -73,6 +78,7 @@ def test_build_re_encode_args_without_libfdk_aac(mocker: MockerFixture) -> None:
 
 @pytest.mark.unit
 def test_build_re_encode_args_with_none_values() -> None:
+    """Test that re-encode arguments are built correctly with minimal stream info."""
     stream = Stream(index=1, codec_name="aac", codec_type="audio")
     args = _build_re_encode_args(1, stream)
     assert args == ["-map", "0:a:1", "-codec:a:1", "aac", "-bsf:a:1", "aac_adtstoasc"]

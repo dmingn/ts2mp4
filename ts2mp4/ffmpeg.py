@@ -1,3 +1,5 @@
+"""A module for interacting with FFmpeg."""
+
 import functools
 import subprocess
 from typing import Literal, NamedTuple
@@ -39,7 +41,7 @@ def execute_ffmpeg(args: list[str]) -> FFmpegResult:
     ----
         args: A list of arguments for the command.
 
-    Returns:
+    Returns
     -------
         An FFmpegResult object with the command's results.
 
@@ -54,7 +56,7 @@ def execute_ffprobe(args: list[str]) -> FFmpegResult:
     ----
         args: A list of arguments for the command.
 
-    Returns:
+    Returns
     -------
         An FFmpegResult object with the command's results.
 

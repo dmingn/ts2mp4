@@ -1,3 +1,5 @@
+"""Unit and integration tests for the hashing module."""
+
 from pathlib import Path
 
 import pytest
@@ -10,7 +12,7 @@ from ts2mp4.media_info import Stream
 
 @pytest.fixture(autouse=True)
 def _clear_hashing_cache() -> None:
-    """A fixture to automatically clear the cache for get_stream_md5 before each test."""
+    """Clear the cache for get_stream_md5 before each test."""
     _get_stream_md5_cached.cache_clear()
 
 
