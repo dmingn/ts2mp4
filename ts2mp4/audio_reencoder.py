@@ -218,6 +218,8 @@ def re_encode_mismatched_audio_streams(
         # "-codec:s",
         # "copy",  # Copy subtitle codec without re-encoding
         # output file
+        "-f",
+        "mp4",
         str(output_file),
     ]
 
