@@ -7,6 +7,10 @@ from typing import Generator, Literal, NamedTuple
 from logzero import logger
 
 
+class FFmpegProcessError(Exception):
+    """Custom exception for FFmpeg process errors."""
+
+
 class FFmpegResult(NamedTuple):
     """A class to hold the results of an FFmpeg command."""
 
@@ -27,6 +31,10 @@ def _execute_process(
     Returns
     -------
         tuple[int, str]: A tuple containing the return code and stderr of the process.
+
+    Raises
+    ------
+        FFmpegProcessError: If stdout or stderr pipes cannot be opened.
     """
     command = [executable] + args
     logger.info(f"Running command: {' '.join(command)}")
@@ -34,8 +42,7 @@ def _execute_process(
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
     if process.stdout is None or process.stderr is None:
-        # This should not happen, as stdout and stderr are piped.
-        raise RuntimeError("Failed to open stdout/stderr for the process.")
+        raise FFmpegProcessError("Failed to open stdout/stderr for the process.")
 
     while chunk := process.stdout.read(1024):
         yield chunk
