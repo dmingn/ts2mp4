@@ -14,6 +14,13 @@ from ts2mp4 import _get_ts2mp4_version
 from ts2mp4.ts2mp4 import ts2mp4
 
 
+def version_callback(value: bool) -> None:
+    """Print the version of the application."""
+    if value:
+        print(f"ts2mp4 version: {_get_ts2mp4_version()}")
+        raise typer.Exit()
+
+
 class Preset(str, Enum):
     """Enum for FFmpeg presets."""
 
@@ -52,6 +59,15 @@ def main(
     preset: Annotated[
         Preset, typer.Option(help="Encoding preset. Defaults to 'slow'.")
     ] = Preset.slow,
+    _version: Annotated[
+        bool,
+        typer.Option(
+            "--version",
+            help="Show the version and exit.",
+            callback=version_callback,
+            is_eager=True,
+        ),
+    ] = False,
 ) -> None:
     """Convert a Transport Stream (TS) file to MP4 format."""
     if log_file is None:

@@ -28,7 +28,7 @@ def test_cli_entry_points_start_correctly(command: list[str]) -> None:
 @pytest.mark.integration
 def test_cli_options_recognized(mocker: MockerFixture, tmp_path: Path) -> None:
     """Test that the CLI recognizes the --crf and --preset options."""
-    mock_ts2mp4 = mocker.patch("ts2mp4.ts2mp4.ts2mp4")
+    mock_ts2mp4 = mocker.patch("ts2mp4.cli.ts2mp4")
     mocker.patch("pathlib.Path.replace")
     mocker.patch("pathlib.Path.stat", return_value=mocker.MagicMock(st_size=100))
     mocker.patch("pathlib.Path.exists", return_value=False)
