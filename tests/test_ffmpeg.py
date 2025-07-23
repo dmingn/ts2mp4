@@ -82,14 +82,21 @@ def test_handles_non_utf8_output(mocker: MockerFixture) -> None:
     """Test that _execute_process handles non-UTF-8 output correctly."""
     mock_popen = mocker.patch("subprocess.Popen")
     mock_process = MagicMock()
-    mock_process.communicate.return_value = (b"", b"invalid byte: \xff")
+    mock_process.stdout.read.side_effect = [b"", None]
+    mock_process.stderr.read.return_value = b"invalid byte: \xff"
     mock_process.returncode = 0
     mock_popen.return_value = mock_process
 
     from ts2mp4.ffmpeg import _execute_process
 
-    result = _execute_process("ffmpeg", [])
-    assert "�" in result.stderr
+    process_generator = _execute_process("ffmpeg", [])
+    try:
+        while True:
+            next(process_generator)
+    except StopIteration as e:
+        _, stderr = e.value
+
+    assert "�" in stderr
 
 
 @pytest.mark.integration

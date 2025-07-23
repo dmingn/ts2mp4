@@ -2,9 +2,13 @@
 
 import functools
 import subprocess
-from typing import Literal, NamedTuple
+from typing import Generator, Literal, NamedTuple
 
 from logzero import logger
+
+
+class FFmpegProcessError(Exception):
+    """Custom exception for FFmpeg process errors."""
 
 
 class FFmpegResult(NamedTuple):
@@ -17,12 +21,33 @@ class FFmpegResult(NamedTuple):
 
 def _execute_process(
     executable: Literal["ffmpeg", "ffprobe"], args: list[str]
-) -> FFmpegResult:
+) -> Generator[bytes, None, tuple[int, str]]:
+    """Execute a process and yield its stdout in chunks.
+
+    Yields
+    ------
+        bytes: Chunks of stdout from the process.
+
+    Returns
+    -------
+        tuple[int, str]: A tuple containing the return code and stderr of the process.
+
+    Raises
+    ------
+        FFmpegProcessError: If stdout or stderr pipes cannot be opened.
+    """
     command = [executable] + args
     logger.info(f"Running command: {' '.join(command)}")
 
     process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-    stdout, stderr_bytes = process.communicate()
+
+    if process.stdout is None or process.stderr is None:
+        raise FFmpegProcessError("Failed to open stdout/stderr for the process.")
+
+    while chunk := process.stdout.read(1024):
+        yield chunk
+
+    stderr_bytes = process.stderr.read()
 
     # stdout is treated as binary data, as it can contain multimedia streams.
     # stderr is treated as text, as it's used for logs and progress information.
@@ -31,7 +56,8 @@ def _execute_process(
     if stderr:
         logger.info(stderr)
 
-    return FFmpegResult(stdout=stdout, stderr=stderr, returncode=process.returncode)
+    process.wait()
+    return process.returncode, stderr
 
 
 def execute_ffmpeg(args: list[str]) -> FFmpegResult:
@@ -46,7 +72,15 @@ def execute_ffmpeg(args: list[str]) -> FFmpegResult:
         An FFmpegResult object with the command's results.
 
     """
-    return _execute_process("ffmpeg", args)
+    process_generator = _execute_process("ffmpeg", args)
+    stdout_chunks = []
+    try:
+        while True:
+            stdout_chunks.append(next(process_generator))
+    except StopIteration as e:
+        returncode, stderr = e.value
+    stdout = b"".join(stdout_chunks)
+    return FFmpegResult(stdout=stdout, stderr=stderr, returncode=returncode)
 
 
 def execute_ffprobe(args: list[str]) -> FFmpegResult:
@@ -61,7 +95,15 @@ def execute_ffprobe(args: list[str]) -> FFmpegResult:
         An FFmpegResult object with the command's results.
 
     """
-    return _execute_process("ffprobe", args)
+    process_generator = _execute_process("ffprobe", args)
+    stdout_chunks = []
+    try:
+        while True:
+            stdout_chunks.append(next(process_generator))
+    except StopIteration as e:
+        returncode, stderr = e.value
+    stdout = b"".join(stdout_chunks)
+    return FFmpegResult(stdout=stdout, stderr=stderr, returncode=returncode)
 
 
 @functools.cache
