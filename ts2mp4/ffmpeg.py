@@ -18,6 +18,16 @@ class FFmpegResult(NamedTuple):
 def _execute_process(
     executable: Literal["ffmpeg", "ffprobe"], args: list[str]
 ) -> Generator[bytes, None, tuple[int, str]]:
+    """Execute a process and yield its stdout in chunks.
+
+    Yields
+    ------
+        bytes: Chunks of stdout from the process.
+
+    Returns
+    -------
+        tuple[int, str]: A tuple containing the return code and stderr of the process.
+    """
     command = [executable] + args
     logger.info(f"Running command: {' '.join(command)}")
 
