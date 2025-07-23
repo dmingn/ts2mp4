@@ -59,7 +59,7 @@ def main(
     preset: Annotated[
         Preset, typer.Option(help="Encoding preset. Defaults to 'slow'.")
     ] = Preset.slow,
-    version: Annotated[
+    _version: Annotated[
         bool,
         typer.Option(
             "--version",
