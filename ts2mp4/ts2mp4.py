@@ -6,6 +6,7 @@ from logzero import logger
 
 from .audio_reencoder import re_encode_mismatched_audio_streams
 from .ffmpeg import execute_ffmpeg
+from .media_info import get_media_info
 from .stream_integrity import verify_streams
 
 
@@ -27,40 +28,57 @@ def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
             speed and efficiency (e.g., 'medium', 'fast', 'slow').
 
     """
-    ffmpeg_args = [
-        "-hide_banner",
-        "-nostats",
-        "-fflags",
-        "+discardcorrupt",
-        "-y",
-        "-i",
-        str(input_file),
-        "-map",
-        "0:v",
-        "-map",
-        "0:a",
-        # "-map",
-        # "0:s?",
-        "-f",
-        "mp4",
-        "-vsync",
-        "1",
-        "-vf",
-        "bwdif",
-        "-codec:v",
-        "libx265",
-        "-crf",
-        str(crf),
-        "-preset",
-        preset,
-        "-codec:a",
-        "copy",
-        # "-codec:s",
-        # "mov_text",
-        "-bsf:a",
-        "aac_adtstoasc",
-        str(output_file),
+    media_info = get_media_info(input_file)
+    audio_streams = [
+        stream for stream in media_info.streams if stream.codec_type == "audio"
     ]
+    valid_audio_streams = [
+        stream
+        for stream in audio_streams
+        if stream.channels is not None and stream.channels > 0
+    ]
+
+    ffmpeg_args = (
+        [
+            "-hide_banner",
+            "-nostats",
+            "-fflags",
+            "+discardcorrupt",
+            "-y",
+            "-i",
+            str(input_file),
+            "-map",
+            "0:v",
+        ]
+        + [
+            arg
+            for stream in valid_audio_streams
+            for arg in ("-map", f"0:{stream.index}")
+        ]
+        + [
+            # "-map",
+            # "0:s?",
+            "-f",
+            "mp4",
+            "-vsync",
+            "1",
+            "-vf",
+            "bwdif",
+            "-codec:v",
+            "libx265",
+            "-crf",
+            str(crf),
+            "-preset",
+            preset,
+            "-codec:a",
+            "copy",
+            # "-codec:s",
+            # "mov_text",
+            "-bsf:a",
+            "aac_adtstoasc",
+            str(output_file),
+        ]
+    )
     result = execute_ffmpeg(ffmpeg_args)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
