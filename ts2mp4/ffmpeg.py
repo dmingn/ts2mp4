@@ -90,6 +90,23 @@ def execute_ffmpeg(args: list[str]) -> FFmpegResult:
     return _consume_process_generator(process_generator)
 
 
+def execute_ffmpeg_streamed(
+    args: list[str],
+) -> Generator[bytes, None, tuple[int, str]]:
+    """Execute ffmpeg and returns a generator for stdout.
+
+    Args:
+    ----
+        args: A list of arguments for the command.
+
+    Returns
+    -------
+        A generator that yields stdout in chunks.
+        The generator's return value is a tuple of (returncode, stderr).
+    """
+    return _execute_process("ffmpeg", args)
+
+
 def execute_ffprobe(args: list[str]) -> FFmpegResult:
     """Execute ffprobe and returns the result.
 

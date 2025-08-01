@@ -1,13 +1,26 @@
 """Unit and integration tests for the hashing module."""
 
 from pathlib import Path
+from typing import Generator
 
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.ffmpeg import FFmpegResult
 from ts2mp4.hashing import _get_stream_md5_cached, get_stream_md5
 from ts2mp4.media_info import Stream
+
+
+def mock_ffmpeg_stream_success() -> Generator[bytes, None, tuple[int, str]]:
+    """Mock of successful ffmpeg stream."""
+    yield b"stream_data"
+    return 0, ""
+
+
+def mock_ffmpeg_stream_failure() -> Generator[bytes, None, tuple[int, str]]:
+    """Mock of failed ffmpeg stream."""
+    if False:
+        yield
+    return 1, "ffmpeg error"
 
 
 @pytest.fixture(autouse=True)
@@ -26,8 +39,8 @@ def test_get_stream_md5_caching(mocker: MockerFixture) -> None:
     mocker.patch.object(Path, "stat", return_value=mocker.Mock(st_mtime=1, st_size=1))
 
     mock_execute_ffmpeg = mocker.patch(
-        "ts2mp4.hashing.execute_ffmpeg",
-        return_value=FFmpegResult(stdout=b"stream_data", stderr="", returncode=0),
+        "ts2mp4.hashing.execute_ffmpeg_streamed",
+        return_value=mock_ffmpeg_stream_success(),
     )
 
     # Call twice
@@ -51,8 +64,8 @@ def test_get_stream_md5_cache_invalidation(mocker: MockerFixture) -> None:
     )
 
     mock_execute_ffmpeg = mocker.patch(
-        "ts2mp4.hashing.execute_ffmpeg",
-        return_value=FFmpegResult(stdout=b"stream_data", stderr="", returncode=0),
+        "ts2mp4.hashing.execute_ffmpeg_streamed",
+        side_effect=[mock_ffmpeg_stream_success(), mock_ffmpeg_stream_success()],
     )
 
     # First call
@@ -98,9 +111,9 @@ def test_get_stream_md5_failure(
     mocker: MockerFixture, ts_file: Path, stream_index: int, codec_type: str
 ) -> None:
     """Test get_stream_md5 with a non-zero return code for different stream types."""
-    mock_execute_ffmpeg = mocker.patch("ts2mp4.hashing.execute_ffmpeg")
-    mock_execute_ffmpeg.return_value = FFmpegResult(
-        stdout=b"", stderr="ffmpeg error", returncode=1
+    mocker.patch(
+        "ts2mp4.hashing.execute_ffmpeg_streamed",
+        return_value=mock_ffmpeg_stream_failure(),
     )
     stream = Stream(index=stream_index, codec_type=codec_type)
     with pytest.raises(RuntimeError, match="ffmpeg failed"):
