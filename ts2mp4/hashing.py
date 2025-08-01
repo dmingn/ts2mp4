@@ -6,7 +6,7 @@ from pathlib import Path
 
 from ts2mp4.media_info import Stream
 
-from .ffmpeg import execute_ffmpeg
+from .ffmpeg import execute_ffmpeg_streamed
 
 
 @cache
@@ -34,13 +34,23 @@ def _get_stream_md5_cached(
         output_format,
         "-",  # Output to stdout
     ]
-    result = execute_ffmpeg(ffmpeg_args)
-    if result.returncode != 0:
+
+    process_generator = execute_ffmpeg_streamed(ffmpeg_args)
+    md5_hash = hashlib.md5()
+    returncode = -1  # Initialize with a default error code
+    try:
+        while True:
+            chunk = next(process_generator)
+            md5_hash.update(chunk)
+    except StopIteration as e:
+        returncode, _ = e.value
+
+    if returncode != 0:
         raise RuntimeError(
             f"ffmpeg failed to get decoded {stream.codec_type} stream for {file_path}. "
-            f"Return code: {result.returncode}"
+            f"Return code: {returncode}"
         )
-    return hashlib.md5(result.stdout).hexdigest()
+    return md5_hash.hexdigest()
 
 
 def get_stream_md5(file_path: Path, stream: Stream) -> str:
