@@ -18,8 +18,7 @@ def mock_ffmpeg_stream_success() -> Generator[bytes, None, tuple[int, str]]:
 
 def mock_ffmpeg_stream_failure() -> Generator[bytes, None, tuple[int, str]]:
     """Mock of failed ffmpeg stream."""
-    if False:
-        yield
+    yield from ()
     return 1, "ffmpeg error"
 
 
