@@ -39,7 +39,8 @@ def _get_stream_md5_cached(
     md5_hash = hashlib.md5()
     returncode = -1  # Initialize with a default error code
     try:
-        while chunk := next(process_generator):
+        while True:
+            chunk = next(process_generator)
             md5_hash.update(chunk)
     except StopIteration as e:
         returncode, _ = e.value
