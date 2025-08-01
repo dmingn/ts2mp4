@@ -4,6 +4,10 @@ This file provides guidelines and context for AI agents (like me) working on the
 
 For general project information, including project overview, technology stack, project structure, and development workflow, please refer to `README.md`.
 
+### Referencing Guidelines
+
+*   When referencing or applying guidelines from this `AGENTS.md` file, the agent will explicitly state that it is doing so in the conversation.
+
 ## 1. Coding Guidelines
 
 ### 1.1. Code Style
