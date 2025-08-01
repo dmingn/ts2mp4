@@ -60,6 +60,20 @@ def _execute_process(
     return process.returncode, stderr
 
 
+def _consume_process_generator(
+    process_generator: Generator[bytes, None, tuple[int, str]],
+) -> FFmpegResult:
+    """Consumes a process generator, collects stdout, and returns an FFmpegResult."""
+    stdout_chunks = []
+    try:
+        while True:
+            stdout_chunks.append(next(process_generator))
+    except StopIteration as e:
+        returncode, stderr = e.value
+    stdout = b"".join(stdout_chunks)
+    return FFmpegResult(stdout=stdout, stderr=stderr, returncode=returncode)
+
+
 def execute_ffmpeg(args: list[str]) -> FFmpegResult:
     """Execute ffmpeg and returns the result.
 
@@ -73,14 +87,7 @@ def execute_ffmpeg(args: list[str]) -> FFmpegResult:
 
     """
     process_generator = _execute_process("ffmpeg", args)
-    stdout_chunks = []
-    try:
-        while True:
-            stdout_chunks.append(next(process_generator))
-    except StopIteration as e:
-        returncode, stderr = e.value
-    stdout = b"".join(stdout_chunks)
-    return FFmpegResult(stdout=stdout, stderr=stderr, returncode=returncode)
+    return _consume_process_generator(process_generator)
 
 
 def execute_ffprobe(args: list[str]) -> FFmpegResult:
@@ -96,14 +103,7 @@ def execute_ffprobe(args: list[str]) -> FFmpegResult:
 
     """
     process_generator = _execute_process("ffprobe", args)
-    stdout_chunks = []
-    try:
-        while True:
-            stdout_chunks.append(next(process_generator))
-    except StopIteration as e:
-        returncode, stderr = e.value
-    stdout = b"".join(stdout_chunks)
-    return FFmpegResult(stdout=stdout, stderr=stderr, returncode=returncode)
+    return _consume_process_generator(process_generator)
 
 
 @functools.cache
