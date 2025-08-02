@@ -162,7 +162,7 @@ jobs:
           git checkout -B "$BRANCH_NAME"
           git add pyproject.toml
           git commit -m "build: update version to ${{ steps.update_version.outputs.new_version }}"
-          git push --force-with-lease origin "$BRANCH_NAME"
+          git push --force origin "$BRANCH_NAME"
 
       - name: Create/Update Pull Request
         if: steps.update_version.outputs.version_updated == 'true'
