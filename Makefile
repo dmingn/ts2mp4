@@ -48,22 +48,3 @@ $(TEST_ASSETS_DIR)/test_video.ts: Makefile
 		$@
 	@echo "Dummy video '$@' generated successfully."
 
-.PHONY: release
-release:
-	@if [ "$(shell git rev-parse --abbrev-ref HEAD)" != "master" ]; then \
-		echo "Error: You can only run 'make release' on the master branch."; \
-		exit 1; \
-	fi
-	@echo "Fetching latest from origin/master..."
-	@git fetch origin master || { echo "Error: Failed to fetch from origin/master. Please check your network connection or git configuration."; exit 1; }
-	@if [ "$(shell git rev-parse HEAD)" != "$(shell git rev-parse origin/master)" ]; then \
-		echo "Error: Your local master branch is not up-to-date with origin/master. Please pull the latest changes."; \
-		exit 1; \
-	fi
-	@echo "Getting version from pyproject.toml..."
-	$(eval VERSION := $(shell poetry version --short))
-	@echo "Version: $(VERSION)"
-	@echo "Creating git tag $(VERSION)..."
-	git tag $(VERSION)
-	@echo "Pushing git tag $(VERSION) to origin..."
-	git push origin $(VERSION)
