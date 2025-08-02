@@ -93,3 +93,81 @@ jobs:
             --generate-notes \
             --draft=false \
             --prerelease=false
+
+  propose-version-update:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
+
+      - name: Install poetry
+        run: pipx install poetry
+
+      - name: Update version if needed
+        id: update_version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Get the latest release version from GitHub
+          LATEST_GH_RELEASE=$(gh release list --limit 1 --json tagName --jq '.[0].tagName' || echo "")
+
+          TODAY=$(date +'%Y.%m.%d')
+
+          if [[ -z "$LATEST_GH_RELEASE" ]]; then
+            echo "No releases found. Starting with version $TODAY.0"
+            POTENTIAL_NEW_VERSION="$TODAY.0"
+          else
+            echo "Latest GitHub release is $LATEST_GH_RELEASE"
+            LATEST_RELEASE_DATE=$(echo $LATEST_GH_RELEASE | cut -d. -f1-3)
+            LATEST_RELEASE_PATCH=$(echo $LATEST_GH_RELEASE | cut -d. -f4)
+
+            if [[ "$LATEST_RELEASE_DATE" < "$TODAY" ]]; then
+              POTENTIAL_NEW_VERSION="$TODAY.0"
+            else # LATEST_RELEASE_DATE == TODAY
+              NEW_PATCH=$((LATEST_RELEASE_PATCH + 1))
+              POTENTIAL_NEW_VERSION="$TODAY.$NEW_PATCH"
+            fi
+          fi
+
+          echo "Potential new version is $POTENTIAL_NEW_VERSION"
+
+          CURRENT_VERSION_IN_CODE=$(poetry version --short)
+          echo "Current version in pyproject.toml is $CURRENT_VERSION_IN_CODE"
+
+          if [[ "$POTENTIAL_NEW_VERSION" != "$CURRENT_VERSION_IN_CODE" ]]; then
+            echo "Version requires update. Proposing version $POTENTIAL_NEW_VERSION"
+            poetry version $POTENTIAL_NEW_VERSION
+            echo "version_updated=true" >> $GITHUB_OUTPUT
+            echo "new_version=$POTENTIAL_NEW_VERSION" >> $GITHUB_OUTPUT
+          else
+            echo "Version is already correct: $CURRENT_VERSION_IN_CODE"
+            echo "version_updated=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create Pull Request
+        if: steps.update_version.outputs.version_updated == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          BRANCH_NAME="feature/auto-version-update"
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Create or update the branch
+          git checkout -B "$BRANCH_NAME"
+          git add pyproject.toml
+          git commit -m "build: update version to ${{ steps.update_version.outputs.new_version }}"
+          git push --force-with-lease origin "$BRANCH_NAME"
+
+          # Check if a PR already exists for this branch
+          if gh pr view "$BRANCH_NAME" >/dev/null 2>&1; then
+            echo "Pull request for branch '$BRANCH_NAME' already exists. It has been updated."
+          else
+            echo "Creating a new pull request for branch '$BRANCH_NAME'."
+            gh pr create \
+              --title "build: Propose version update to ${{ steps.update_version.outputs.new_version }}" \
+              --body "This PR proposes an update to the project version." \
+              --head "$BRANCH_NAME" \
+              --base "master"
+          fi
