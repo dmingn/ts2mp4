@@ -170,10 +170,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.PAT_FOR_CREATING_PR }}
         run: |
           BRANCH_NAME="${{ steps.prepare_branch.outputs.branch_name }}"
-          if gh pr view "$BRANCH_NAME" >/dev/null 2>&1; then
-            echo "Pull request for branch '$BRANCH_NAME' already exists. It has been updated."
+          PR_STATE=$(gh pr view "$BRANCH_NAME" --json state --jq .state 2>/dev/null)
+
+          if [[ "$PR_STATE" == "OPEN" ]]; then
+            echo "An open pull request for branch '$BRANCH_NAME' already exists. It has been updated by the push."
           else
-            echo "Creating a new pull request for branch '$BRANCH_NAME'."
+            if [[ -n "$PR_STATE" ]]; then
+              echo "A pull request for branch '$BRANCH_NAME' exists but is not open (state: $PR_STATE). Creating a new one."
+            else
+              echo "No pull request found for branch '$BRANCH_NAME'. Creating a new one."
+            fi
             gh pr create \
               --title "build: Propose version update to ${{ steps.update_version.outputs.new_version }}" \
               --body "This PR proposes an update to the project version. Merging this PR will trigger a new release." \
