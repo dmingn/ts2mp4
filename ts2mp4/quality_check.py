@@ -69,6 +69,8 @@ def get_audio_quality_metrics(
         An AudioQualityMetrics namedtuple containing apsnr and asdr, or None if metrics could not be calculated.
     """
     command = [
+        "-hide_banner",
+        "-nostats",
         "-i",
         str(original_file),
         "-i",
