@@ -75,6 +75,10 @@ def main(
         log_file = path.with_stem(f"{path.stem}-{timestamp}").with_suffix(".log")
     logzero.logfile(str(log_file))
 
+    logger.info(f"ts2mp4 Version: {_get_ts2mp4_version()}")
+    logger.info(f"Python Version: {platform.python_version()}")
+    logger.info(f"Platform: {platform.platform()}")
+
     try:
         start_time = datetime.datetime.now()
         logger.info(f"Conversion Log for {path.name}")
@@ -101,9 +105,6 @@ def main(
         end_time = datetime.datetime.now()
         logger.info(f"End Time: {end_time}")
         logger.info(f"Duration: {end_time - start_time}")
-        logger.info(f"ts2mp4 Version: {_get_ts2mp4_version()}")
-        logger.info(f"Python Version: {platform.python_version()}")
-        logger.info(f"Platform: {platform.platform()}")
     except Exception:
         logger.exception("An error occurred during conversion.")
         raise typer.Exit(code=1)
