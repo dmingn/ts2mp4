@@ -1,5 +1,6 @@
 """Unit and integration tests for the quality_check module."""
 
+import math
 from pathlib import Path
 from typing import Union
 
@@ -57,6 +58,21 @@ from ts2mp4.quality_check import (
             None,
             -5.25,
         ),
+        (
+            "[Parsed_apsnr_0 @ 0x7f9990004800] PSNR ch1: 42.0 dB",
+            42.0,
+            None,
+        ),
+        (
+            "[Parsed_asdr_1 @ 0x7f9990004ac0] SDR ch1: -nan dB",
+            None,
+            float("nan"),
+        ),
+        (
+            "[Parsed_apsnr_0 @ 0x123] PSNR ch0: 10.0 dB\n[Parsed_apsnr_0 @ 0x123] PSNR ch1: 20.0 dB",
+            10.0,
+            None,
+        ),
     ],
 )
 def test_parse_audio_quality_metrics(
@@ -66,8 +82,26 @@ def test_parse_audio_quality_metrics(
 ) -> None:
     """Test parsing of audio quality metrics from FFmpeg output."""
     metrics = parse_audio_quality_metrics(ffmpeg_output)
-    assert metrics.apsnr == expected_apsnr
-    assert metrics.asdr == expected_asdr
+
+    # Handle NaN comparison for APSNR
+    if (
+        expected_apsnr is not None
+        and isinstance(expected_apsnr, float)
+        and math.isnan(expected_apsnr)
+    ):
+        assert metrics.apsnr is not None and math.isnan(metrics.apsnr)
+    else:
+        assert metrics.apsnr == expected_apsnr
+
+    # Handle NaN comparison for ASDR
+    if (
+        expected_asdr is not None
+        and isinstance(expected_asdr, float)
+        and math.isnan(expected_asdr)
+    ):
+        assert metrics.asdr is not None and math.isnan(metrics.asdr)
+    else:
+        assert metrics.asdr == expected_asdr
 
 
 @pytest.mark.unit
