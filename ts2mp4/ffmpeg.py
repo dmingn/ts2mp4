@@ -22,7 +22,17 @@ class FFmpegResult(NamedTuple):
 def _run_command(
     executable: Literal["ffmpeg", "ffprobe"], args: list[str]
 ) -> FFmpegResult:
-    """Execute a process and return its stdout, stderr, and return code."""
+    """Execute a process and return its stdout, stderr, and return code.
+
+    Args:
+    ----
+        executable: The FFmpeg or FFprobe executable.
+        args: A list of arguments for the command.
+
+    Returns
+    -------
+        FFmpegResult: An object containing the stdout, stderr, and return code of the process.
+    """
     command = [executable] + args
     logger.info(f"Running command: {' '.join(command)}")
 
@@ -42,7 +52,25 @@ def _run_command(
 def _stream_command(
     executable: Literal["ffmpeg", "ffprobe"], args: list[str]
 ) -> Generator[bytes, None, tuple[int, str]]:
-    """Execute a process and yield its stdout in chunks."""
+    """Execute a process and yield its stdout in chunks.
+
+    Args:
+    ----
+        executable: The FFmpeg or FFprobe executable.
+        args: A list of arguments for the command.
+
+    Yields
+    ------
+        bytes: Chunks of stdout from the process.
+
+    Returns
+    -------
+        tuple[int, str]: A tuple containing the return code and stderr of the process.
+
+    Raises
+    ------
+        FFmpegProcessError: If stdout or stderr pipes cannot be opened.
+    """
     command = [executable] + args
     logger.info(f"Running command: {' '.join(command)}")
 
