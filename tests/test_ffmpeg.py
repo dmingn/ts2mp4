@@ -79,7 +79,7 @@ def test_execute_ffprobe_success() -> None:
     assert b"ffprobe version" in result.stdout or "ffprobe version" in result.stderr
 
 
-@pytest.mark.integration
+@pytest.mark.unit
 def test_handles_non_utf8_output_stream_command(mocker: MockerFixture) -> None:
     """Test that _stream_command handles non-UTF8 output correctly."""
     mock_popen = mocker.patch("subprocess.Popen")
@@ -99,7 +99,7 @@ def test_handles_non_utf8_output_stream_command(mocker: MockerFixture) -> None:
     assert "�" in stderr
 
 
-@pytest.mark.integration
+@pytest.mark.unit
 def test_handles_non_utf8_output_run_command(mocker: MockerFixture) -> None:
     """Test that _run_command handles non-UTF-8 output correctly."""
     mock_subprocess_run = mocker.patch("subprocess.run")
