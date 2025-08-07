@@ -10,6 +10,8 @@ from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import (
     FFmpegResult,
+    _run_command,
+    _stream_command,
     execute_ffmpeg,
     execute_ffprobe,
     is_libfdk_aac_available,
@@ -78,8 +80,8 @@ def test_execute_ffprobe_success() -> None:
 
 
 @pytest.mark.integration
-def test_handles_non_utf8_output(mocker: MockerFixture) -> None:
-    """Test that _execute_process handles non-UTF-8 output correctly."""
+def test_handles_non_utf8_output_stream_command(mocker: MockerFixture) -> None:
+    """Test that _stream_command handles non-UTF8 output correctly."""
     mock_popen = mocker.patch("subprocess.Popen")
     mock_process = MagicMock()
     mock_process.stdout.read.side_effect = [b"", None]
@@ -87,9 +89,7 @@ def test_handles_non_utf8_output(mocker: MockerFixture) -> None:
     mock_process.returncode = 0
     mock_popen.return_value = mock_process
 
-    from ts2mp4.ffmpeg import _execute_process
-
-    process_generator = _execute_process("ffmpeg", [])
+    process_generator = _stream_command("ffmpeg", [])
     try:
         while True:
             next(process_generator)
@@ -97,6 +97,20 @@ def test_handles_non_utf8_output(mocker: MockerFixture) -> None:
         _, stderr = e.value
 
     assert "�" in stderr
+
+
+@pytest.mark.integration
+def test_handles_non_utf8_output_run_command(mocker: MockerFixture) -> None:
+    """Test that _run_command handles non-UTF-8 output correctly."""
+    mock_subprocess_run = mocker.patch("subprocess.run")
+    mock_result = MagicMock()
+    mock_result.stdout = b""
+    mock_result.stderr = b"invalid byte: \xff"
+    mock_result.returncode = 0
+    mock_subprocess_run.return_value = mock_result
+
+    result = _run_command("ffmpeg", [])
+    assert "�" in result.stderr
 
 
 @pytest.mark.integration

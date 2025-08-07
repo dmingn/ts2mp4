@@ -19,23 +19,30 @@ class FFmpegResult(NamedTuple):
     returncode: int
 
 
-def _execute_process(
+def _run_command(
+    executable: Literal["ffmpeg", "ffprobe"], args: list[str]
+) -> FFmpegResult:
+    """Execute a process and return its stdout, stderr, and return code."""
+    command = [executable] + args
+    logger.info(f"Running command: {' '.join(command)}")
+
+    # Use check=False to prevent CalledProcessError on non-zero exit codes,
+    # allowing us to read stderr for detailed FFmpeg error messages.
+    process = subprocess.run(command, capture_output=True, check=False)
+
+    stdout = process.stdout
+    stderr = process.stderr.decode("utf-8", errors="replace")
+
+    if stderr:
+        logger.info(stderr)
+
+    return FFmpegResult(stdout=stdout, stderr=stderr, returncode=process.returncode)
+
+
+def _stream_command(
     executable: Literal["ffmpeg", "ffprobe"], args: list[str]
 ) -> Generator[bytes, None, tuple[int, str]]:
-    """Execute a process and yield its stdout in chunks.
-
-    Yields
-    ------
-        bytes: Chunks of stdout from the process.
-
-    Returns
-    -------
-        tuple[int, str]: A tuple containing the return code and stderr of the process.
-
-    Raises
-    ------
-        FFmpegProcessError: If stdout or stderr pipes cannot be opened.
-    """
+    """Execute a process and yield its stdout in chunks."""
     command = [executable] + args
     logger.info(f"Running command: {' '.join(command)}")
 
@@ -60,20 +67,6 @@ def _execute_process(
     return process.returncode, stderr
 
 
-def _consume_process_generator(
-    process_generator: Generator[bytes, None, tuple[int, str]],
-) -> FFmpegResult:
-    """Consumes a process generator, collects stdout, and returns an FFmpegResult."""
-    stdout_chunks = []
-    try:
-        while True:
-            stdout_chunks.append(next(process_generator))
-    except StopIteration as e:
-        returncode, stderr = e.value
-    stdout = b"".join(stdout_chunks)
-    return FFmpegResult(stdout=stdout, stderr=stderr, returncode=returncode)
-
-
 def execute_ffmpeg(args: list[str]) -> FFmpegResult:
     """Execute ffmpeg and returns the result.
 
@@ -86,8 +79,7 @@ def execute_ffmpeg(args: list[str]) -> FFmpegResult:
         An FFmpegResult object with the command's results.
 
     """
-    process_generator = _execute_process("ffmpeg", args)
-    return _consume_process_generator(process_generator)
+    return _run_command("ffmpeg", args)
 
 
 def execute_ffmpeg_streamed(
@@ -104,7 +96,7 @@ def execute_ffmpeg_streamed(
         A generator that yields stdout in chunks.
         The generator's return value is a tuple of (returncode, stderr).
     """
-    return _execute_process("ffmpeg", args)
+    return _stream_command("ffmpeg", args)
 
 
 def execute_ffprobe(args: list[str]) -> FFmpegResult:
@@ -119,8 +111,7 @@ def execute_ffprobe(args: list[str]) -> FFmpegResult:
         An FFmpegResult object with the command's results.
 
     """
-    process_generator = _execute_process("ffprobe", args)
-    return _consume_process_generator(process_generator)
+    return _run_command("ffprobe", args)
 
 
 @functools.cache
