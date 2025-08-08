@@ -18,31 +18,37 @@ class AudioQualityMetrics(NamedTuple):
 
 def parse_audio_quality_metrics(output: str) -> AudioQualityMetrics:
     """Parse FFmpeg output and log APSNR and ASDR metrics."""
-    apsnr = None
-    asdr = None
+    apsnr: Optional[float] = None
+    asdr: Optional[float] = None
 
     for line in output.splitlines():
-        if "Parsed_apsnr" in line:
+        if "Parsed_apsnr" in line and apsnr is None:
             match = re.search(
-                r"PSNR ch0: ([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?|inf|-inf|nan) dB",
+                r"PSNR ch\d+: ([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?|inf|-inf|-?nan) dB",
                 line,
             )
             if match:
                 try:
-                    apsnr = float(match.group(1))
+                    value_str = match.group(1)
+                    if value_str == "-nan":
+                        value_str = "nan"
+                    apsnr = float(value_str)
                 except ValueError as e:
                     logger.warning(f"Could not parse APSNR from line: {line} - {e}")
             else:
                 logger.warning(f"Could not find APSNR in line: {line}")
 
-        if "Parsed_asdr" in line:
+        if "Parsed_asdr" in line and asdr is None:
             match = re.search(
-                r"SDR ch0: ([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?|inf|-inf|nan) dB",
+                r"SDR ch\d+: ([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?|inf|-inf|-?nan) dB",
                 line,
             )
             if match:
                 try:
-                    asdr = float(match.group(1))
+                    value_str = match.group(1)
+                    if value_str == "-nan":
+                        value_str = "nan"
+                    asdr = float(value_str)
                 except ValueError as e:
                     logger.warning(f"Could not parse ASDR from line: {line} - {e}")
             else:
