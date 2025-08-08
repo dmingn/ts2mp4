@@ -9,7 +9,7 @@ ignore_missing_imports = true
 
 [tool.poetry]
 name = "ts2mp4"
-version = "2025.08.02.0"
+version = "2025.08.08.0"
 description = ""
 authors = ["dmingn <dmingn@users.noreply.github.com>"]
 
