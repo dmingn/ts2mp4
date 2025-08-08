@@ -10,16 +10,16 @@ from ts2mp4.hashing import _get_stream_md5_cached, get_stream_md5
 from ts2mp4.media_info import Stream
 
 
-def mock_ffmpeg_stream_success() -> Generator[bytes, None, tuple[int, str]]:
+def mock_ffmpeg_stream_success() -> Generator[bytes, None, int]:
     """Mock of successful ffmpeg stream."""
     yield b"stream_data"
-    return 0, ""
+    return 0
 
 
-def mock_ffmpeg_stream_failure() -> Generator[bytes, None, tuple[int, str]]:
+def mock_ffmpeg_stream_failure() -> Generator[bytes, None, int]:
     """Mock of failed ffmpeg stream."""
     yield from ()
-    return 1, "ffmpeg error"
+    return 1
 
 
 @pytest.fixture(autouse=True)

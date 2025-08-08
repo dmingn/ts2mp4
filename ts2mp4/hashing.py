@@ -43,7 +43,7 @@ def _get_stream_md5_cached(
             chunk = next(process_generator)
             md5_hash.update(chunk)
     except StopIteration as e:
-        returncode, _ = e.value
+        returncode = e.value
 
     if returncode != 0:
         raise RuntimeError(

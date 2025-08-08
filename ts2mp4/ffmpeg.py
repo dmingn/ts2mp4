@@ -49,10 +49,13 @@ def _run_command(
     return FFmpegResult(stdout=stdout, stderr=stderr, returncode=process.returncode)
 
 
-def _stream_command(
+def _stream_stdout(
     executable: Literal["ffmpeg", "ffprobe"], args: list[str]
-) -> Generator[bytes, None, tuple[int, str]]:
+) -> Generator[bytes, None, int]:
     """Execute a process and yield its stdout in chunks.
+
+    This function runs a command as a subprocess, yielding its standard output
+    in 1KB chunks. Standard error is captured and logged internally.
 
     Args:
     ----
@@ -65,7 +68,7 @@ def _stream_command(
 
     Returns
     -------
-        tuple[int, str]: A tuple containing the return code and stderr of the process.
+        int: The return code of the process after it completes.
 
     Raises
     ------
@@ -92,7 +95,7 @@ def _stream_command(
         logger.info(stderr)
 
     process.wait()
-    return process.returncode, stderr
+    return process.returncode
 
 
 def execute_ffmpeg(args: list[str]) -> FFmpegResult:
@@ -112,7 +115,7 @@ def execute_ffmpeg(args: list[str]) -> FFmpegResult:
 
 def execute_ffmpeg_streamed(
     args: list[str],
-) -> Generator[bytes, None, tuple[int, str]]:
+) -> Generator[bytes, None, int]:
     """Execute ffmpeg and returns a generator for stdout.
 
     Args:
@@ -122,9 +125,9 @@ def execute_ffmpeg_streamed(
     Returns
     -------
         A generator that yields stdout in chunks.
-        The generator's return value is a tuple of (returncode, stderr).
+        The generator's return value is the returncode.
     """
-    return _stream_command("ffmpeg", args)
+    return _stream_stdout("ffmpeg", args)
 
 
 def execute_ffprobe(args: list[str]) -> FFmpegResult:
