@@ -95,7 +95,7 @@ def _stream_stdout(
         logger.info(stderr)
 
     process.wait()
-    return process.returncode
+    return int(process.returncode)
 
 
 def execute_ffmpeg(args: list[str]) -> FFmpegResult:
