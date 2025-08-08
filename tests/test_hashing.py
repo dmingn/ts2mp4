@@ -1,25 +1,25 @@
 """Unit and integration tests for the hashing module."""
 
 from pathlib import Path
-from typing import Generator
+from typing import AsyncGenerator
 
 import pytest
 from pytest_mock import MockerFixture
 
+from ts2mp4.ffmpeg import FFmpegProcessError
 from ts2mp4.hashing import _get_stream_md5_cached, get_stream_md5
 from ts2mp4.media_info import Stream
 
 
-def mock_ffmpeg_stream_success() -> Generator[bytes, None, int]:
+async def mock_ffmpeg_stream_success() -> AsyncGenerator[bytes, None]:
     """Mock of successful ffmpeg stream."""
     yield b"stream_data"
-    return 0
 
 
-def mock_ffmpeg_stream_failure() -> Generator[bytes, None, int]:
+async def mock_ffmpeg_stream_failure() -> AsyncGenerator[bytes, None]:
     """Mock of failed ffmpeg stream."""
-    yield from ()
-    return 1
+    raise FFmpegProcessError("ffmpeg failed")
+    yield  # This line is unreachable, but makes the function a generator
 
 
 @pytest.fixture(autouse=True)
@@ -115,5 +115,5 @@ def test_get_stream_md5_failure(
         return_value=mock_ffmpeg_stream_failure(),
     )
     stream = Stream(index=stream_index, codec_type=codec_type)
-    with pytest.raises(RuntimeError, match="ffmpeg failed"):
+    with pytest.raises(FFmpegProcessError, match="ffmpeg failed"):
         get_stream_md5(ts_file, stream)

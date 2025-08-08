@@ -1,5 +1,6 @@
 """A module for calculating stream hashes."""
 
+import asyncio
 import hashlib
 from functools import cache
 from pathlib import Path
@@ -9,8 +10,7 @@ from ts2mp4.media_info import Stream
 from .ffmpeg import execute_ffmpeg_streamed
 
 
-@cache
-def _get_stream_md5_cached(
+async def _get_stream_md5_async(
     file_path: Path, _mtime: float, _size: int, stream: Stream
 ) -> str:
     if stream.codec_type == "audio":
@@ -37,20 +37,17 @@ def _get_stream_md5_cached(
 
     process_generator = execute_ffmpeg_streamed(ffmpeg_args)
     md5_hash = hashlib.md5()
-    returncode = -1  # Initialize with a default error code
-    try:
-        while True:
-            chunk = next(process_generator)
-            md5_hash.update(chunk)
-    except StopIteration as e:
-        returncode = e.value
+    async for chunk in process_generator:
+        md5_hash.update(chunk)
 
-    if returncode != 0:
-        raise RuntimeError(
-            f"ffmpeg failed to get decoded {stream.codec_type} stream for {file_path}. "
-            f"Return code: {returncode}"
-        )
     return md5_hash.hexdigest()
+
+
+@cache
+def _get_stream_md5_cached(
+    file_path: Path, _mtime: float, _size: int, stream: Stream
+) -> str:
+    return asyncio.run(_get_stream_md5_async(file_path, _mtime, _size, stream))
 
 
 def get_stream_md5(file_path: Path, stream: Stream) -> str:

@@ -1,8 +1,9 @@
 """A module for interacting with FFmpeg."""
 
+import asyncio
 import functools
 import subprocess
-from typing import Generator, Literal, NamedTuple
+from typing import AsyncGenerator, Literal, NamedTuple
 
 from logzero import logger
 
@@ -49,9 +50,9 @@ def _run_command(
     return FFmpegResult(stdout=stdout, stderr=stderr, returncode=process.returncode)
 
 
-def _stream_stdout(
+async def _stream_stdout(
     executable: Literal["ffmpeg", "ffprobe"], args: list[str]
-) -> Generator[bytes, None, int]:
+) -> AsyncGenerator[bytes, None]:
     """Execute a process and yield its stdout in chunks.
 
     This function runs a command as a subprocess, yielding its standard output
@@ -66,35 +67,55 @@ def _stream_stdout(
     ------
         bytes: Chunks of stdout from the process.
 
-    Returns
-    -------
-        int: The return code of the process after it completes.
-
     Raises
     ------
-        FFmpegProcessError: If stdout or stderr pipes cannot be opened.
+        FFmpegProcessError: If the process fails to start or if the pipes cannot be opened.
     """
     command = [executable] + args
     logger.info(f"Running command: {' '.join(command)}")
 
-    process = subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except OSError as e:
+        raise FFmpegProcessError(f"Failed to start {executable} process: {e}") from e
 
-    if process.stdout is None or process.stderr is None:
-        raise FFmpegProcessError("Failed to open stdout/stderr for the process.")
+    if process.stdout is None:
+        raise FFmpegProcessError("Failed to open stdout for the process.")
+    if process.stderr is None:
+        raise FFmpegProcessError("Failed to open stderr for the process.")
 
-    while chunk := process.stdout.read(1024):
-        yield chunk
+    stdout_stream = process.stdout
+    stderr_stream = process.stderr
 
-    stderr_bytes = process.stderr.read()
+    async def log_stderr() -> None:
+        """Read from stderr and log each line."""
+        while line := await stderr_stream.readline():
+            decoded_line = line.decode("utf-8", errors="replace").strip()
+            logger.info(decoded_line)
 
-    # stdout is treated as binary data, as it can contain multimedia streams.
-    # stderr is treated as text, as it's used for logs and progress information.
-    stderr = stderr_bytes.decode("utf-8", errors="replace")
+    async def stream_stdout() -> AsyncGenerator[bytes, None]:
+        """Read from stdout and yield chunks."""
+        while chunk := await stdout_stream.read(1024):
+            yield chunk
 
-    if stderr:
-        logger.info(stderr)
+    log_task = asyncio.create_task(log_stderr())
 
-    return process.wait()
+    try:
+        async for chunk in stream_stdout():
+            yield chunk
+    finally:
+        await log_task
+
+    returncode = await process.wait()
+
+    if returncode != 0:
+        raise FFmpegProcessError(
+            f"{executable} failed with exit code {returncode}. Check logs for details."
+        )
 
 
 def execute_ffmpeg(args: list[str]) -> FFmpegResult:
@@ -112,9 +133,9 @@ def execute_ffmpeg(args: list[str]) -> FFmpegResult:
     return _run_command("ffmpeg", args)
 
 
-def execute_ffmpeg_streamed(
+async def execute_ffmpeg_streamed(
     args: list[str],
-) -> Generator[bytes, None, int]:
+) -> AsyncGenerator[bytes, None]:
     """Execute ffmpeg and returns a generator for stdout.
 
     Args:
@@ -123,10 +144,10 @@ def execute_ffmpeg_streamed(
 
     Returns
     -------
-        A generator that yields stdout in chunks.
-        The generator's return value is the returncode.
+        An generator that yields stdout in chunks.
     """
-    return _stream_stdout("ffmpeg", args)
+    async for chunk in _stream_stdout("ffmpeg", args):
+        yield chunk
 
 
 def execute_ffprobe(args: list[str]) -> FFmpegResult:
