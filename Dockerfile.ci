@@ -7,8 +7,16 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Install system dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends ffmpeg make && \
+    apt-get install -y --no-install-recommends make wget xz-utils && \
     rm -rf /var/lib/apt/lists/*
+
+# Download and install static FFmpeg build
+ARG FFMPEG_VERSION=7.0.2-amd64-static
+RUN wget https://johnvansickle.com/ffmpeg/releases/ffmpeg-${FFMPEG_VERSION}.tar.xz -O /tmp/ffmpeg.tar.xz
+RUN tar -xf /tmp/ffmpeg.tar.xz -C /tmp && \
+    mv /tmp/ffmpeg-${FFMPEG_VERSION}/ffmpeg /usr/local/bin/ && \
+    mv /tmp/ffmpeg-${FFMPEG_VERSION}/ffprobe /usr/local/bin/ && \
+    rm -rf /tmp/ffmpeg.tar.xz /tmp/ffmpeg-${FFMPEG_VERSION}
 
 # Install python tooling (pipx and poetry) in an isolated environment
 RUN python3 -m pip install --user pipx
