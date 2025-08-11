@@ -9,7 +9,11 @@ from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import FFmpegResult
 from ts2mp4.media_info import Stream
-from ts2mp4.ts2mp4 import ts2mp4
+from ts2mp4.ts2mp4 import (
+    _build_ffmpeg_conversion_args,
+    _perform_initial_conversion,
+    ts2mp4,
+)
 from ts2mp4.video_file import VideoFile
 
 
@@ -27,31 +31,12 @@ def mock_video_file(mocker: MockerFixture) -> Any:
 
 
 @pytest.mark.unit
-def test_calls_execute_ffmpeg_with_correct_args(
-    mock_video_file: MagicMock, mocker: MockerFixture
-) -> None:
-    """Test that ts2mp4 calls execute_ffmpeg with the correct arguments."""
-    # Arrange
+def test_build_ffmpeg_conversion_args_basic(mock_video_file: MagicMock) -> None:
+    """Test that _build_ffmpeg_conversion_args generates correct arguments for basic case."""
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
 
-    # Mock VideoFile constructor to prevent file existence check
-    mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
-    mock_output_video_file_instance.path = output_file
-    mock_output_video_file_instance.media_info = MagicMock()  # Add a mock media_info
-    mocker.patch(
-        "ts2mp4.ts2mp4.VideoFile", return_value=mock_output_video_file_instance
-    )
-
-    mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
-    mock_execute_ffmpeg.return_value = FFmpegResult(stdout=b"", stderr="", returncode=0)
-    mocker.patch("ts2mp4.ts2mp4.verify_streams")
-
-    # Act
-    ts2mp4(mock_video_file, output_file, crf, preset)
-
-    # Assert
     expected_args = [
         "-hide_banner",
         "-nostats",
@@ -84,7 +69,137 @@ def test_calls_execute_ffmpeg_with_correct_args(
         "aac_adtstoasc",
         str(output_file),
     ]
-    mock_execute_ffmpeg.assert_called_once_with(expected_args)
+    assert (
+        _build_ffmpeg_conversion_args(mock_video_file, output_file, crf, preset)
+        == expected_args
+    )
+
+
+@pytest.mark.unit
+def test_build_ffmpeg_conversion_args_no_audio_streams(mocker: MockerFixture) -> None:
+    """Test that _build_ffmpeg_conversion_args omits audio maps when no audio streams."""
+    mock_video_file_no_audio = mocker.MagicMock(
+        autospec=VideoFile,
+        path=Path("input_no_audio.ts"),
+        valid_audio_streams=[],
+    )
+    output_file = Path("output_no_audio.mp4")
+    crf = 23
+    preset = "medium"
+
+    expected_args = [
+        "-hide_banner",
+        "-nostats",
+        "-fflags",
+        "+discardcorrupt",
+        "-y",
+        "-i",
+        str(mock_video_file_no_audio.path),
+        "-map",
+        "0:v",
+        "-f",
+        "mp4",
+        "-vsync",
+        "1",
+        "-vf",
+        "bwdif",
+        "-codec:v",
+        "libx265",
+        "-crf",
+        str(crf),
+        "-preset",
+        preset,
+        "-codec:a",
+        "copy",
+        "-bsf:a",
+        "aac_adtstoasc",
+        str(output_file),
+    ]
+    assert (
+        _build_ffmpeg_conversion_args(
+            mock_video_file_no_audio, output_file, crf, preset
+        )
+        == expected_args
+    )
+
+
+@pytest.mark.unit
+def test_perform_initial_conversion_success(
+    mock_video_file: MagicMock, mocker: MockerFixture
+) -> None:
+    """Test that _perform_initial_conversion executes FFmpeg successfully."""
+    output_file = Path("output.mp4")
+    crf = 23
+    preset = "medium"
+
+    mock_build_args = mocker.patch(
+        "ts2mp4.ts2mp4._build_ffmpeg_conversion_args", return_value=["mock_arg"]
+    )
+    mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
+    mock_execute_ffmpeg.return_value = FFmpegResult(stdout=b"", stderr="", returncode=0)
+
+    mocker.patch(
+        "ts2mp4.ts2mp4.VideoFile",
+        return_value=mocker.MagicMock(spec=VideoFile, path=output_file),
+    )
+    _perform_initial_conversion(mock_video_file, output_file, crf, preset)
+
+    mock_build_args.assert_called_once_with(mock_video_file, output_file, crf, preset)
+    mock_execute_ffmpeg.assert_called_once_with(["mock_arg"])
+
+
+@pytest.mark.unit
+def test_perform_initial_conversion_ffmpeg_failure(
+    mock_video_file: MagicMock, mocker: MockerFixture
+) -> None:
+    """Test that _perform_initial_conversion raises RuntimeError on FFmpeg failure."""
+    output_file = Path("output.mp4")
+    crf = 23
+    preset = "medium"
+
+    mocker.patch(
+        "ts2mp4.ts2mp4._build_ffmpeg_conversion_args", return_value=["mock_arg"]
+    )
+    mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
+    mock_execute_ffmpeg.return_value = FFmpegResult(
+        stdout=b"", stderr="ffmpeg error", returncode=1
+    )
+
+    with pytest.raises(RuntimeError, match="ffmpeg failed with return code 1"):
+        _perform_initial_conversion(mock_video_file, output_file, crf, preset)
+
+
+@pytest.mark.unit
+def test_calls_execute_ffmpeg_with_correct_args(
+    mock_video_file: MagicMock,
+    mocker: MockerFixture,
+) -> None:
+    """Test that ts2mp4 calls execute_ffmpeg with the correct arguments."""
+    # Arrange
+    output_file = Path("output.mp4")
+    crf = 23
+    preset = "medium"
+
+    # Mock VideoFile constructor to prevent file existence check
+    mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
+    mock_output_video_file_instance.path = output_file
+    mock_output_video_file_instance.media_info = MagicMock()  # Add a mock media_info
+    mocker.patch(
+        "ts2mp4.ts2mp4.VideoFile", return_value=mock_output_video_file_instance
+    )
+
+    mock_perform_initial_conversion = mocker.patch(
+        "ts2mp4.ts2mp4._perform_initial_conversion"
+    )
+    mocker.patch("ts2mp4.ts2mp4.verify_streams")
+
+    # Act
+    ts2mp4(mock_video_file, output_file, crf, preset)
+
+    # Assert
+    mock_perform_initial_conversion.assert_called_once_with(
+        mock_video_file, output_file, crf, preset
+    )
 
 
 @pytest.mark.unit

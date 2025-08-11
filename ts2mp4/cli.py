@@ -96,7 +96,9 @@ def main(
             return
 
         video_file = VideoFile(path=ts_resolved)
-        ts2mp4(input_file=video_file, output_file=mp4_part, crf=crf, preset=preset)
+        ts2mp4(
+            input_file=video_file, output_path=mp4_part, crf=crf, preset=preset.value
+        )
 
         logger.info("Conversion Status: Success")
 

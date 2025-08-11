@@ -10,25 +10,11 @@ from .stream_integrity import verify_streams
 from .video_file import VideoFile
 
 
-def ts2mp4(input_file: VideoFile, output_file: Path, crf: int, preset: str) -> None:
-    """Convert a Transport Stream (TS) file to MP4 format using FFmpeg.
-
-    This function constructs and executes an FFmpeg command to perform the video
-    conversion. It also logs the FFmpeg output and verifies the audio stream
-    integrity of the converted file. If the audio stream integrity check fails,
-    it attempts to re-encode the mismatched audio streams.
-
-    Args:
-    ----
-        input_file: The VideoFile object for the input TS file.
-        output_file: The path where the output MP4 file will be saved.
-        crf: The Constant Rate Factor (CRF) value for video encoding. Lower
-            values result in higher quality and larger file sizes.
-        preset: The encoding preset for FFmpeg. This affects the compression
-            speed and efficiency (e.g., 'medium', 'fast', 'slow').
-
-    """
-    ffmpeg_args = (
+def _build_ffmpeg_conversion_args(
+    input_file: VideoFile, output_path: Path, crf: int, preset: str
+) -> list[str]:
+    """Build FFmpeg arguments for the initial TS to MP4 conversion."""
+    return (
         [
             "-hide_banner",
             "-nostats",
@@ -66,30 +52,56 @@ def ts2mp4(input_file: VideoFile, output_file: Path, crf: int, preset: str) -> N
             # "mov_text",
             "-bsf:a",
             "aac_adtstoasc",
-            str(output_file),
+            str(output_path),
         ]
     )
+
+
+def _perform_initial_conversion(
+    input_file: VideoFile, output_path: Path, crf: int, preset: str
+) -> VideoFile:
+    """Perform the initial FFmpeg conversion from TS to MP4."""
+    ffmpeg_args = _build_ffmpeg_conversion_args(input_file, output_path, crf, preset)
     result = execute_ffmpeg(ffmpeg_args)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
+    return VideoFile(path=output_path)
 
-    output_file_video_file = VideoFile(path=output_file)
+
+def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> None:
+    """Convert a Transport Stream (TS) file to MP4 format using FFmpeg.
+
+    This function orchestrates the video conversion process, including initial FFmpeg
+    execution, audio stream integrity verification, and conditional re-encoding.
+
+    Args:
+    ----
+        input_file: The VideoFile object for the input TS file.
+        output_path: The path where the output MP4 file will be saved.
+        crf: The Constant Rate Factor (CRF) value for video encoding. Lower
+            values result in higher quality and larger file sizes.
+        preset: The encoding preset for FFmpeg. This affects the compression
+            speed and efficiency (e.g., 'medium', 'fast', 'slow').
+
+    """
+    output_file = _perform_initial_conversion(input_file, output_path, crf, preset)
+
     try:
         verify_streams(
             input_file=input_file,
-            output_file=output_file_video_file,
+            output_file=output_file,
             stream_type="audio",
         )
     except RuntimeError as e:
         logger.warning(f"Audio integrity check failed: {e}")
         logger.info("Attempting to re-encode mismatched audio streams.")
-        temp_output_file = output_file.with_suffix(output_file.suffix + ".temp")
+        temp_output_file = output_path.with_suffix(output_path.suffix + ".temp")
         re_encode_mismatched_audio_streams(
             original_file=input_file,
-            encoded_file=output_file_video_file,
+            encoded_file=output_file,
             output_file=temp_output_file,
         )
-        temp_output_file.replace(output_file)
+        temp_output_file.replace(output_path)
         logger.info(
-            f"Successfully re-encoded audio for {output_file.name} and replaced original."
+            f"Successfully re-encoded audio for {output_path.name} and replaced original."
         )

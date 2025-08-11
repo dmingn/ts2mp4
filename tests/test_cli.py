@@ -54,7 +54,7 @@ def test_cli_options_recognized(mocker: MockerFixture, tmp_path: Path) -> None:
     assert result.exit_code == 0
     mock_ts2mp4.assert_called_once_with(
         input_file=mocker.ANY,
-        output_file=mocker.ANY,
+        output_path=mocker.ANY,
         crf=20,
         preset="slow",
     )
