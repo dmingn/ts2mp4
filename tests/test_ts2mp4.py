@@ -1,38 +1,37 @@
 """Unit tests for the ts2mp4 module."""
 
 from pathlib import Path
+from typing import Any
 from unittest.mock import MagicMock
 
 import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import FFmpegResult
-from ts2mp4.media_info import MediaInfo, Stream
+from ts2mp4.media_info import Stream
 from ts2mp4.ts2mp4 import ts2mp4
+from ts2mp4.video_file import VideoFile
 
 
 @pytest.fixture
-def mock_get_media_info(mocker: MockerFixture) -> MagicMock:
-    """Mock get_media_info to return a standard MediaInfo object."""
-    mock = mocker.patch("ts2mp4.ts2mp4.get_media_info")
-    mock.return_value = MediaInfo(
-        streams=(
-            Stream(codec_type="video", index=0),
+def mock_video_file(mocker: MockerFixture) -> Any:
+    """Mock VideoFile object for ts2mp4 tests."""
+    return mocker.MagicMock(
+        autospec=VideoFile,
+        path=Path("input.ts"),
+        valid_audio_streams=[
             Stream(codec_type="audio", index=1, channels=2),
-            Stream(codec_type="audio", index=2, channels=0),  # Invalid stream
             Stream(codec_type="audio", index=3, channels=6),
-        )
+        ],
     )
-    return mock
 
 
 @pytest.mark.unit
 def test_calls_execute_ffmpeg_with_correct_args(
-    mocker: MockerFixture, mock_get_media_info: MagicMock
+    mock_video_file: MagicMock, mocker: MockerFixture
 ) -> None:
     """Test that ts2mp4 calls execute_ffmpeg with the correct arguments."""
     # Arrange
-    input_file = Path("input.ts")
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
@@ -42,7 +41,7 @@ def test_calls_execute_ffmpeg_with_correct_args(
     mocker.patch("ts2mp4.ts2mp4.verify_streams")
 
     # Act
-    ts2mp4(input_file, output_file, crf, preset)
+    ts2mp4(mock_video_file, output_file, crf, preset)
 
     # Assert
     expected_args = [
@@ -52,7 +51,7 @@ def test_calls_execute_ffmpeg_with_correct_args(
         "+discardcorrupt",
         "-y",
         "-i",
-        str(input_file),
+        str(mock_video_file.path),
         "-map",
         "0:v",
         "-map",
@@ -78,16 +77,14 @@ def test_calls_execute_ffmpeg_with_correct_args(
         str(output_file),
     ]
     mock_execute_ffmpeg.assert_called_once_with(expected_args)
-    mock_get_media_info.assert_called_once_with(input_file)
 
 
 @pytest.mark.unit
 def test_calls_verify_streams_on_success(
-    mocker: MockerFixture, mock_get_media_info: MagicMock
+    mock_video_file: MagicMock, mocker: MockerFixture
 ) -> None:
     """Test that verify_streams is called on successful conversion."""
     # Arrange
-    input_file = Path("input.ts")
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
@@ -97,22 +94,20 @@ def test_calls_verify_streams_on_success(
     mock_verify_streams = mocker.patch("ts2mp4.ts2mp4.verify_streams")
 
     # Act
-    ts2mp4(input_file, output_file, crf, preset)
+    ts2mp4(mock_video_file, output_file, crf, preset)
 
     # Assert
     mock_verify_streams.assert_called_once_with(
-        input_file=input_file, output_file=output_file, stream_type="audio"
+        input_file=mock_video_file.path, output_file=output_file, stream_type="audio"
     )
-    mock_get_media_info.assert_called_once_with(input_file)
 
 
 @pytest.mark.unit
 def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(
-    mocker: MockerFixture, mock_get_media_info: MagicMock
+    mock_video_file: MagicMock, mocker: MockerFixture
 ) -> None:
     """Test that a RuntimeError is raised on ffmpeg failure."""
     # Arrange
-    input_file = Path("input.ts")
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
@@ -125,17 +120,15 @@ def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="ffmpeg failed with return code 1"):
-        ts2mp4(input_file, output_file, crf, preset)
-    mock_get_media_info.assert_called_once_with(input_file)
+        ts2mp4(mock_video_file, output_file, crf, preset)
 
 
 @pytest.mark.unit
 def test_does_not_call_verify_streams_on_ffmpeg_failure(
-    mocker: MockerFixture, mock_get_media_info: MagicMock
+    mock_video_file: MagicMock, mocker: MockerFixture
 ) -> None:
     """Test that ts2mp4 does not call verify_streams on failure."""
     # Arrange
-    input_file = Path("input.ts")
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
@@ -148,19 +141,17 @@ def test_does_not_call_verify_streams_on_ffmpeg_failure(
 
     # Act & Assert
     with pytest.raises(RuntimeError):
-        ts2mp4(input_file, output_file, crf, preset)
+        ts2mp4(mock_video_file, output_file, crf, preset)
 
     mock_verify_streams.assert_not_called()
-    mock_get_media_info.assert_called_once_with(input_file)
 
 
 @pytest.mark.unit
 def test_ts2mp4_re_encodes_on_stream_integrity_failure(
-    mocker: MockerFixture, mock_get_media_info: MagicMock
+    mock_video_file: MagicMock, mocker: MockerFixture
 ) -> None:
     """Test that re-encoding is triggered on stream integrity failure."""
     # Arrange
-    input_file = Path("input.ts")
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
@@ -177,24 +168,22 @@ def test_ts2mp4_re_encodes_on_stream_integrity_failure(
     mocker.patch("pathlib.Path.replace")
 
     # Act
-    ts2mp4(input_file, output_file, crf, preset)
+    ts2mp4(mock_video_file, output_file, crf, preset)
 
     # Assert
     mock_re_encode.assert_called_once_with(
-        original_file=input_file,
+        original_file=mock_video_file.path,
         encoded_file=output_file,
         output_file=output_file.with_suffix(output_file.suffix + ".temp"),
     )
-    mock_get_media_info.assert_called_once_with(input_file)
 
 
 @pytest.mark.unit
 def test_ts2mp4_re_encode_failure_raises_error(
-    mocker: MockerFixture, mock_get_media_info: MagicMock
+    mock_video_file: MagicMock, mocker: MockerFixture
 ) -> None:
     """Test that a RuntimeError is raised on re-encode failure."""
     # Arrange
-    input_file = Path("input.ts")
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
@@ -214,5 +203,4 @@ def test_ts2mp4_re_encode_failure_raises_error(
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="Re-encode failed"):
-        ts2mp4(input_file, output_file, crf, preset)
-    mock_get_media_info.assert_called_once_with(input_file)
+        ts2mp4(mock_video_file, output_file, crf, preset)

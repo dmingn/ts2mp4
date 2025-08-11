@@ -12,6 +12,7 @@ from logzero import logger
 
 from ts2mp4 import _get_ts2mp4_version
 from ts2mp4.ts2mp4 import ts2mp4
+from ts2mp4.video_file import VideoFile
 
 
 def version_callback(value: bool) -> None:
@@ -94,7 +95,8 @@ def main(
             logger.info(f"Output file {mp4.name} already exists. Skipping conversion.")
             return
 
-        ts2mp4(input_file=ts_resolved, output_file=mp4_part, crf=crf, preset=preset)
+        video_file = VideoFile(path=ts_resolved)
+        ts2mp4(input_file=video_file, output_file=mp4_part, crf=crf, preset=preset)
 
         logger.info("Conversion Status: Success")
 

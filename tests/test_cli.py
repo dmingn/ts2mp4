@@ -30,7 +30,10 @@ def test_cli_options_recognized(mocker: MockerFixture, tmp_path: Path) -> None:
     """Test that the CLI recognizes the --crf and --preset options."""
     mock_ts2mp4 = mocker.patch("ts2mp4.cli.ts2mp4")
     mocker.patch("pathlib.Path.replace")
-    mocker.patch("pathlib.Path.stat", return_value=mocker.MagicMock(st_size=100))
+    mock_stat_result = mocker.MagicMock()
+    mock_stat_result.st_size = 100
+    mock_stat_result.st_mode = 0o100644
+    mocker.patch("pathlib.Path.stat", return_value=mock_stat_result)
     mocker.patch("pathlib.Path.exists", return_value=False)
 
     # Simulate command-line arguments
@@ -106,7 +109,10 @@ def test_log_file_creation(mocker: MockerFixture, tmp_path: Path) -> None:
     """Test that a log file is created with the correct naming convention."""
     mock_ts2mp4 = mocker.patch("ts2mp4.cli.ts2mp4")
     mocker.patch("pathlib.Path.replace")
-    mocker.patch("pathlib.Path.stat", return_value=mocker.MagicMock(st_size=100))
+    mock_stat_result = mocker.MagicMock()
+    mock_stat_result.st_size = 100
+    mock_stat_result.st_mode = 0o100644
+    mocker.patch("pathlib.Path.stat", return_value=mock_stat_result)
     mocker.patch("pathlib.Path.exists", return_value=False)
     mock_logfile = mocker.patch("logzero.logfile")
 
