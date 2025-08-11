@@ -39,7 +39,7 @@ def test_videofile_instantiation_success(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 def test_videofile_instantiation_non_existent_file_raises_error(tmp_path: Path) -> None:
-    """Test that instantiating VideoFile with a non-existent file raises FileNotFoundError."""
+    """Test that instantiating VideoFile with a non-existent file raises ValidationError."""
     non_existent_file = tmp_path / "non_existent.ts"
     with pytest.raises(ValidationError):
         VideoFile(path=non_existent_file)
