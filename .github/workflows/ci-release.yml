@@ -1,5 +1,9 @@
 name: CI and Release
 
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/ci
+
 on:
   push:
     branches: [master]
@@ -12,29 +16,52 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  build_ci_image:
     runs-on: ubuntu-latest
+    outputs:
+      image_tag: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4.2.2
 
-      - name: Install poetry
-        run: pipx install poetry
+      - name: Read python version
+        id: python_version
+        run: echo "PY_VERSION=$(cut -d. -f1,2 .python-version)" >> $GITHUB_OUTPUT
 
-      - name: Set up Python
-        uses: actions/setup-python@v5.6.0
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5.8.0
         with:
-          python-version-file: ".python-version"
-          cache: "poetry"
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
 
-      - name: Check lock file consistency
-        run: poetry check --lock
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3.5.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Install dependencies
-        run: poetry sync
+      - name: Build and push CI image
+        uses: docker/build-push-action@v6.18.0
+        with:
+          context: .
+          file: Dockerfile.ci
+          push: true
+          build-args: |
+            PYTHON_VERSION=${{ steps.python_version.outputs.PY_VERSION }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Install ffmpeg
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+  build:
+    needs: build_ci_image
+    runs-on: ubuntu-latest
+    container:
+      image: ${{ needs.build_ci_image.outputs.image_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4.2.2
 
       - name: Run all checks
         run: make check
