@@ -72,7 +72,7 @@ def test_videofile_audio_streams_property(
 
     audio_streams = video_file.audio_streams
 
-    assert len(audio_streams) == 3  # video, 2 audio, 1 invalid audio, 1 subtitle
+    assert len(audio_streams) == 3  # The mock contains 3 audio streams
     for stream in audio_streams:
         assert stream.codec_type == "audio"
 
