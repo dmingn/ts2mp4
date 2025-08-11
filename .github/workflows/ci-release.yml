@@ -3,6 +3,7 @@ name: CI and Release
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}/ci
+  POETRY_VERSION: "2.*"
 
 on:
   push:
@@ -52,6 +53,7 @@ jobs:
           push: true
           build-args: |
             PYTHON_VERSION=${{ steps.python_version.outputs.PY_VERSION }}
+            POETRY_VERSION=${{ env.POETRY_VERSION }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha
@@ -76,7 +78,7 @@ jobs:
         uses: actions/checkout@v4.2.2
 
       - name: Install poetry
-        run: pipx install poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
 
       - name: Check version format
         run: |
@@ -97,7 +99,7 @@ jobs:
         uses: actions/checkout@v4.2.2
 
       - name: Install poetry
-        run: pipx install poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
 
       - name: Get version
         id: get_version
@@ -135,7 +137,7 @@ jobs:
         uses: actions/checkout@v4.2.2
 
       - name: Install poetry
-        run: pipx install poetry
+        run: pipx install poetry==${{ env.POETRY_VERSION }}
 
       - name: Update version if needed
         id: update_version

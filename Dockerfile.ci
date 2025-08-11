@@ -1,5 +1,6 @@
 # Use the same Python version as the project
 ARG PYTHON_VERSION=3.9
+ARG POETRY_VERSION
 FROM python:${PYTHON_VERSION}-slim
 
 # Set non-interactive frontend for package installers
@@ -13,7 +14,7 @@ RUN apt-get update && \
 # Install python tooling (pipx and poetry) in an isolated environment
 RUN python3 -m pip install --user pipx
 ENV PATH="/root/.local/bin:${PATH}"
-RUN pipx install poetry
+RUN pipx install poetry==${POETRY_VERSION}
 
 # Set up the working directory
 WORKDIR /app
