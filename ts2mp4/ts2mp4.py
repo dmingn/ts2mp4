@@ -6,11 +6,11 @@ from logzero import logger
 
 from .audio_reencoder import re_encode_mismatched_audio_streams
 from .ffmpeg import execute_ffmpeg
-from .media_info import get_media_info
 from .stream_integrity import verify_streams
+from .video_file import VideoFile
 
 
-def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
+def ts2mp4(input_file: VideoFile, output_file: Path, crf: int, preset: str) -> None:
     """Convert a Transport Stream (TS) file to MP4 format using FFmpeg.
 
     This function constructs and executes an FFmpeg command to perform the video
@@ -20,7 +20,7 @@ def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
 
     Args:
     ----
-        input_file: The path to the input TS file.
+        input_file: The VideoFile object for the input TS file.
         output_file: The path where the output MP4 file will be saved.
         crf: The Constant Rate Factor (CRF) value for video encoding. Lower
             values result in higher quality and larger file sizes.
@@ -28,16 +28,6 @@ def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
             speed and efficiency (e.g., 'medium', 'fast', 'slow').
 
     """
-    media_info = get_media_info(input_file)
-    audio_streams = [
-        stream for stream in media_info.streams if stream.codec_type == "audio"
-    ]
-    valid_audio_streams = [
-        stream
-        for stream in audio_streams
-        if stream.channels is not None and stream.channels > 0
-    ]
-
     ffmpeg_args = (
         [
             "-hide_banner",
@@ -46,13 +36,13 @@ def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
             "+discardcorrupt",
             "-y",
             "-i",
-            str(input_file),
+            str(input_file.path),
             "-map",
             "0:v",
         ]
         + [
             arg
-            for stream in valid_audio_streams
+            for stream in input_file.valid_audio_streams
             for arg in ("-map", f"0:{stream.index}")
         ]
         + [
@@ -85,14 +75,14 @@ def ts2mp4(input_file: Path, output_file: Path, crf: int, preset: str) -> None:
 
     try:
         verify_streams(
-            input_file=input_file, output_file=output_file, stream_type="audio"
+            input_file=input_file.path, output_file=output_file, stream_type="audio"
         )
     except RuntimeError as e:
         logger.warning(f"Audio integrity check failed: {e}")
         logger.info("Attempting to re-encode mismatched audio streams.")
         temp_output_file = output_file.with_suffix(output_file.suffix + ".temp")
         re_encode_mismatched_audio_streams(
-            original_file=input_file,
+            original_file=input_file.path,
             encoded_file=output_file,
             output_file=temp_output_file,
         )
