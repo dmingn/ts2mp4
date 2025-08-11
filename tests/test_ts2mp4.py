@@ -36,6 +36,14 @@ def test_calls_execute_ffmpeg_with_correct_args(
     crf = 23
     preset = "medium"
 
+    # Mock VideoFile constructor to prevent file existence check
+    mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
+    mock_output_video_file_instance.path = output_file
+    mock_output_video_file_instance.media_info = MagicMock()  # Add a mock media_info
+    mocker.patch(
+        "ts2mp4.ts2mp4.VideoFile", return_value=mock_output_video_file_instance
+    )
+
     mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
     mock_execute_ffmpeg.return_value = FFmpegResult(stdout=b"", stderr="", returncode=0)
     mocker.patch("ts2mp4.ts2mp4.verify_streams")
@@ -89,6 +97,13 @@ def test_calls_verify_streams_on_success(
     crf = 23
     preset = "medium"
 
+    mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
+    mock_output_video_file_instance.path = output_file
+    mock_output_video_file_instance.media_info = MagicMock()
+    mocker.patch(
+        "ts2mp4.ts2mp4.VideoFile", return_value=mock_output_video_file_instance
+    )
+
     mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
     mock_execute_ffmpeg.return_value = FFmpegResult(stdout=b"", stderr="", returncode=0)
     mock_verify_streams = mocker.patch("ts2mp4.ts2mp4.verify_streams")
@@ -98,7 +113,9 @@ def test_calls_verify_streams_on_success(
 
     # Assert
     mock_verify_streams.assert_called_once_with(
-        input_file=mock_video_file.path, output_file=output_file, stream_type="audio"
+        input_file=mock_video_file,
+        output_file=mock_output_video_file_instance,
+        stream_type="audio",
     )
 
 
@@ -111,6 +128,13 @@ def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
+
+    mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
+    mock_output_video_file_instance.path = output_file
+    mock_output_video_file_instance.media_info = MagicMock()
+    mocker.patch(
+        "ts2mp4.ts2mp4.VideoFile", return_value=mock_output_video_file_instance
+    )
 
     mocker.patch("ts2mp4.ts2mp4.verify_streams")
     mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
@@ -132,6 +156,13 @@ def test_does_not_call_verify_streams_on_ffmpeg_failure(
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
+
+    mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
+    mock_output_video_file_instance.path = output_file
+    mock_output_video_file_instance.media_info = MagicMock()
+    mocker.patch(
+        "ts2mp4.ts2mp4.VideoFile", return_value=mock_output_video_file_instance
+    )
 
     mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
     mock_verify_streams = mocker.patch("ts2mp4.ts2mp4.verify_streams")
@@ -156,6 +187,13 @@ def test_ts2mp4_re_encodes_on_stream_integrity_failure(
     crf = 23
     preset = "medium"
 
+    mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
+    mock_output_video_file_instance.path = output_file
+    mock_output_video_file_instance.media_info = MagicMock()
+    mocker.patch(
+        "ts2mp4.ts2mp4.VideoFile", return_value=mock_output_video_file_instance
+    )
+
     mocker.patch(
         "ts2mp4.ts2mp4.execute_ffmpeg",
         return_value=FFmpegResult(stdout=b"", stderr="", returncode=0),
@@ -172,8 +210,8 @@ def test_ts2mp4_re_encodes_on_stream_integrity_failure(
 
     # Assert
     mock_re_encode.assert_called_once_with(
-        original_file=mock_video_file.path,
-        encoded_file=output_file,
+        original_file=mock_video_file,
+        encoded_file=mock_output_video_file_instance,
         output_file=output_file.with_suffix(output_file.suffix + ".temp"),
     )
 
@@ -187,6 +225,13 @@ def test_ts2mp4_re_encode_failure_raises_error(
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
+
+    mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
+    mock_output_video_file_instance.path = output_file
+    mock_output_video_file_instance.media_info = MagicMock()
+    mocker.patch(
+        "ts2mp4.ts2mp4.VideoFile", return_value=mock_output_video_file_instance
+    )
 
     mocker.patch(
         "ts2mp4.ts2mp4.execute_ffmpeg",
