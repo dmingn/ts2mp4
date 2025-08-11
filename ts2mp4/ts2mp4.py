@@ -73,17 +73,20 @@ def ts2mp4(input_file: VideoFile, output_file: Path, crf: int, preset: str) -> N
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
 
+    output_file_video_file = VideoFile(path=output_file)
     try:
         verify_streams(
-            input_file=input_file.path, output_file=output_file, stream_type="audio"
+            input_file=input_file,
+            output_file=output_file_video_file,
+            stream_type="audio",
         )
     except RuntimeError as e:
         logger.warning(f"Audio integrity check failed: {e}")
         logger.info("Attempting to re-encode mismatched audio streams.")
         temp_output_file = output_file.with_suffix(output_file.suffix + ".temp")
         re_encode_mismatched_audio_streams(
-            original_file=input_file.path,
-            encoded_file=output_file,
+            original_file=input_file,
+            encoded_file=output_file_video_file,
             output_file=temp_output_file,
         )
         temp_output_file.replace(output_file)

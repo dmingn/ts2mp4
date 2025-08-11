@@ -7,9 +7,10 @@ from typing import NamedTuple
 from logzero import logger
 
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
-from .media_info import Stream, get_media_info
+from .media_info import Stream
 from .quality_check import get_audio_quality_metrics
 from .stream_integrity import compare_stream_hashes, verify_streams
+from .video_file import VideoFile
 
 
 class AudioStreamArgs(NamedTuple):
@@ -75,15 +76,15 @@ def _build_re_encode_args(
 
 
 def _build_args_for_audio_streams(
-    original_file: Path, encoded_file: Path
+    original_file: VideoFile, encoded_file: VideoFile
 ) -> AudioStreamArgs:
     """Build FFmpeg arguments and identify copied audio streams.
 
     It assumes that the order of audio streams is preserved between the
     original and encoded files.
     """
-    original_media_info = get_media_info(original_file)
-    encoded_media_info = get_media_info(encoded_file)
+    original_media_info = original_file.media_info
+    encoded_media_info = encoded_file.media_info
 
     original_audio_streams = [
         stream for stream in original_media_info.streams if stream.codec_type == "audio"
@@ -101,14 +102,14 @@ def _build_args_for_audio_streams(
         if original_audio_stream is None:
             # Unexpected: Original file has fewer audio streams than expected.
             raise RuntimeError(
-                f"Encoded file {encoded_file.name} has more audio streams than the original {original_file.name}."
+                f"Encoded file {encoded_file.path.name} has more audio streams than the original {original_file.path.name}."
             )
 
         integrity_check_passes = False
         if encoded_audio_stream is not None:
             integrity_check_passes = compare_stream_hashes(
-                input_file=original_file,
-                output_file=encoded_file,
+                input_video=original_file,
+                output_video=encoded_file,
                 input_stream=original_audio_stream,
                 output_stream=encoded_audio_stream,
             )
@@ -126,7 +127,7 @@ def _build_args_for_audio_streams(
 
             logger.warning(
                 f"Re-encoding audio stream at index {audio_stream_index} "
-                f"from {original_file.name} due to mismatch or absence in {encoded_file.name}."
+                f"from {original_file.path.name} due to mismatch or absence in {encoded_file.path.name}."
             )
 
             ffmpeg_args.extend(
@@ -152,7 +153,7 @@ def _build_args_for_audio_streams(
 
 
 def re_encode_mismatched_audio_streams(
-    original_file: Path, encoded_file: Path, output_file: Path
+    original_file: VideoFile, encoded_file: VideoFile, output_file: Path
 ) -> None:
     """Re-encodes mismatched audio streams from an original file to a new output file.
 
@@ -166,8 +167,8 @@ def re_encode_mismatched_audio_streams(
 
     Args:
     ----
-        original_file: The path to the original source file (e.g., .ts).
-        encoded_file: The path to the file that has been encoded but may have
+        original_file: The VideoFile object for the original source file (e.g., .ts).
+        encoded_file: The VideoFile object for the file that has been encoded but may have
                       audio stream issues.
         output_file: The path where the corrected output file will be saved.
     """
@@ -178,10 +179,10 @@ def re_encode_mismatched_audio_streams(
         """Verify the integrity of streams after re-encoding."""
         logger.info(f"Verifying stream integrity for {output_file.name}")
 
-        verify_streams(encoded_file, output_file, "video")
+        verify_streams(encoded_file, VideoFile(path=output_file), "video")
         verify_streams(
             encoded_file,
-            output_file,
+            VideoFile(path=output_file),
             "audio",
             type_specific_stream_indices=copied_audio_stream_indices,
         )
@@ -203,9 +204,9 @@ def re_encode_mismatched_audio_streams(
         "+discardcorrupt",
         "-y",
         "-i",
-        str(original_file),
+        str(original_file.path),
         "-i",
-        str(encoded_file),
+        str(encoded_file.path),
         # for video streams
         "-map",
         "1:v",  # Use video stream from encoded_file
@@ -235,7 +236,7 @@ def re_encode_mismatched_audio_streams(
 
     for audio_stream_index in audio_stream_args.re_encoded_audio_stream_indices:
         metrics = get_audio_quality_metrics(
-            original_file=original_file,
+            original_file=original_file.path,
             re_encoded_file=output_file,
             audio_stream_index=audio_stream_index,
         )

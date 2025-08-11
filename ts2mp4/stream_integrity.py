@@ -1,17 +1,17 @@
 """A module for verifying stream integrity."""
 
-from pathlib import Path
 from typing import Optional
 
 from logzero import logger
 
 from .hashing import get_stream_md5
-from .media_info import Stream, get_media_info
+from .media_info import Stream
+from .video_file import VideoFile
 
 
 def compare_stream_hashes(
-    input_file: Path,
-    output_file: Path,
+    input_video: VideoFile,
+    output_video: VideoFile,
     input_stream: "Stream",
     output_stream: "Stream",
 ) -> bool:
@@ -22,7 +22,7 @@ def compare_stream_hashes(
         True if the stream hashes match and hash generation is successful, False otherwise.
     """
     try:
-        input_md5 = get_stream_md5(input_file, input_stream)
+        input_md5 = get_stream_md5(input_video.path, input_stream)
     except RuntimeError as e:
         logger.warning(
             f"Failed to get MD5 for input stream at index {input_stream.index}: {e}"
@@ -30,7 +30,7 @@ def compare_stream_hashes(
         return False
 
     try:
-        output_md5 = get_stream_md5(output_file, output_stream)
+        output_md5 = get_stream_md5(output_video.path, output_stream)
     except RuntimeError as e:
         logger.warning(
             f"Failed to get MD5 for output stream at index {output_stream.index}: {e}"
@@ -48,8 +48,8 @@ def compare_stream_hashes(
 
 
 def verify_streams(
-    input_file: Path,
-    output_file: Path,
+    input_file: VideoFile,
+    output_file: VideoFile,
     stream_type: str,
     type_specific_stream_indices: Optional[list[int]] = None,
 ) -> None:
@@ -57,8 +57,8 @@ def verify_streams(
 
     Args:
     ----
-        input_file: The path to the input file.
-        output_file: The path to the output file.
+        input_file: The VideoFile object for the input file.
+        output_file: The VideoFile object for the output file.
         stream_type: The type of stream to verify ('audio', 'video', etc.).
         type_specific_stream_indices: A list of specific stream indices to check.
                                      If None, all streams of the specified
@@ -70,11 +70,11 @@ def verify_streams(
             stream's MD5 hash does not match.
     """
     logger.info(
-        f"Verifying {stream_type} stream integrity for {input_file.name} and {output_file.name}"
+        f"Verifying {stream_type} stream integrity for {input_file.path.name} and {output_file.path.name}"
     )
 
-    input_media_info = get_media_info(input_file)
-    output_media_info = get_media_info(output_file)
+    input_media_info = input_file.media_info
+    output_media_info = output_file.media_info
 
     input_streams = [s for s in input_media_info.streams if s.codec_type == stream_type]
     output_streams = [
@@ -93,7 +93,10 @@ def verify_streams(
 
     for input_stream, output_stream in zip(input_streams, output_streams):
         if not compare_stream_hashes(
-            input_file, output_file, input_stream, output_stream
+            input_video=input_file,
+            output_video=output_file,
+            input_stream=input_stream,
+            output_stream=output_stream,
         ):
             raise RuntimeError(
                 f"{stream_type.capitalize()} stream integrity check failed for stream at index "
