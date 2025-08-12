@@ -1,6 +1,8 @@
 """Unit tests for the VideoFile module."""
 
 from pathlib import Path
+from types import MappingProxyType
+from typing import Callable
 from unittest.mock import MagicMock
 
 import pytest
@@ -8,7 +10,12 @@ from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
 from ts2mp4.media_info import MediaInfo, Stream
-from ts2mp4.video_file import VideoFile
+from ts2mp4.video_file import (
+    ConversionType,
+    ConvertedVideoFile,
+    StreamSource,
+    VideoFile,
+)
 
 
 @pytest.fixture
@@ -20,7 +27,7 @@ def mock_get_media_info_func(mocker: MockerFixture) -> MagicMock:
             streams=(
                 Stream(codec_type="video", index=0),
                 Stream(codec_type="audio", index=1, channels=2),
-                Stream(codec_type="audio", index=2, channels=0),  # Invalid audio stream
+                Stream(codec_type="audio", index=2, channels=0),
                 Stream(codec_type="audio", index=3, channels=6),
                 Stream(codec_type="subtitle", index=4),
             )
@@ -46,49 +53,59 @@ def test_videofile_instantiation_non_existent_file_raises_error(tmp_path: Path) 
 
 
 @pytest.mark.unit
-def test_videofile_media_info_property(
+def test_videofile_properties(
     mock_get_media_info_func: MagicMock, tmp_path: Path
 ) -> None:
-    """Test that the media_info property calls get_media_info and returns the correct object."""
+    """Test that the properties of VideoFile return correct streams."""
     dummy_file = tmp_path / "test.ts"
     dummy_file.touch()
     video_file = VideoFile(path=dummy_file)
 
-    media_info = video_file.media_info
+    assert len(video_file.video_streams) == 1
+    assert video_file.video_streams[0].codec_type == "video"
 
-    mock_get_media_info_func.assert_called_once_with(dummy_file)
-    assert isinstance(media_info, MediaInfo)
-    assert len(media_info.streams) == 5
+    assert len(video_file.audio_streams) == 3
+    assert all(s.codec_type == "audio" for s in video_file.audio_streams)
+
+    assert len(video_file.valid_audio_streams) == 2
+    for stream in video_file.valid_audio_streams:
+        assert stream.channels is not None
+        assert stream.channels > 0
 
 
 @pytest.mark.unit
-def test_videofile_audio_streams_property(
+def test_get_stream_by_index(
     mock_get_media_info_func: MagicMock, tmp_path: Path
 ) -> None:
-    """Test that the audio_streams property returns only audio streams."""
+    """Test that get_stream_by_index returns the correct stream."""
     dummy_file = tmp_path / "test.ts"
     dummy_file.touch()
     video_file = VideoFile(path=dummy_file)
 
-    audio_streams = video_file.audio_streams
+    stream = video_file.get_stream_by_index(3)
+    assert stream.index == 3
 
-    assert len(audio_streams) == 3  # The mock contains 3 audio streams
-    for stream in audio_streams:
-        assert stream.codec_type == "audio"
+    with pytest.raises(ValueError):
+        video_file.get_stream_by_index(99)
 
 
 @pytest.mark.unit
-def test_videofile_valid_audio_streams_property(
-    mock_get_media_info_func: MagicMock, tmp_path: Path
+def test_converted_video_file_immutable_stream_sources(
+    video_file_factory: Callable[..., VideoFile],
 ) -> None:
-    """Test that the valid_audio_streams property returns only valid audio streams."""
-    dummy_file = tmp_path / "test.ts"
-    dummy_file.touch()
-    video_file = VideoFile(path=dummy_file)
+    """Test that the stream_sources field is immutable."""
+    source_file = video_file_factory()
+    stream_sources = {
+        0: StreamSource(
+            source_video_file=source_file,
+            source_stream_index=0,
+            conversion_type=ConversionType.CONVERTED,
+        )
+    }
+    converted_file = ConvertedVideoFile.model_validate(
+        {"path": source_file.path, "stream_sources": stream_sources}
+    )
 
-    valid_audio_streams = video_file.valid_audio_streams
-
-    assert len(valid_audio_streams) == 2  # Only streams with channels > 0
-    for stream in valid_audio_streams:
-        assert stream.codec_type == "audio"
-        assert stream.channels is not None and stream.channels > 0
+    assert isinstance(converted_file.stream_sources, MappingProxyType)
+    with pytest.raises(TypeError):
+        converted_file.stream_sources[1] = "test"  # type: ignore

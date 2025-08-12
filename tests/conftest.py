@@ -4,9 +4,7 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import pytest
-from pytest_mock import MockerFixture
 
-from ts2mp4.media_info import MediaInfo, Stream
 from ts2mp4.video_file import (
     ConversionType,
     ConvertedVideoFile,
@@ -62,20 +60,13 @@ def mp4_file(project_root: Path) -> Path:
 
 @pytest.fixture
 def video_file_factory(
-    tmp_path: Path, mocker: MockerFixture
+    tmp_path: Path,
 ) -> Callable[..., VideoFile]:
     """Create a factory for creating VideoFile objects for testing."""
 
-    def _factory(
-        filename: str = "test.ts", streams: Optional[list[Stream]] = None
-    ) -> VideoFile:
+    def _factory(filename: str = "test.ts") -> VideoFile:
         filepath = tmp_path / filename
         filepath.touch()
-        if streams:
-            mocker.patch(
-                "ts2mp4.video_file.get_media_info",
-                return_value=MediaInfo(streams=streams),
-            )
         return VideoFile(path=filepath)
 
     return _factory

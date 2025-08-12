@@ -6,7 +6,7 @@ from logzero import logger
 
 from .hashing import get_stream_md5
 from .media_info import Stream
-from .video_file import ConvertedVideoFile, VideoFile
+from .video_file import VideoFile
 
 
 def compare_stream_hashes(
@@ -73,41 +73,25 @@ def verify_streams(
         f"Verifying {stream_type} stream integrity for {input_file.path.name} and {output_file.path.name}"
     )
 
-    output_streams_to_check = [
-        s for s in output_file.media_info.streams if s.codec_type == stream_type
+    input_media_info = input_file.media_info
+    output_media_info = output_file.media_info
+
+    input_streams = [s for s in input_media_info.streams if s.codec_type == stream_type]
+    output_streams = [
+        s for s in output_media_info.streams if s.codec_type == stream_type
     ]
+
     if type_specific_stream_indices is not None:
-        output_streams_to_check = [
-            s
-            for s in output_streams_to_check
-            if s.index in type_specific_stream_indices
-        ]
+        input_streams = [input_streams[i] for i in type_specific_stream_indices]
+        output_streams = [output_streams[i] for i in type_specific_stream_indices]
 
-    if isinstance(output_file, ConvertedVideoFile):
-        input_streams_to_check = [
-            output_file.get_source_stream(s) for s in output_streams_to_check
-        ]
-    else:
-        # Fallback for non-converted files, assumes 1-to-1 mapping
-        input_streams_to_check = [
-            s for s in input_file.media_info.streams if s.codec_type == stream_type
-        ]
-        if type_specific_stream_indices is not None:
-            input_streams_to_check = [
-                s
-                for s in input_streams_to_check
-                if s.index in type_specific_stream_indices
-            ]
-
-    if len(input_streams_to_check) != len(output_streams_to_check):
+    if len(input_streams) != len(output_streams):
         raise RuntimeError(
-            f"Mismatch in the number of {stream_type} streams to check: "
-            f"{len(input_streams_to_check)} in input, {len(output_streams_to_check)} in output."
+            f"Mismatch in the number of {stream_type} streams: "
+            f"{len(input_streams)} in input, {len(output_streams)} in output."
         )
 
-    for input_stream, output_stream in zip(
-        input_streams_to_check, output_streams_to_check
-    ):
+    for input_stream, output_stream in zip(input_streams, output_streams):
         if not compare_stream_hashes(
             input_video=input_file,
             output_video=output_file,

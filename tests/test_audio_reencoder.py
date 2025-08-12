@@ -7,11 +7,12 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.audio_reencoder import (
-    _build_re_encode_ffmpeg_args,
+    ReEncodeResult,
+    _prepare_audio_re_encode,
     re_encode_mismatched_audio_streams,
 )
 from ts2mp4.ffmpeg import execute_ffmpeg
-from ts2mp4.media_info import MediaInfo, Stream, get_media_info
+from ts2mp4.media_info import Stream, get_media_info
 from ts2mp4.video_file import (
     ConversionType,
     ConvertedVideoFile,
@@ -21,68 +22,69 @@ from ts2mp4.video_file import (
 
 
 @pytest.mark.unit
-def test_build_re_encode_ffmpeg_args(
+def test_prepare_audio_re_encode_no_mismatch(
     video_file_factory: Callable[..., VideoFile],
     converted_video_file_factory: Callable[..., ConvertedVideoFile],
     mocker: MockerFixture,
 ) -> None:
-    """Test that FFmpeg arguments for re-encoding are built correctly."""
+    """Test that _prepare_audio_re_encode returns None when streams match."""
     original_file = video_file_factory(
-        "original.ts", streams=[Stream(codec_type="audio", index=1, codec_name="aac")]
+        streams=[
+            Stream(codec_type="video", index=0),
+            Stream(codec_type="audio", index=1),
+        ]
     )
     encoded_file = converted_video_file_factory(
-        "encoded.mp4", source_video_file=original_file
+        source_video_file=original_file,
+        stream_sources={
+            0: StreamSource(
+                source_video_file=original_file,
+                source_stream_index=0,
+                conversion_type=ConversionType.CONVERTED,
+            ),
+            1: StreamSource(
+                source_video_file=original_file,
+                source_stream_index=1,
+                conversion_type=ConversionType.COPIED,
+            ),
+        },
     )
-    mocker.patch(
-        "ts2mp4.video_file.get_media_info",
-        return_value=MediaInfo(streams=[Stream(codec_type="video", index=0)]),
+    mocker.patch("ts2mp4.audio_reencoder.compare_stream_hashes", return_value=True)
+
+    result = _prepare_audio_re_encode(original_file, encoded_file, Path("output.mp4"))
+    assert result is None
+
+
+@pytest.mark.unit
+def test_prepare_audio_re_encode_with_mismatch(
+    video_file_factory: Callable[..., VideoFile],
+    converted_video_file_factory: Callable[..., ConvertedVideoFile],
+    mocker: MockerFixture,
+) -> None:
+    """Test that _prepare_audio_re_encode returns correct results for mismatched streams."""
+    original_file = video_file_factory(
+        streams=[
+            Stream(codec_type="video", index=0),
+            Stream(codec_type="audio", index=1, codec_name="aac"),
+        ]
     )
-    mocker.patch(
-        "ts2mp4.video_file.VideoFile.get_stream_by_index",
-        side_effect=lambda index: {1: original_file.media_info.streams[0]}.get(index),
+    encoded_file = converted_video_file_factory(source_video_file=original_file)
+    mocker.patch("ts2mp4.audio_reencoder.compare_stream_hashes", return_value=False)
+    mocker.patch("ts2mp4.audio_reencoder.is_libfdk_aac_available", return_value=True)
+
+    result = _prepare_audio_re_encode(original_file, encoded_file, Path("output.mp4"))
+
+    assert isinstance(result, ReEncodeResult)
+    assert len(result.stream_sources) > 0
+    assert any(
+        s.conversion_type == ConversionType.RE_ENCODED
+        for s in result.stream_sources.values()
     )
-    mocker.patch(
-        "ts2mp4.video_file.ConvertedVideoFile.get_stream_by_index",
-        side_effect=lambda index: {0: encoded_file.media_info.streams[0]}.get(index),
-    )
-
-    stream_sources = {
-        0: StreamSource(
-            source_video_file=encoded_file,
-            source_stream_index=0,
-            conversion_type=ConversionType.COPIED,
-        ),
-        1: StreamSource(
-            source_video_file=original_file,
-            source_stream_index=1,
-            conversion_type=ConversionType.RE_ENCODED,
-        ),
-    }
-
-    args = _build_re_encode_ffmpeg_args(Path("output.mp4"), stream_sources)
-
-    assert str(original_file.path) in " ".join(args)
-    assert str(encoded_file.path) in " ".join(args)
-
-    source_files = {original_file.path, encoded_file.path}
-    input_files = sorted(list(source_files))
-    input_map = {path: i for i, path in enumerate(input_files)}
-
-    video_map = (
-        f"-map {input_map[encoded_file.path]}:{stream_sources[0].source_stream_index}"
-    )
-    audio_map = (
-        f"-map {input_map[original_file.path]}:{stream_sources[1].source_stream_index}"
-    )
-
-    assert video_map in " ".join(args)
-    assert audio_map in " ".join(args)
+    assert "libfdk_aac" in " ".join(result.ffmpeg_args)
 
 
 @pytest.mark.integration
-def test_re_encode_mismatched_audio_streams(
-    tmp_path: Path, ts_file: Path, video_file_factory: Callable[..., VideoFile]
-) -> None:
+def test_re_encode_mismatched_audio_streams(tmp_path: Path, ts_file: Path) -> None:
     """Tests the re-encoding function with a real video file."""
     encoded_file_path = tmp_path / "encoded_missing_stream.mp4"
     execute_ffmpeg(

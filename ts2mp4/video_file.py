@@ -1,8 +1,10 @@
 """A module for the VideoFile class."""
 
 from enum import Enum, auto
+from types import MappingProxyType
+from typing import Mapping
 
-from pydantic import BaseModel, ConfigDict, FilePath
+from pydantic import BaseModel, ConfigDict, FilePath, field_validator
 
 from .media_info import MediaInfo, Stream, get_media_info
 
@@ -12,12 +14,19 @@ class VideoFile(BaseModel):
 
     path: FilePath
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
     @property
     def media_info(self) -> MediaInfo:
         """Return media information for the file."""
         return get_media_info(self.path)
+
+    @property
+    def video_streams(self) -> list[Stream]:
+        """Return a list of video streams."""
+        return [
+            stream for stream in self.media_info.streams if stream.codec_type == "video"
+        ]
 
     @property
     def audio_streams(self) -> list[Stream]:
@@ -58,19 +67,18 @@ class StreamSource(BaseModel):
     source_stream_index: int
     conversion_type: ConversionType
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
 
 class ConvertedVideoFile(VideoFile):
     """A class representing a converted video file."""
 
-    stream_sources: dict[int, StreamSource]
+    stream_sources: Mapping[int, StreamSource]
 
-    def get_source_stream(self, stream: Stream) -> Stream:
-        """Return the source stream for a given stream."""
-        stream_source = self.stream_sources.get(stream.index)
-        if not stream_source:
-            raise ValueError(f"Stream {stream.index} not found in stream sources")
-        return stream_source.source_video_file.get_stream_by_index(
-            stream_source.source_stream_index
-        )
+    @field_validator("stream_sources", mode="before")
+    @classmethod
+    def make_stream_sources_immutable(
+        cls, v: dict[int, StreamSource]
+    ) -> MappingProxyType[int, StreamSource]:
+        """Ensure the stream_sources dictionary is immutable."""
+        return MappingProxyType(v)

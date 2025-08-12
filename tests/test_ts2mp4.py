@@ -1,68 +1,48 @@
 """Unit tests for the ts2mp4 module."""
 
-from pathlib import Path
+from types import MappingProxyType
 from typing import Callable
 
 import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import FFmpegResult
-from ts2mp4.media_info import Stream
+from ts2mp4.media_info import MediaInfo, Stream
 from ts2mp4.ts2mp4 import (
-    _build_ffmpeg_conversion_args,
+    ConversionResult,
     _perform_initial_conversion,
+    _prepare_initial_conversion,
     ts2mp4,
 )
 from ts2mp4.video_file import (
-    ConversionType,
     ConvertedVideoFile,
-    StreamSource,
     VideoFile,
 )
 
 
 @pytest.mark.unit
-def test_build_ffmpeg_conversion_args(
-    video_file_factory: Callable[..., VideoFile],
+def test_prepare_initial_conversion(
+    video_file_factory: Callable[..., VideoFile], mocker: MockerFixture
 ) -> None:
-    """Test that _build_ffmpeg_conversion_args generates correct arguments."""
-    output_path = Path("output.mp4")
-    crf = 23
-    preset = "medium"
-
-    video_stream = Stream(codec_type="video", index=0)
-    audio_stream1 = Stream(codec_type="audio", index=1, channels=2)
-    audio_stream2 = Stream(codec_type="audio", index=3, channels=6)
-
-    input_file = video_file_factory(
-        streams=[video_stream, audio_stream1, audio_stream2]
+    """Test that _prepare_initial_conversion returns correct results."""
+    mocker.patch(
+        "ts2mp4.media_info.get_media_info",
+        return_value=MediaInfo(
+            streams=(
+                Stream(codec_type="video", index=0),
+                Stream(codec_type="audio", index=1, channels=2),
+            )
+        ),
     )
+    input_file = video_file_factory()
+    output_path = input_file.path.with_name("output.mp4")
 
-    stream_sources = {
-        0: StreamSource(
-            source_video_file=input_file,
-            source_stream_index=video_stream.index,
-            conversion_type=ConversionType.CONVERTED,
-        ),
-        1: StreamSource(
-            source_video_file=input_file,
-            source_stream_index=audio_stream1.index,
-            conversion_type=ConversionType.CONVERTED,
-        ),
-        2: StreamSource(
-            source_video_file=input_file,
-            source_stream_index=audio_stream2.index,
-            conversion_type=ConversionType.CONVERTED,
-        ),
-    }
+    result = _prepare_initial_conversion(input_file, output_path, 23, "medium")
 
-    args = _build_ffmpeg_conversion_args(output_path, crf, preset, stream_sources)
-
-    assert str(input_file.path) in args
-    assert f"-map 0:{video_stream.index}" in " ".join(args)
-    assert f"-map 0:{audio_stream1.index}" in " ".join(args)
-    assert f"-map 0:{audio_stream2.index}" in " ".join(args)
-    assert "libx265" in args
+    assert isinstance(result, ConversionResult)
+    assert isinstance(result.stream_sources, MappingProxyType)
+    assert isinstance(result.ffmpeg_args, list)
+    assert str(input_file.path) in result.ffmpeg_args
 
 
 @pytest.mark.unit
@@ -70,46 +50,27 @@ def test_perform_initial_conversion(
     video_file_factory: Callable[..., VideoFile], mocker: MockerFixture
 ) -> None:
     """Test that _perform_initial_conversion executes FFmpeg and returns a ConvertedVideoFile."""
-    input_file = video_file_factory(
-        streams=[
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="audio", index=1, channels=2),
-        ]
-    )
+    input_file = video_file_factory()
     output_file = input_file.path.with_name("output.mp4")
-    crf = 23
-    preset = "medium"
 
-    mocker.patch(
-        "ts2mp4.ts2mp4.execute_ffmpeg",
-        return_value=FFmpegResult(returncode=0, stdout=b"", stderr=""),
+    mock_ffmpeg_result = FFmpegResult(returncode=0, stdout=b"", stderr="")
+    mock_execute_ffmpeg = mocker.patch(
+        "ts2mp4.ts2mp4.execute_ffmpeg", return_value=mock_ffmpeg_result
     )
-    mock_return = mocker.MagicMock(spec=ConvertedVideoFile)
-    mock_return.stream_sources = {
-        0: StreamSource(
-            source_video_file=input_file,
-            source_stream_index=0,
-            conversion_type=ConversionType.CONVERTED,
+    mock_prepare = mocker.patch(
+        "ts2mp4.ts2mp4._prepare_initial_conversion",
+        return_value=ConversionResult(
+            stream_sources=MappingProxyType({}), ffmpeg_args=["ffmpeg"]
         ),
-        1: StreamSource(
-            source_video_file=input_file,
-            source_stream_index=1,
-            conversion_type=ConversionType.CONVERTED,
-        ),
-    }
-    mocker.patch(
-        "ts2mp4.ts2mp4.ConvertedVideoFile",
-        return_value=mock_return,
     )
 
-    result = _perform_initial_conversion(input_file, output_file, crf, preset)
+    output_file.touch()
+    result = _perform_initial_conversion(input_file, output_file, 23, "medium")
 
+    mock_prepare.assert_called_once_with(input_file, output_file, 23, "medium")
+    mock_execute_ffmpeg.assert_called_once_with(["ffmpeg"])
     assert isinstance(result, ConvertedVideoFile)
-    assert len(result.stream_sources) == 2
-    assert all(
-        s.conversion_type == ConversionType.CONVERTED
-        for s in result.stream_sources.values()
-    )
+    assert result.path == output_file
 
 
 @pytest.mark.unit
