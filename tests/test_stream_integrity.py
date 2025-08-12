@@ -1,260 +1,154 @@
 """Unit tests for the stream_integrity module."""
 
-from pathlib import Path
-from typing import cast
-from unittest.mock import MagicMock
+from typing import Callable
 
 import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.media_info import MediaInfo, Stream
-from ts2mp4.stream_integrity import compare_stream_hashes, verify_streams
-from ts2mp4.video_file import VideoFile
-
-
-@pytest.fixture
-def mock_input_video_file(mocker: MockerFixture) -> MagicMock:
-    """Return a mocked input VideoFile instance."""
-    mock_input = cast(MagicMock, mocker.MagicMock(spec=VideoFile))
-    mock_input.path = Path("dummy_input.ts")
-    # Set default media_info for input, can be overridden in tests if needed
-    mock_input.media_info = MediaInfo(
-        streams=(
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="audio", index=1),
-        )
-    )
-    return mock_input
-
-
-@pytest.fixture
-def mock_output_video_file(mocker: MockerFixture) -> MagicMock:
-    """Return a mocked output VideoFile instance."""
-    mock_output = cast(MagicMock, mocker.MagicMock(spec=VideoFile))
-    mock_output.path = Path("dummy_output.mp4.part")
-    # Set default media_info for output, can be overridden in tests if needed
-    mock_output.media_info = MediaInfo(
-        streams=(
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="audio", index=1),
-        )
-    )
-    return mock_output
+from ts2mp4.stream_integrity import StreamIntegrityError, verify_streams
+from ts2mp4.video_file import (
+    ConvertedVideoFile,
+    VideoFile,
+)
 
 
 @pytest.mark.unit
-def test_compare_stream_hashes_matching_hashes(
-    mocker: MockerFixture,
-    mock_input_video_file: MagicMock,
-    mock_output_video_file: MagicMock,
+def test_verify_streams_simple_success(
+    video_file_factory: Callable[..., VideoFile], mocker: MockerFixture
 ) -> None:
-    """Tests that compare_stream_hashes returns True when MD5 hashes match."""
-    mocker.patch("ts2mp4.stream_integrity.get_stream_md5", return_value="same_hash")
-
-    stream = Stream(codec_type="audio", index=1)
-
-    assert compare_stream_hashes(
-        input_video=mock_input_video_file,
-        output_video=mock_output_video_file,
-        input_stream=stream,
-        output_stream=stream,
+    """Test that verify_streams succeeds with identical simple video files."""
+    mock_get_md5 = mocker.patch(
+        "ts2mp4.stream_integrity.get_stream_md5", return_value="same_hash"
     )
+    mocker.patch(
+        "ts2mp4.stream_integrity.get_media_info",
+        return_value=MediaInfo(streams=(Stream(codec_type="audio", index=0),)),
+    )
+
+    file1 = video_file_factory()
+    file2 = video_file_factory()
+
+    verify_streams(file1, file2, "audio")
+    assert mock_get_md5.call_count == 2
 
 
 @pytest.mark.unit
-def test_compare_stream_hashes_mismatching_hashes(
-    mocker: MockerFixture,
-    mock_input_video_file: MagicMock,
-    mock_output_video_file: MagicMock,
+def test_verify_streams_simple_hash_mismatch(
+    video_file_factory: Callable[..., VideoFile], mocker: MockerFixture
 ) -> None:
-    """Tests that compare_stream_hashes returns False when MD5 hashes mismatch."""
+    """Test that verify_streams fails when hashes mismatch for simple files."""
     mocker.patch(
         "ts2mp4.stream_integrity.get_stream_md5", side_effect=["hash1", "hash2"]
     )
-    stream = Stream(codec_type="audio", index=1)
-
-    assert not compare_stream_hashes(
-        input_video=mock_input_video_file,
-        output_video=mock_output_video_file,
-        input_stream=stream,
-        output_stream=stream,
-    )
-
-
-@pytest.mark.unit
-def test_compare_stream_hashes_hash_generation_fails(
-    mocker: MockerFixture,
-    mock_input_video_file: MagicMock,
-    mock_output_video_file: MagicMock,
-) -> None:
-    """Tests that compare_stream_hashes returns False when hash generation fails."""
     mocker.patch(
-        "ts2mp4.stream_integrity.get_stream_md5",
-        side_effect=RuntimeError("Mock error"),
+        "ts2mp4.stream_integrity.get_media_info",
+        return_value=MediaInfo(streams=(Stream(codec_type="audio", index=0),)),
     )
-    stream = Stream(codec_type="audio", index=1)
 
-    assert not compare_stream_hashes(
-        input_video=mock_input_video_file,
-        output_video=mock_output_video_file,
-        input_stream=stream,
-        output_stream=stream,
-    )
+    file1 = video_file_factory()
+    file2 = video_file_factory()
+
+    with pytest.raises(StreamIntegrityError, match="MD5 hash mismatch"):
+        verify_streams(file1, file2, "audio")
 
 
 @pytest.mark.unit
-def test_verify_streams_matches(
-    mocker: MockerFixture,
-    mock_input_video_file: MagicMock,
-    mock_output_video_file: MagicMock,
+def test_verify_streams_simple_stream_count_mismatch(
+    video_file_factory: Callable[..., VideoFile], mocker: MockerFixture
 ) -> None:
-    """Tests that no exception is raised when all stream hashes match."""
-    mock_compare_stream_hashes = mocker.patch(
-        "ts2mp4.stream_integrity.compare_stream_hashes", return_value=True
+    """Test that verify_streams fails with different stream counts."""
+    file1 = video_file_factory()
+    file2 = video_file_factory()
+
+    mocker.patch(
+        "ts2mp4.stream_integrity.get_media_info",
+        side_effect=[
+            MediaInfo(streams=(Stream(codec_type="audio", index=0),)),
+            MediaInfo(streams=()),
+        ],
     )
 
-    verify_streams(mock_input_video_file, mock_output_video_file, "audio")
-
-    mock_compare_stream_hashes.assert_called_once()
+    with pytest.raises(
+        StreamIntegrityError, match="Mismatch in number of audio streams"
+    ):
+        verify_streams(file1, file2, "audio")
 
 
 @pytest.mark.unit
-def test_verify_streams_mismatch(
+def test_verify_streams_converted_file_success(
+    video_file_factory: Callable[..., VideoFile],
+    converted_video_file_factory: Callable[..., ConvertedVideoFile],
     mocker: MockerFixture,
-    mock_input_video_file: MagicMock,
-    mock_output_video_file: MagicMock,
 ) -> None:
-    """Tests that a RuntimeError is raised when stream hashes mismatch."""
-    mock_compare_stream_hashes = mocker.patch(
-        "ts2mp4.stream_integrity.compare_stream_hashes", return_value=False
+    """Test verify_streams success with a converted file against its source."""
+    source_file = video_file_factory()
+    converted_file = converted_video_file_factory(source_video_file=source_file)
+
+    mocker.patch(
+        "ts2mp4.stream_integrity.get_media_info",
+        side_effect=[
+            MediaInfo(streams=(Stream(codec_type="video", index=0),)),  # Converted file
+            MediaInfo(streams=(Stream(codec_type="video", index=0),)),  # Source file
+        ],
+    )
+    mock_get_md5 = mocker.patch(
+        "ts2mp4.stream_integrity.get_stream_md5", return_value="same_hash"
     )
 
-    with pytest.raises(RuntimeError) as excinfo:
-        verify_streams(mock_input_video_file, mock_output_video_file, "audio")
-
-    assert "Audio stream integrity check failed for stream at index 1" in str(
-        excinfo.value
-    )
-    mock_compare_stream_hashes.assert_called_once()
+    verify_streams(converted_file, source_file, "video")
+    assert mock_get_md5.call_count == 2
 
 
 @pytest.mark.unit
-def test_verify_streams_stream_count_mismatch(
+def test_verify_streams_converted_file_hash_mismatch(
+    video_file_factory: Callable[..., VideoFile],
+    converted_video_file_factory: Callable[..., ConvertedVideoFile],
     mocker: MockerFixture,
-    mock_input_video_file: MagicMock,
-    mock_output_video_file: MagicMock,
 ) -> None:
-    """Tests that a RuntimeError is raised for mismatched audio stream counts."""
-    # Override media_info for this specific test case
-    mock_input_video_file.media_info = MediaInfo(
-        streams=(
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="audio", index=1),
-        )
+    """Test verify_streams failure with a converted file due to hash mismatch."""
+    source_file = video_file_factory()
+    converted_file = converted_video_file_factory(source_video_file=source_file)
+
+    mocker.patch(
+        "ts2mp4.stream_integrity.get_media_info",
+        side_effect=[
+            MediaInfo(streams=(Stream(codec_type="video", index=0),)),
+            MediaInfo(streams=(Stream(codec_type="video", index=0),)),
+        ],
     )
-    mock_output_video_file.media_info = MediaInfo(
-        streams=(Stream(codec_type="video", index=0),)
+    mocker.patch(
+        "ts2mp4.stream_integrity.get_stream_md5", side_effect=["hash1", "hash2"]
     )
 
-    with pytest.raises(RuntimeError) as excinfo:
-        verify_streams(mock_input_video_file, mock_output_video_file, "audio")
-    assert "Mismatch in the number of audio streams" in str(excinfo.value)
+    with pytest.raises(StreamIntegrityError, match="MD5 hash mismatch"):
+        verify_streams(converted_file, source_file, "video")
 
 
 @pytest.mark.unit
-def test_verify_streams_no_audio_streams(
+def test_verify_streams_converted_skips_unrelated_source(
+    video_file_factory: Callable[..., VideoFile],
+    converted_video_file_factory: Callable[..., ConvertedVideoFile],
     mocker: MockerFixture,
-    mock_input_video_file: MagicMock,
-    mock_output_video_file: MagicMock,
 ) -> None:
-    """Tests correct handling when there are no audio streams."""
-    # Override media_info for this specific test case
-    mock_input_video_file.media_info = MediaInfo(
-        streams=(
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="subtitle", index=1),
-        )
-    )
-    mock_output_video_file.media_info = MediaInfo(
-        streams=(
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="subtitle", index=1),
-        )
+    """Test that verify_streams skips checks against an unrelated source file."""
+    source_file1 = video_file_factory(filename="source1.ts")
+    source_file2 = video_file_factory(filename="source2.ts")
+    converted_file = converted_video_file_factory(source_video_file=source_file1)
+
+    mock_logger_warning = mocker.patch("ts2mp4.stream_integrity.logger.warning")
+    mock_get_md5 = mocker.patch("ts2mp4.stream_integrity.get_stream_md5")
+    mocker.patch(
+        "ts2mp4.stream_integrity.get_media_info",
+        return_value=MediaInfo(streams=(Stream(codec_type="video", index=0),)),
     )
 
-    mock_compare_stream_hashes = mocker.patch(
-        "ts2mp4.stream_integrity.compare_stream_hashes"
-    )
+    # Compare converted file against an unrelated source
+    verify_streams(converted_file, source_file2, "video")
 
-    verify_streams(mock_input_video_file, mock_output_video_file, "audio")
-
-    mock_compare_stream_hashes.assert_not_called()
-
-
-@pytest.mark.unit
-def test_verify_streams_specific_indices(
-    mocker: MockerFixture,
-    mock_input_video_file: MagicMock,
-    mock_output_video_file: MagicMock,
-) -> None:
-    """Tests that verify_streams correctly checks specific stream indices."""
-    # Override media_info for this specific test case
-    mock_input_video_file.media_info = MediaInfo(
-        streams=(
-            Stream(codec_type="audio", index=0),
-            Stream(codec_type="audio", index=1),
-        )
-    )
-    mock_output_video_file.media_info = MediaInfo(
-        streams=(
-            Stream(codec_type="audio", index=0),
-            Stream(codec_type="audio", index=1),
-        )
-    )
-
-    mock_compare_stream_hashes = mocker.patch(
-        "ts2mp4.stream_integrity.compare_stream_hashes", return_value=True
-    )
-
-    verify_streams(
-        mock_input_video_file,
-        mock_output_video_file,
-        "audio",
-        type_specific_stream_indices=[1],
-    )
-
-    # Ensures that only the stream at index 1 is checked
-    assert mock_compare_stream_hashes.call_count == 1
-    checked_stream = mock_compare_stream_hashes.call_args.kwargs["input_stream"]
-    assert checked_stream.index == 1
-
-
-@pytest.mark.unit
-def test_verify_streams_video_mismatch(
-    mocker: MockerFixture,
-    mock_input_video_file: MagicMock,
-    mock_output_video_file: MagicMock,
-) -> None:
-    """Tests that a RuntimeError is raised for video stream mismatch."""
-    # Override media_info for this specific test case
-    mock_input_video_file.media_info = MediaInfo(
-        streams=(
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="audio", index=1),
-        )
-    )
-    mock_output_video_file.media_info = MediaInfo(
-        streams=(
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="audio", index=1),
-        )
-    )
-
-    mocker.patch("ts2mp4.stream_integrity.compare_stream_hashes", return_value=False)
-
-    with pytest.raises(RuntimeError) as excinfo:
-        verify_streams(mock_input_video_file, mock_output_video_file, "video")
-
-    assert "Video stream integrity check failed for stream at index 0" in str(
-        excinfo.value
+    # Ensure no hashes were calculated and a warning was logged
+    mock_get_md5.assert_not_called()
+    mock_logger_warning.assert_called_once_with(
+        "No matching video streams found for verification in "
+        "converted.mp4 originating from source2.ts."
     )

@@ -75,7 +75,7 @@ class ConvertedVideoFile(VideoFile):
 
     stream_sources: Mapping[int, StreamSource]
 
-    @field_validator("stream_sources", mode="before")
+    @field_validator("stream_sources", mode="after")
     @classmethod
     def make_stream_sources_immutable(
         cls, v: dict[int, StreamSource]

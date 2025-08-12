@@ -1,6 +1,8 @@
 """Unit tests for the VideoFile module."""
 
 from pathlib import Path
+from types import MappingProxyType
+from typing import Callable
 
 import pytest
 from pydantic import ValidationError
@@ -8,6 +10,9 @@ from pytest_mock import MockerFixture
 
 from ts2mp4.media_info import MediaInfo, Stream
 from ts2mp4.video_file import (
+    ConversionType,
+    ConvertedVideoFile,
+    StreamSource,
     VideoFile,
 )
 
@@ -81,3 +86,25 @@ def test_get_stream_by_index(
 
     with pytest.raises(ValueError):
         video_file.get_stream_by_index(99)
+
+
+@pytest.mark.unit
+def test_converted_video_file_immutable_stream_sources(
+    video_file_factory: Callable[..., VideoFile],
+) -> None:
+    """Test that the stream_sources field is immutable."""
+    source_file = video_file_factory()
+    stream_sources = {
+        0: StreamSource(
+            source_video_file=source_file,
+            source_stream_index=0,
+            conversion_type=ConversionType.CONVERTED,
+        )
+    }
+    converted_file = ConvertedVideoFile(
+        path=source_file.path, stream_sources=stream_sources
+    )
+
+    assert isinstance(converted_file.stream_sources, MappingProxyType)
+    with pytest.raises(TypeError):
+        converted_file.stream_sources[1] = "test"  # type: ignore

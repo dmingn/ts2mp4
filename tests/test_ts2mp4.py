@@ -7,7 +7,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import FFmpegResult
-from ts2mp4.media_info import MediaInfo, Stream
+from ts2mp4.media_info import Stream
 from ts2mp4.ts2mp4 import (
     ConversionPlan,
     _perform_initial_conversion,
@@ -23,21 +23,16 @@ from ts2mp4.video_file import (
 
 @pytest.mark.unit
 def test_prepare_initial_conversion_plan(
-    video_file_factory: Callable[..., VideoFile], mocker: MockerFixture
+    video_file_factory: Callable[..., VideoFile],
 ) -> None:
     """Test that _prepare_initial_conversion_plan returns correct results."""
-    mocker.patch(
-        "ts2mp4.video_file.get_media_info",
-        return_value=MediaInfo(
-            streams=(
-                Stream(codec_type="video", index=0),
-                Stream(codec_type="audio", index=1, channels=2),
-                Stream(codec_type="audio", index=2, channels=0),
-                Stream(codec_type="audio", index=3, channels=6),
-            )
-        ),
-    )
-    input_file = video_file_factory()
+    streams_to_mock = [
+        Stream(codec_type="video", index=0),
+        Stream(codec_type="audio", index=1, channels=2),
+        Stream(codec_type="audio", index=2, channels=0),
+        Stream(codec_type="audio", index=3, channels=6),
+    ]
+    input_file = video_file_factory(streams=streams_to_mock)
     output_path = input_file.path.with_name("output.mp4")
 
     result = _prepare_initial_conversion_plan(input_file, output_path, 23, "medium")

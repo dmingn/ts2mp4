@@ -71,28 +71,19 @@ def video_file_factory(
     ) -> VideoFile:
         filepath = tmp_path / filename
         filepath.touch()
-        video_file = VideoFile(path=filepath)
 
-        # Since the model is frozen, we patch the media_info property
-        # on the instance to return a mock value.
         if streams:
-            media_info = MediaInfo(streams=tuple(streams))
-            mocker.patch.object(
-                video_file,
-                "media_info",
-                new_callable=mocker.PropertyMock,
-                return_value=media_info,
+            mocker.patch(
+                "ts2mp4.video_file.get_media_info",
+                return_value=MediaInfo(streams=tuple(streams)),
             )
         else:
-            media_info = MediaInfo(streams=(Stream(codec_type="video", index=0),))
-            mocker.patch.object(
-                video_file,
-                "media_info",
-                new_callable=mocker.PropertyMock,
-                return_value=media_info,
+            mocker.patch(
+                "ts2mp4.video_file.get_media_info",
+                return_value=MediaInfo(streams=(Stream(codec_type="video", index=0),)),
             )
 
-        return video_file
+        return VideoFile(path=filepath)
 
     return _factory
 
