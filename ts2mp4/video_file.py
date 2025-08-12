@@ -14,7 +14,7 @@ class VideoFile(BaseModel):
 
     path: FilePath
 
-    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+    model_config = ConfigDict(frozen=True)
 
     @property
     def media_info(self) -> MediaInfo:
@@ -67,7 +67,7 @@ class StreamSource(BaseModel):
     source_stream_index: int
     conversion_type: ConversionType
 
-    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+    model_config = ConfigDict(frozen=True)
 
 
 class ConvertedVideoFile(VideoFile):
