@@ -8,7 +8,12 @@ from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
 from ts2mp4.media_info import MediaInfo, Stream
-from ts2mp4.video_file import VideoFile
+from ts2mp4.video_file import (
+    ConversionType,
+    ConvertedVideoFile,
+    StreamSource,
+    VideoFile,
+)
 
 
 @pytest.fixture
@@ -26,6 +31,14 @@ def mock_get_media_info_func(mocker: MockerFixture) -> MagicMock:
             )
         ),
     )
+
+
+@pytest.fixture
+def dummy_video_file(tmp_path: Path) -> VideoFile:
+    """Create a dummy VideoFile instance."""
+    dummy_file = tmp_path / "test.ts"
+    dummy_file.touch()
+    return VideoFile(path=dummy_file)
 
 
 @pytest.mark.unit
@@ -92,3 +105,45 @@ def test_videofile_valid_audio_streams_property(
     for stream in valid_audio_streams:
         assert stream.codec_type == "audio"
         assert stream.channels is not None and stream.channels > 0
+
+
+@pytest.mark.unit
+def test_stream_source_instantiation(dummy_video_file: VideoFile) -> None:
+    """Test that StreamSource can be instantiated with valid data."""
+    stream_source = StreamSource(
+        source_video_file=dummy_video_file,
+        source_stream_index=0,
+        conversion_type=ConversionType.COPIED,
+    )
+    assert stream_source.source_video_file == dummy_video_file
+    assert stream_source.source_stream_index == 0
+    assert stream_source.conversion_type == ConversionType.COPIED
+
+
+@pytest.mark.unit
+def test_stream_source_instantiation_with_invalid_index(
+    dummy_video_file: VideoFile,
+) -> None:
+    """Test that StreamSource raises ValidationError for a negative stream index."""
+    with pytest.raises(ValidationError):
+        StreamSource(
+            source_video_file=dummy_video_file,
+            source_stream_index=-1,
+            conversion_type=ConversionType.COPIED,
+        )
+
+
+@pytest.mark.unit
+def test_converted_video_file_instantiation(dummy_video_file: VideoFile) -> None:
+    """Test that ConvertedVideoFile can be instantiated with valid data."""
+    stream_source = StreamSource(
+        source_video_file=dummy_video_file,
+        source_stream_index=0,
+        conversion_type=ConversionType.COPIED,
+    )
+    converted_file = ConvertedVideoFile(
+        path=dummy_video_file.path,
+        stream_sources=(stream_source,),
+    )
+    assert converted_file.path == dummy_video_file.path
+    assert converted_file.stream_sources == (stream_source,)
