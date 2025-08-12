@@ -6,8 +6,13 @@ from logzero import logger
 
 from .audio_reencoder import re_encode_mismatched_audio_streams
 from .ffmpeg import execute_ffmpeg
-from .stream_integrity import verify_streams
-from .video_file import VideoFile
+from .stream_integrity import StreamIntegrityError, verify_streams
+from .video_file import (
+    ConversionType,
+    ConvertedVideoFile,
+    StreamSource,
+    VideoFile,
+)
 
 
 def _build_ffmpeg_conversion_args(
@@ -59,13 +64,36 @@ def _build_ffmpeg_conversion_args(
 
 def _perform_initial_conversion(
     input_file: VideoFile, output_path: Path, crf: int, preset: str
-) -> VideoFile:
+) -> ConvertedVideoFile:
     """Perform the initial FFmpeg conversion from TS to MP4."""
+    # Determine which streams will be mapped to build the stream_sources map.
+    # This logic mirrors the mapping logic in _build_ffmpeg_conversion_args.
+    stream_sources: dict[int, StreamSource] = {}
+    output_stream_index = 0
+
+    # Assume all video streams are mapped. The helper function maps `0:v`.
+    for stream in input_file.video_streams:
+        stream_sources[output_stream_index] = StreamSource(
+            source_video_file=input_file,
+            source_stream_index=stream.index,
+            conversion_type=ConversionType.CONVERTED,
+        )
+        output_stream_index += 1
+
+    # The helper function maps all valid audio streams.
+    for stream in input_file.valid_audio_streams:
+        stream_sources[output_stream_index] = StreamSource(
+            source_video_file=input_file,
+            source_stream_index=stream.index,
+            conversion_type=ConversionType.COPIED,
+        )
+        output_stream_index += 1
+
     ffmpeg_args = _build_ffmpeg_conversion_args(input_file, output_path, crf, preset)
     result = execute_ffmpeg(ffmpeg_args)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
-    return VideoFile(path=output_path)
+    return ConvertedVideoFile(path=output_path, stream_sources=stream_sources)
 
 
 def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> None:
@@ -87,12 +115,8 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
     output_file = _perform_initial_conversion(input_file, output_path, crf, preset)
 
     try:
-        verify_streams(
-            input_file=input_file,
-            output_file=output_file,
-            stream_type="audio",
-        )
-    except RuntimeError as e:
+        verify_streams(output_file)
+    except StreamIntegrityError as e:
         logger.warning(f"Audio integrity check failed: {e}")
         logger.info("Attempting to re-encode mismatched audio streams.")
         temp_output_file = output_path.with_suffix(output_path.suffix + ".temp")
