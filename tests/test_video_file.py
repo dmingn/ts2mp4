@@ -41,6 +41,16 @@ def dummy_video_file(tmp_path: Path) -> VideoFile:
     return VideoFile(path=dummy_file)
 
 
+@pytest.fixture
+def stream_source(dummy_video_file: VideoFile) -> StreamSource:
+    """Create a dummy StreamSource instance."""
+    return StreamSource(
+        source_video_file=dummy_video_file,
+        source_stream_index=0,
+        conversion_type=ConversionType.COPIED,
+    )
+
+
 @pytest.mark.unit
 def test_videofile_instantiation_success(tmp_path: Path) -> None:
     """Test that VideoFile can be instantiated with a valid path."""
@@ -60,30 +70,22 @@ def test_videofile_instantiation_non_existent_file_raises_error(tmp_path: Path) 
 
 @pytest.mark.unit
 def test_videofile_media_info_property(
-    mock_get_media_info_func: MagicMock, tmp_path: Path
+    mock_get_media_info_func: MagicMock, dummy_video_file: VideoFile
 ) -> None:
     """Test that the media_info property calls get_media_info and returns the correct object."""
-    dummy_file = tmp_path / "test.ts"
-    dummy_file.touch()
-    video_file = VideoFile(path=dummy_file)
+    media_info = dummy_video_file.media_info
 
-    media_info = video_file.media_info
-
-    mock_get_media_info_func.assert_called_once_with(dummy_file)
+    mock_get_media_info_func.assert_called_once_with(dummy_video_file.path)
     assert isinstance(media_info, MediaInfo)
     assert len(media_info.streams) == 5
 
 
 @pytest.mark.unit
 def test_videofile_audio_streams_property(
-    mock_get_media_info_func: MagicMock, tmp_path: Path
+    mock_get_media_info_func: MagicMock, dummy_video_file: VideoFile
 ) -> None:
     """Test that the audio_streams property returns only audio streams."""
-    dummy_file = tmp_path / "test.ts"
-    dummy_file.touch()
-    video_file = VideoFile(path=dummy_file)
-
-    audio_streams = video_file.audio_streams
+    audio_streams = dummy_video_file.audio_streams
 
     assert len(audio_streams) == 3  # The mock contains 3 audio streams
     for stream in audio_streams:
@@ -92,14 +94,10 @@ def test_videofile_audio_streams_property(
 
 @pytest.mark.unit
 def test_videofile_valid_audio_streams_property(
-    mock_get_media_info_func: MagicMock, tmp_path: Path
+    mock_get_media_info_func: MagicMock, dummy_video_file: VideoFile
 ) -> None:
     """Test that the valid_audio_streams property returns only valid audio streams."""
-    dummy_file = tmp_path / "test.ts"
-    dummy_file.touch()
-    video_file = VideoFile(path=dummy_file)
-
-    valid_audio_streams = video_file.valid_audio_streams
+    valid_audio_streams = dummy_video_file.valid_audio_streams
 
     assert len(valid_audio_streams) == 2  # Only streams with channels > 0
     for stream in valid_audio_streams:
@@ -134,13 +132,10 @@ def test_stream_source_instantiation_with_invalid_index(
 
 
 @pytest.mark.unit
-def test_converted_video_file_instantiation(dummy_video_file: VideoFile) -> None:
+def test_converted_video_file_instantiation(
+    dummy_video_file: VideoFile, stream_source: StreamSource
+) -> None:
     """Test that ConvertedVideoFile can be instantiated with valid data."""
-    stream_source = StreamSource(
-        source_video_file=dummy_video_file,
-        source_stream_index=0,
-        conversion_type=ConversionType.COPIED,
-    )
     converted_file = ConvertedVideoFile(
         path=dummy_video_file.path,
         stream_sources=(stream_source,),
