@@ -65,3 +65,12 @@ class ConvertedVideoFile(VideoFile):
     """A class representing a converted video file."""
 
     stream_sources: dict[int, StreamSource]
+
+    def get_source_stream(self, stream: Stream) -> Stream:
+        """Return the source stream for a given stream."""
+        stream_source = self.stream_sources.get(stream.index)
+        if not stream_source:
+            raise ValueError(f"Stream {stream.index} not found in stream sources")
+        return stream_source.source_video_file.get_stream_by_index(
+            stream_source.source_stream_index
+        )

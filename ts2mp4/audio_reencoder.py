@@ -159,12 +159,14 @@ def re_encode_mismatched_audio_streams(
         if i > 0 and s.conversion_type == ConversionType.COPIED
     ]
 
-    verify_streams(encoded_file, re_encoded_video, "video")
+    verify_streams(
+        input_file=encoded_file, output_file=re_encoded_video, stream_type="video"
+    )
     if copied_audio_indices:
         verify_streams(
-            encoded_file,
-            re_encoded_video,
-            "audio",
+            input_file=encoded_file,
+            output_file=re_encoded_video,
+            stream_type="audio",
             type_specific_stream_indices=copied_audio_indices,
         )
 
