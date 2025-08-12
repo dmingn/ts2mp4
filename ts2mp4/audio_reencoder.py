@@ -2,251 +2,183 @@
 
 import itertools
 from pathlib import Path
-from typing import NamedTuple
+from typing import Optional
 
 from logzero import logger
 
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
-from .media_info import Stream
 from .quality_check import get_audio_quality_metrics
 from .stream_integrity import compare_stream_hashes, verify_streams
-from .video_file import VideoFile
+from .video_file import (
+    ConversionType,
+    ConvertedVideoFile,
+    StreamSource,
+    VideoFile,
+)
 
 
-class AudioStreamArgs(NamedTuple):
-    """A tuple containing FFmpeg arguments and indices of copied/re-encoded audio streams."""
-
-    ffmpeg_args: list[str]
-    copied_audio_stream_indices: list[int]
-    re_encoded_audio_stream_indices: list[int]
-
-
-def _build_re_encode_args(
-    audio_stream_index: int, original_audio_stream: Stream
+def _build_re_encode_ffmpeg_args(
+    output_path: Path,
+    stream_sources: dict[int, StreamSource],
 ) -> list[str]:
-    codec_name = str(original_audio_stream.codec_name)
-    if original_audio_stream.codec_name == "aac":
-        if is_libfdk_aac_available():
-            codec_name = "libfdk_aac"
-        else:
-            logger.warning(
-                "libfdk_aac is not available. Falling back to the default AAC encoder."
+    """Build FFmpeg arguments for re-encoding audio streams."""
+    # Group sources by input file
+    source_files = {s.source_video_file.path for s in stream_sources.values()}
+    input_files = sorted(list(source_files))
+    input_map = {path: i for i, path in enumerate(input_files)}
+
+    map_args = []
+    codec_args = []
+
+    video_source = next(
+        s
+        for s in stream_sources.values()
+        if s.source_video_file.get_stream_by_index(s.source_stream_index).codec_type
+        == "video"
+    )
+    video_input_index = input_map[video_source.source_video_file.path]
+    map_args.extend(["-map", f"{video_input_index}:{video_source.source_stream_index}"])
+    codec_args.extend(["-codec:v", "copy"])
+
+    for stream_index, source in stream_sources.items():
+        if stream_index == 0:  # Already handled video
+            continue
+
+        input_index = input_map[source.source_video_file.path]
+        map_args.extend(["-map", f"{input_index}:{source.source_stream_index}"])
+
+        if source.conversion_type == ConversionType.COPIED:
+            codec_args.extend([f"-codec:{stream_index}", "copy"])
+        elif source.conversion_type == ConversionType.RE_ENCODED:
+            original_stream = source.source_video_file.get_stream_by_index(
+                source.source_stream_index
             )
+            codec_name = str(original_stream.codec_name)
+            if original_stream.codec_name == "aac":
+                if is_libfdk_aac_available():
+                    codec_name = "libfdk_aac"
+                else:
+                    logger.warning(
+                        "libfdk_aac not available, falling back to default AAC encoder."
+                    )
 
-    re_encode_args = [
-        "-map",
-        f"0:a:{audio_stream_index}",
-        f"-codec:a:{audio_stream_index}",
-        codec_name,
-    ]
-    if original_audio_stream.sample_rate is not None:
-        re_encode_args.extend(
-            [
-                f"-ar:a:{audio_stream_index}",
-                str(original_audio_stream.sample_rate),
-            ]
-        )
-    if original_audio_stream.channels is not None:
-        re_encode_args.extend(
-            [
-                f"-ac:a:{audio_stream_index}",
-                str(original_audio_stream.channels),
-            ]
-        )
-    if original_audio_stream.profile is not None:
-        profile_map = {"LC": "aac_low"}
-        profile = profile_map.get(
-            original_audio_stream.profile, original_audio_stream.profile
-        )
-        re_encode_args.extend(
-            [
-                f"-profile:a:{audio_stream_index}",
-                profile,
-            ]
-        )
-    if original_audio_stream.bit_rate is not None:
-        re_encode_args.extend(
-            [
-                f"-b:a:{audio_stream_index}",
-                str(original_audio_stream.bit_rate),
-            ]
-        )
-    re_encode_args.extend([f"-bsf:a:{audio_stream_index}", "aac_adtstoasc"])
-    return re_encode_args
+            codec_args.extend([f"-codec:{stream_index}", codec_name])
 
-
-def _build_args_for_audio_streams(
-    original_file: VideoFile, encoded_file: VideoFile
-) -> AudioStreamArgs:
-    """Build FFmpeg arguments and identify copied audio streams.
-
-    It assumes that the order of audio streams is preserved between the
-    original and encoded files.
-    """
-    original_media_info = original_file.media_info
-    encoded_media_info = encoded_file.media_info
-
-    original_audio_streams = [
-        stream for stream in original_media_info.streams if stream.codec_type == "audio"
-    ]
-    encoded_audio_streams = [
-        stream for stream in encoded_media_info.streams if stream.codec_type == "audio"
-    ]
-
-    ffmpeg_args = []
-    copied_audio_stream_indices = []
-    re_encoded_audio_stream_indices = []
-    for audio_stream_index, (original_audio_stream, encoded_audio_stream) in enumerate(
-        itertools.zip_longest(original_audio_streams, encoded_audio_streams)
-    ):
-        if original_audio_stream is None:
-            # Unexpected: Original file has fewer audio streams than expected.
-            raise RuntimeError(
-                f"Encoded file {encoded_file.path.name} has more audio streams than the original {original_file.path.name}."
-            )
-
-        integrity_check_passes = False
-        if encoded_audio_stream is not None:
-            integrity_check_passes = compare_stream_hashes(
-                input_video=original_file,
-                output_video=encoded_file,
-                input_stream=original_audio_stream,
-                output_stream=encoded_audio_stream,
-            )
-
-        if not integrity_check_passes:
-            if original_audio_stream.codec_name is None:
-                # Unexpected: Original file's audio stream lacks a codec name.
-                raise RuntimeError(
-                    f"Original audio stream at index {audio_stream_index} has no codec name."
+            if original_stream.sample_rate is not None:
+                codec_args.extend(
+                    [f"-ar:{stream_index}", str(original_stream.sample_rate)]
                 )
-            if original_audio_stream.codec_name != "aac":
-                raise NotImplementedError(
-                    "Re-encoding is currently only supported for aac audio codec."
+            if original_stream.channels is not None:
+                codec_args.extend(
+                    [f"-ac:{stream_index}", str(original_stream.channels)]
                 )
+            if original_stream.profile is not None:
+                profile_map = {"LC": "aac_low"}
+                profile = profile_map.get(
+                    original_stream.profile, original_stream.profile
+                )
+                codec_args.extend([f"-profile:{stream_index}", profile])
+            if original_stream.bit_rate is not None:
+                codec_args.extend([f"-b:{stream_index}", str(original_stream.bit_rate)])
+            codec_args.extend([f"-bsf:{stream_index}", "aac_adtstoasc"])
 
-            logger.warning(
-                f"Re-encoding audio stream at index {audio_stream_index} "
-                f"from {original_file.path.name} due to mismatch or absence in {encoded_file.path.name}."
-            )
-
-            ffmpeg_args.extend(
-                _build_re_encode_args(audio_stream_index, original_audio_stream)
-            )
-            re_encoded_audio_stream_indices.append(audio_stream_index)
-        else:
-            ffmpeg_args.extend(
-                [
-                    "-map",
-                    f"1:a:{audio_stream_index}",  # Use encoded audio stream
-                    f"-codec:a:{audio_stream_index}",
-                    "copy",  # Copy codec without re-encoding
-                ]
-            )
-            copied_audio_stream_indices.append(audio_stream_index)
-
-    return AudioStreamArgs(
-        ffmpeg_args=ffmpeg_args,
-        copied_audio_stream_indices=copied_audio_stream_indices,
-        re_encoded_audio_stream_indices=re_encoded_audio_stream_indices,
+    return (
+        ["-hide_banner", "-nostats", "-fflags", "+discardcorrupt", "-y"]
+        + [arg for path in input_files for arg in ("-i", str(path))]
+        + map_args
+        + codec_args
+        + ["-f", "mp4", str(output_path)]
     )
 
 
 def re_encode_mismatched_audio_streams(
-    original_file: VideoFile, encoded_file: VideoFile, output_file: Path
-) -> None:
-    """Re-encodes mismatched audio streams from an original file to a new output file.
-
-    This function identifies audio streams that are either missing in the encoded
-    file or have different content compared to the original file. It then
-    generates a new video file by:
-    - Copying the video stream from the already encoded file.
-    - Copying matching audio streams from the encoded file.
-    - Re-encoding mismatched or missing audio streams from the original file
-      using their original codecs.
-
-    Args:
-    ----
-        original_file: The VideoFile object for the original source file (e.g., .ts).
-        encoded_file: The VideoFile object for the file that has been encoded but may have
-                      audio stream issues.
-        output_file: The path where the corrected output file will be saved.
-    """
-
-    def _verify_integrity(
-        copied_audio_stream_indices: list[int],
-    ) -> None:
-        """Verify the integrity of streams after re-encoding."""
-        logger.info(f"Verifying stream integrity for {output_file.name}")
-
-        verify_streams(encoded_file, VideoFile(path=output_file), "video")
-        verify_streams(
-            encoded_file,
-            VideoFile(path=output_file),
-            "audio",
-            type_specific_stream_indices=copied_audio_stream_indices,
-        )
-
-        logger.info("Stream integrity verified successfully.")
-
-    audio_stream_args = _build_args_for_audio_streams(
-        original_file=original_file, encoded_file=encoded_file
+    original_file: VideoFile,
+    encoded_file: ConvertedVideoFile,
+    output_file: Path,
+) -> Optional[ConvertedVideoFile]:
+    """Re-encodes mismatched audio streams from an original file to a new output file."""
+    video_stream = next(
+        s for s in encoded_file.media_info.streams if s.codec_type == "video"
     )
 
-    if not audio_stream_args.ffmpeg_args:
+    new_stream_sources = {
+        0: encoded_file.stream_sources[video_stream.index].model_copy(
+            update={"conversion_type": ConversionType.COPIED}
+        )
+    }
+
+    needs_re_encoding = False
+    for i, (original_audio, encoded_audio) in enumerate(
+        itertools.zip_longest(original_file.audio_streams, encoded_file.audio_streams)
+    ):
+        output_stream_index = i + 1
+
+        if original_audio is None:
+            raise RuntimeError("Encoded file has more audio streams than original.")
+
+        integrity_check_passes = False
+        if encoded_audio is not None:
+            integrity_check_passes = compare_stream_hashes(
+                original_file, encoded_file, original_audio, encoded_audio
+            )
+
+        if integrity_check_passes:
+            new_stream_sources[output_stream_index] = encoded_file.stream_sources[
+                encoded_audio.index
+            ].model_copy(update={"conversion_type": ConversionType.COPIED})
+        else:
+            needs_re_encoding = True
+            if original_audio.codec_name != "aac":
+                raise NotImplementedError(
+                    "Re-encoding is only supported for AAC audio."
+                )
+
+            new_stream_sources[output_stream_index] = StreamSource(
+                source_video_file=original_file,
+                source_stream_index=original_audio.index,
+                conversion_type=ConversionType.RE_ENCODED,
+            )
+
+    if not needs_re_encoding:
         logger.info("No audio streams require re-encoding.")
-        return
+        return None
 
-    ffmpeg_args = [
-        "-hide_banner",
-        "-nostats",
-        "-fflags",
-        "+discardcorrupt",
-        "-y",
-        "-i",
-        str(original_file.path),
-        "-i",
-        str(encoded_file.path),
-        # for video streams
-        "-map",
-        "1:v",  # Use video stream from encoded_file
-        "-codec:v",
-        "copy",  # Copy video codec without re-encoding
-        # for audio streams
-        *audio_stream_args.ffmpeg_args,
-        # # for subtitles
-        # "-map",
-        # "1:s?",  # Use subtitle streams from encoded_file if available
-        # "-codec:s",
-        # "copy",  # Copy subtitle codec without re-encoding
-        # output file
-        "-f",
-        "mp4",
-        str(output_file),
-    ]
-
-    # Execute the FFmpeg command
+    ffmpeg_args = _build_re_encode_ffmpeg_args(output_file, new_stream_sources)
     result = execute_ffmpeg(ffmpeg_args)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
 
-    _verify_integrity(
-        copied_audio_stream_indices=audio_stream_args.copied_audio_stream_indices,
+    # After re-encoding, verify stream integrity
+    re_encoded_video = ConvertedVideoFile(
+        path=output_file, stream_sources=new_stream_sources
     )
 
-    for audio_stream_index in audio_stream_args.re_encoded_audio_stream_indices:
-        metrics = get_audio_quality_metrics(
-            original_file=original_file.path,
-            re_encoded_file=output_file,
-            audio_stream_index=audio_stream_index,
+    copied_audio_indices = [
+        i
+        for i, s in new_stream_sources.items()
+        if i > 0 and s.conversion_type == ConversionType.COPIED
+    ]
+
+    verify_streams(encoded_file, re_encoded_video, "video")
+    if copied_audio_indices:
+        verify_streams(
+            encoded_file,
+            re_encoded_video,
+            "audio",
+            type_specific_stream_indices=copied_audio_indices,
         )
-        if metrics:
-            log_parts = []
-            if metrics.apsnr is not None:
-                log_parts.append(f"APSNR={metrics.apsnr:.2f}dB")
-            if metrics.asdr is not None:
-                log_parts.append(f"ASDR={metrics.asdr:.2f}dB")
-            if log_parts:
-                logger.info(
-                    f"Audio quality for stream {audio_stream_index}: {', '.join(log_parts)}"
-                )
+
+    # Log quality metrics for re-encoded streams
+    for i, source in new_stream_sources.items():
+        if source.conversion_type == ConversionType.RE_ENCODED:
+            metrics = get_audio_quality_metrics(original_file.path, output_file, i)
+            if metrics:
+                log_parts = [
+                    f"{k}={v:.2f}dB"
+                    for k, v in metrics._asdict().items()
+                    if v is not None
+                ]
+                if log_parts:
+                    logger.info(f"Audio quality for stream {i}: {', '.join(log_parts)}")
+
+    return re_encoded_video
