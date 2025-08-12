@@ -4,7 +4,7 @@ from enum import Enum, auto
 from types import MappingProxyType
 from typing import Mapping
 
-from pydantic import BaseModel, ConfigDict, FilePath, field_validator
+from pydantic import BaseModel, ConfigDict, FilePath, NonNegativeInt, field_validator
 
 from .media_info import MediaInfo, Stream, get_media_info
 
@@ -49,7 +49,7 @@ class StreamSource(BaseModel):
     """A class representing the source of a stream."""
 
     source_video_file: VideoFile
-    source_stream_index: int
+    source_stream_index: NonNegativeInt
     conversion_type: ConversionType
 
     model_config = ConfigDict(frozen=True)

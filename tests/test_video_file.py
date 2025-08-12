@@ -131,6 +131,19 @@ def test_stream_source_instantiation(dummy_video_file: VideoFile) -> None:
 
 
 @pytest.mark.unit
+def test_stream_source_instantiation_with_invalid_index(
+    dummy_video_file: VideoFile,
+) -> None:
+    """Test that StreamSource raises ValidationError for a negative stream index."""
+    with pytest.raises(ValidationError):
+        StreamSource(
+            source_video_file=dummy_video_file,
+            source_stream_index=-1,
+            conversion_type=ConversionType.COPIED,
+        )
+
+
+@pytest.mark.unit
 def test_converted_video_file_instantiation(dummy_video_file: VideoFile) -> None:
     """Test that ConvertedVideoFile can be instantiated with valid data."""
     stream_source = StreamSource(
