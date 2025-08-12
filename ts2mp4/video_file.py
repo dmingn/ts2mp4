@@ -1,10 +1,8 @@
 """A module for the VideoFile class."""
 
 from enum import Enum, auto
-from types import MappingProxyType
-from typing import Mapping
 
-from pydantic import BaseModel, ConfigDict, FilePath, NonNegativeInt, field_validator
+from pydantic import BaseModel, ConfigDict, FilePath, NonNegativeInt
 
 from .media_info import MediaInfo, Stream, get_media_info
 
@@ -55,18 +53,19 @@ class StreamSource(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-StreamSources = Mapping[int, StreamSource]
+StreamSources = tuple[StreamSource, ...]
 
 
 class ConvertedVideoFile(VideoFile):
-    """A class representing a converted video file."""
+    """A class representing a converted video file.
+
+    This class extends VideoFile to include information about how each stream
+    in the converted file was created. The `stream_sources` tuple contains
+    `StreamSource` objects, where the position in the tuple corresponds to
+    the stream's index in the converted video file. Each `StreamSource` object
+    describes which original stream (from which source file) was used to
+    generate that stream in the converted file, and how it was created
+    (copied or converted).
+    """
 
     stream_sources: StreamSources
-
-    @field_validator("stream_sources", mode="after")
-    @classmethod
-    def make_stream_sources_immutable(
-        cls, v: dict[int, StreamSource]
-    ) -> MappingProxyType[int, StreamSource]:
-        """Ensure the stream_sources dictionary is immutable."""
-        return MappingProxyType(v)

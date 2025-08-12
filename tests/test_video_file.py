@@ -1,7 +1,6 @@
 """Unit tests for the VideoFile module."""
 
 from pathlib import Path
-from types import MappingProxyType
 from unittest.mock import MagicMock
 
 import pytest
@@ -153,29 +152,7 @@ def test_converted_video_file_instantiation(dummy_video_file: VideoFile) -> None
     )
     converted_file = ConvertedVideoFile(
         path=dummy_video_file.path,
-        stream_sources={0: stream_source},
+        stream_sources=(stream_source,),
     )
     assert converted_file.path == dummy_video_file.path
-    assert converted_file.stream_sources == {0: stream_source}
-
-
-@pytest.mark.unit
-def test_converted_video_file_stream_sources_immutable(
-    dummy_video_file: VideoFile,
-) -> None:
-    """Test that stream_sources in ConvertedVideoFile is immutable."""
-    stream_source = StreamSource(
-        source_video_file=dummy_video_file,
-        source_stream_index=0,
-        conversion_type=ConversionType.COPIED,
-    )
-    converted_file = ConvertedVideoFile(
-        path=dummy_video_file.path,
-        stream_sources={0: stream_source},
-    )
-    # Attempt to modify the stream_sources
-    with pytest.raises(TypeError):
-        converted_file.stream_sources[1] = stream_source  # type: ignore[index]
-
-    # Ensure it's a MappingProxyType after validation
-    assert isinstance(converted_file.stream_sources, MappingProxyType)
+    assert converted_file.stream_sources == (stream_source,)
