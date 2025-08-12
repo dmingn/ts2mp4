@@ -19,21 +19,38 @@ class VideoFile(BaseModel):
         """Return media information for the file."""
         return get_media_info(self.path)
 
-    @property
-    def audio_streams(self) -> list[Stream]:
-        """Return a list of audio streams."""
-        return [
-            stream for stream in self.media_info.streams if stream.codec_type == "audio"
-        ]
+    @staticmethod
+    def _is_valid_audio_stream(stream: Stream) -> bool:
+        """Return True if the audio stream is valid."""
+        return stream.channels is not None and stream.channels > 0
+
+    @staticmethod
+    def _is_valid_video_stream(stream: Stream) -> bool:
+        """Return True if the video stream is valid."""
+        return True
 
     @property
-    def valid_audio_streams(self) -> list[Stream]:
-        """Return a list of valid audio streams (channels > 0)."""
-        return [
+    def valid_audio_streams(self) -> tuple[Stream, ...]:
+        """Return a tuple of valid audio streams."""
+        return tuple(
             stream
-            for stream in self.audio_streams
-            if stream.channels is not None and stream.channels > 0
-        ]
+            for stream in self.media_info.streams
+            if stream.codec_type == "audio" and VideoFile._is_valid_audio_stream(stream)
+        )
+
+    @property
+    def valid_video_streams(self) -> tuple[Stream, ...]:
+        """Return a tuple of valid video streams."""
+        return tuple(
+            stream
+            for stream in self.media_info.streams
+            if stream.codec_type == "video" and VideoFile._is_valid_video_stream(stream)
+        )
+
+    @property
+    def valid_streams(self) -> tuple[Stream, ...]:
+        """Return a tuple of valid streams."""
+        return self.valid_video_streams + self.valid_audio_streams
 
 
 class ConversionType(Enum):
