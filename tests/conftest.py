@@ -78,6 +78,7 @@ def video_file_factory(
                 return_value=MediaInfo(streams=tuple(streams)),
             )
         else:
+            # Provide a default mock if no streams are specified
             mocker.patch(
                 "ts2mp4.video_file.get_media_info",
                 return_value=MediaInfo(streams=(Stream(codec_type="video", index=0),)),
@@ -103,12 +104,14 @@ def converted_video_file_factory(
             source_video_file = video_file_factory()
 
         if stream_sources is None:
+            # Create a default stream_sources based on the source file
             stream_sources = {
-                0: StreamSource(
+                i: StreamSource(
                     source_video_file=source_video_file,
-                    source_stream_index=0,
+                    source_stream_index=stream.index,
                     conversion_type=ConversionType.CONVERTED,
                 )
+                for i, stream in enumerate(source_video_file.media_info.streams)
             }
 
         filepath = source_video_file.path.parent / filename

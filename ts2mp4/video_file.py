@@ -1,10 +1,9 @@
 """A module for the VideoFile class."""
 
 from enum import Enum, auto
-from types import MappingProxyType
 from typing import Mapping
 
-from pydantic import BaseModel, ConfigDict, FilePath, field_validator
+from pydantic import BaseModel, ConfigDict, FilePath
 
 from .media_info import MediaInfo, Stream, get_media_info
 
@@ -44,13 +43,6 @@ class VideoFile(BaseModel):
             if stream.channels is not None and stream.channels > 0
         ]
 
-    def get_stream_by_index(self, stream_index: int) -> Stream:
-        """Return the stream for a given stream index."""
-        for stream in self.media_info.streams:
-            if stream.index == stream_index:
-                return stream
-        raise ValueError(f"Stream {stream_index} not found in this video file")
-
 
 class ConversionType(Enum):
     """An enumeration for stream conversion types."""
@@ -63,22 +55,14 @@ class ConversionType(Enum):
 class StreamSource(BaseModel):
     """A class representing the source of a stream."""
 
-    source_video_file: VideoFile
+    source_video_file: "VideoFile"
     source_stream_index: int
     conversion_type: ConversionType
 
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
 
 class ConvertedVideoFile(VideoFile):
     """A class representing a converted video file."""
 
     stream_sources: Mapping[int, StreamSource]
-
-    @field_validator("stream_sources", mode="after")
-    @classmethod
-    def make_stream_sources_immutable(
-        cls, v: dict[int, StreamSource]
-    ) -> MappingProxyType[int, StreamSource]:
-        """Ensure the stream_sources dictionary is immutable."""
-        return MappingProxyType(v)

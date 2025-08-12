@@ -1,14 +1,12 @@
 """The main module of the ts2mp4 package."""
 
 from pathlib import Path
-from types import MappingProxyType
-from typing import Mapping, NamedTuple
 
 from logzero import logger
 
 from .audio_reencoder import re_encode_mismatched_audio_streams
 from .ffmpeg import execute_ffmpeg
-from .stream_integrity import verify_streams
+from .stream_integrity import StreamIntegrityError, verify_streams
 from .video_file import (
     ConversionType,
     ConvertedVideoFile,
@@ -17,42 +15,11 @@ from .video_file import (
 )
 
 
-class ConversionPlan(NamedTuple):
-    """A tuple containing the stream sources and FFmpeg arguments for a conversion."""
-
-    stream_sources: Mapping[int, StreamSource]
-    ffmpeg_args: list[str]
-
-
-def _prepare_initial_conversion_plan(
+def _build_ffmpeg_conversion_args(
     input_file: VideoFile, output_path: Path, crf: int, preset: str
-) -> ConversionPlan:
-    """Prepare a plan for the initial TS to MP4 conversion."""
-    video_sources = {
-        i: StreamSource(
-            source_video_file=input_file,
-            source_stream_index=stream.index,
-            conversion_type=ConversionType.CONVERTED,
-        )
-        for i, stream in enumerate(input_file.video_streams)
-    }
-    audio_sources = {
-        len(video_sources) + i: StreamSource(
-            source_video_file=input_file,
-            source_stream_index=stream.index,
-            conversion_type=ConversionType.COPIED,
-        )
-        for i, stream in enumerate(input_file.valid_audio_streams)
-    }
-    stream_sources = {**video_sources, **audio_sources}
-
-    map_args = [
-        arg
-        for i in sorted(stream_sources.keys())
-        for arg in ("-map", f"0:{stream_sources[i].source_stream_index}")
-    ]
-
-    ffmpeg_args = (
+) -> list[str]:
+    """Build FFmpeg arguments for the initial TS to MP4 conversion."""
+    return (
         [
             "-hide_banner",
             "-nostats",
@@ -61,9 +28,17 @@ def _prepare_initial_conversion_plan(
             "-y",
             "-i",
             str(input_file.path),
+            "-map",
+            "0:v",
         ]
-        + map_args
         + [
+            arg
+            for stream in input_file.valid_audio_streams
+            for arg in ("-map", f"0:{stream.index}")
+        ]
+        + [
+            # "-map",
+            # "0:s?",
             "-f",
             "mp4",
             "-vsync",
@@ -78,13 +53,12 @@ def _prepare_initial_conversion_plan(
             preset,
             "-codec:a",
             "copy",
+            # "-codec:s",
+            # "mov_text",
             "-bsf:a",
             "aac_adtstoasc",
             str(output_path),
         ]
-    )
-    return ConversionPlan(
-        stream_sources=MappingProxyType(stream_sources), ffmpeg_args=ffmpeg_args
     )
 
 
@@ -92,11 +66,34 @@ def _perform_initial_conversion(
     input_file: VideoFile, output_path: Path, crf: int, preset: str
 ) -> ConvertedVideoFile:
     """Perform the initial FFmpeg conversion from TS to MP4."""
-    plan = _prepare_initial_conversion_plan(input_file, output_path, crf, preset)
-    ffmpeg_result = execute_ffmpeg(plan.ffmpeg_args)
-    if ffmpeg_result.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed with return code {ffmpeg_result.returncode}")
-    return ConvertedVideoFile(path=output_path, stream_sources=plan.stream_sources)
+    # Determine which streams will be mapped to build the stream_sources map.
+    # This logic mirrors the mapping logic in _build_ffmpeg_conversion_args.
+    stream_sources: dict[int, StreamSource] = {}
+    output_stream_index = 0
+
+    # Assume all video streams are mapped. The helper function maps `0:v`.
+    for stream in input_file.video_streams:
+        stream_sources[output_stream_index] = StreamSource(
+            source_video_file=input_file,
+            source_stream_index=stream.index,
+            conversion_type=ConversionType.CONVERTED,
+        )
+        output_stream_index += 1
+
+    # The helper function maps all valid audio streams.
+    for stream in input_file.valid_audio_streams:
+        stream_sources[output_stream_index] = StreamSource(
+            source_video_file=input_file,
+            source_stream_index=stream.index,
+            conversion_type=ConversionType.COPIED,
+        )
+        output_stream_index += 1
+
+    ffmpeg_args = _build_ffmpeg_conversion_args(input_file, output_path, crf, preset)
+    result = execute_ffmpeg(ffmpeg_args)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
+    return ConvertedVideoFile(path=output_path, stream_sources=stream_sources)
 
 
 def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> None:
@@ -118,23 +115,17 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
     output_file = _perform_initial_conversion(input_file, output_path, crf, preset)
 
     try:
-        verify_streams(
-            input_file=input_file,
-            output_file=output_file,
-            stream_type="audio",
-        )
-    except RuntimeError as e:
+        verify_streams(output_file)
+    except StreamIntegrityError as e:
         logger.warning(f"Audio integrity check failed: {e}")
         logger.info("Attempting to re-encode mismatched audio streams.")
         temp_output_file = output_path.with_suffix(output_path.suffix + ".temp")
-        re_encoded_file = re_encode_mismatched_audio_streams(
+        re_encode_mismatched_audio_streams(
             original_file=input_file,
             encoded_file=output_file,
             output_file=temp_output_file,
         )
-        if re_encoded_file:
-            temp_output_file.replace(output_path)
-            logger.info(
-                "Successfully re-encoded audio for "
-                f"{output_path.name} and replaced original."
-            )
+        temp_output_file.replace(output_path)
+        logger.info(
+            f"Successfully re-encoded audio for {output_path.name} and replaced original."
+        )
