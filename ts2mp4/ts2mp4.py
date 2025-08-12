@@ -17,17 +17,17 @@ from .video_file import (
 )
 
 
-class ConversionResult(NamedTuple):
-    """A tuple containing the results of the conversion preparation."""
+class ConversionPlan(NamedTuple):
+    """A tuple containing the stream sources and FFmpeg arguments for a conversion."""
 
     stream_sources: Mapping[int, StreamSource]
     ffmpeg_args: list[str]
 
 
-def _prepare_initial_conversion(
+def _prepare_initial_conversion_plan(
     input_file: VideoFile, output_path: Path, crf: int, preset: str
-) -> ConversionResult:
-    """Prepare arguments and stream sources for the initial conversion."""
+) -> ConversionPlan:
+    """Prepare a plan for the initial TS to MP4 conversion."""
     video_sources = {
         i: StreamSource(
             source_video_file=input_file,
@@ -83,7 +83,7 @@ def _prepare_initial_conversion(
             str(output_path),
         ]
     )
-    return ConversionResult(
+    return ConversionPlan(
         stream_sources=MappingProxyType(stream_sources), ffmpeg_args=ffmpeg_args
     )
 
@@ -92,20 +92,36 @@ def _perform_initial_conversion(
     input_file: VideoFile, output_path: Path, crf: int, preset: str
 ) -> ConvertedVideoFile:
     """Perform the initial FFmpeg conversion from TS to MP4."""
-    result = _prepare_initial_conversion(input_file, output_path, crf, preset)
-    ffmpeg_result = execute_ffmpeg(result.ffmpeg_args)
+    plan = _prepare_initial_conversion_plan(input_file, output_path, crf, preset)
+    ffmpeg_result = execute_ffmpeg(plan.ffmpeg_args)
     if ffmpeg_result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {ffmpeg_result.returncode}")
-    return ConvertedVideoFile(path=output_path, stream_sources=result.stream_sources)
+    return ConvertedVideoFile(path=output_path, stream_sources=plan.stream_sources)
 
 
 def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> None:
-    """Convert a Transport Stream (TS) file to MP4 format using FFmpeg."""
+    """Convert a Transport Stream (TS) file to MP4 format using FFmpeg.
+
+    This function orchestrates the video conversion process, including initial FFmpeg
+    execution, audio stream integrity verification, and conditional re-encoding.
+
+    Args:
+    ----
+        input_file: The VideoFile object for the input TS file.
+        output_path: The path where the output MP4 file will be saved.
+        crf: The Constant Rate Factor (CRF) value for video encoding. Lower
+            values result in higher quality and larger file sizes.
+        preset: The encoding preset for FFmpeg. This affects the compression
+            speed and efficiency (e.g., 'medium', 'fast', 'slow').
+
+    """
     output_file = _perform_initial_conversion(input_file, output_path, crf, preset)
 
     try:
         verify_streams(
-            input_file=input_file, output_file=output_file, stream_type="audio"
+            input_file=input_file,
+            output_file=output_file,
+            stream_type="audio",
         )
     except RuntimeError as e:
         logger.warning(f"Audio integrity check failed: {e}")

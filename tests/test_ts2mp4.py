@@ -9,40 +9,51 @@ from pytest_mock import MockerFixture
 from ts2mp4.ffmpeg import FFmpegResult
 from ts2mp4.media_info import MediaInfo, Stream
 from ts2mp4.ts2mp4 import (
-    ConversionResult,
+    ConversionPlan,
     _perform_initial_conversion,
-    _prepare_initial_conversion,
+    _prepare_initial_conversion_plan,
     ts2mp4,
 )
 from ts2mp4.video_file import (
+    ConversionType,
     ConvertedVideoFile,
     VideoFile,
 )
 
 
 @pytest.mark.unit
-def test_prepare_initial_conversion(
+def test_prepare_initial_conversion_plan(
     video_file_factory: Callable[..., VideoFile], mocker: MockerFixture
 ) -> None:
-    """Test that _prepare_initial_conversion returns correct results."""
+    """Test that _prepare_initial_conversion_plan returns correct results."""
     mocker.patch(
-        "ts2mp4.media_info.get_media_info",
+        "ts2mp4.video_file.get_media_info",
         return_value=MediaInfo(
             streams=(
                 Stream(codec_type="video", index=0),
                 Stream(codec_type="audio", index=1, channels=2),
+                Stream(codec_type="audio", index=2, channels=0),
+                Stream(codec_type="audio", index=3, channels=6),
             )
         ),
     )
     input_file = video_file_factory()
     output_path = input_file.path.with_name("output.mp4")
 
-    result = _prepare_initial_conversion(input_file, output_path, 23, "medium")
+    result = _prepare_initial_conversion_plan(input_file, output_path, 23, "medium")
 
-    assert isinstance(result, ConversionResult)
+    assert isinstance(result, ConversionPlan)
     assert isinstance(result.stream_sources, MappingProxyType)
+    assert len(result.stream_sources) == 3
+    assert result.stream_sources[0].conversion_type == ConversionType.CONVERTED
+    assert result.stream_sources[1].conversion_type == ConversionType.COPIED
+    assert result.stream_sources[2].conversion_type == ConversionType.COPIED
+
     assert isinstance(result.ffmpeg_args, list)
     assert str(input_file.path) in result.ffmpeg_args
+    assert "-map 0:0" in " ".join(result.ffmpeg_args)
+    assert "-map 0:1" in " ".join(result.ffmpeg_args)
+    assert "-map 0:3" in " ".join(result.ffmpeg_args)
 
 
 @pytest.mark.unit
@@ -52,19 +63,19 @@ def test_perform_initial_conversion(
     """Test that _perform_initial_conversion executes FFmpeg and returns a ConvertedVideoFile."""
     input_file = video_file_factory()
     output_file = input_file.path.with_name("output.mp4")
+    output_file.touch()
 
     mock_ffmpeg_result = FFmpegResult(returncode=0, stdout=b"", stderr="")
     mock_execute_ffmpeg = mocker.patch(
         "ts2mp4.ts2mp4.execute_ffmpeg", return_value=mock_ffmpeg_result
     )
+    mock_plan = ConversionPlan(
+        stream_sources=MappingProxyType({}), ffmpeg_args=["ffmpeg"]
+    )
     mock_prepare = mocker.patch(
-        "ts2mp4.ts2mp4._prepare_initial_conversion",
-        return_value=ConversionResult(
-            stream_sources=MappingProxyType({}), ffmpeg_args=["ffmpeg"]
-        ),
+        "ts2mp4.ts2mp4._prepare_initial_conversion_plan", return_value=mock_plan
     )
 
-    output_file.touch()
     result = _perform_initial_conversion(input_file, output_file, 23, "medium")
 
     mock_prepare.assert_called_once_with(input_file, output_file, 23, "medium")

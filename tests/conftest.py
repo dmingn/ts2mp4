@@ -4,7 +4,9 @@ from pathlib import Path
 from typing import Callable, Optional
 
 import pytest
+from pytest_mock import MockerFixture
 
+from ts2mp4.media_info import MediaInfo, Stream
 from ts2mp4.video_file import (
     ConversionType,
     ConvertedVideoFile,
@@ -60,14 +62,37 @@ def mp4_file(project_root: Path) -> Path:
 
 @pytest.fixture
 def video_file_factory(
-    tmp_path: Path,
+    tmp_path: Path, mocker: MockerFixture
 ) -> Callable[..., VideoFile]:
     """Create a factory for creating VideoFile objects for testing."""
 
-    def _factory(filename: str = "test.ts") -> VideoFile:
+    def _factory(
+        filename: str = "test.ts", streams: Optional[list[Stream]] = None
+    ) -> VideoFile:
         filepath = tmp_path / filename
         filepath.touch()
-        return VideoFile(path=filepath)
+        video_file = VideoFile(path=filepath)
+
+        # Since the model is frozen, we patch the media_info property
+        # on the instance to return a mock value.
+        if streams:
+            media_info = MediaInfo(streams=tuple(streams))
+            mocker.patch.object(
+                video_file,
+                "media_info",
+                new_callable=mocker.PropertyMock,
+                return_value=media_info,
+            )
+        else:
+            media_info = MediaInfo(streams=(Stream(codec_type="video", index=0),))
+            mocker.patch.object(
+                video_file,
+                "media_info",
+                new_callable=mocker.PropertyMock,
+                return_value=media_info,
+            )
+
+        return video_file
 
     return _factory
 

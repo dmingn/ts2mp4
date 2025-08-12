@@ -7,8 +7,8 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.audio_reencoder import (
-    ReEncodeResult,
-    _prepare_audio_re_encode,
+    ReEncodePlan,
+    _prepare_audio_re_encode_plan,
     re_encode_mismatched_audio_streams,
 )
 from ts2mp4.ffmpeg import execute_ffmpeg
@@ -22,12 +22,12 @@ from ts2mp4.video_file import (
 
 
 @pytest.mark.unit
-def test_prepare_audio_re_encode_no_mismatch(
+def test_prepare_audio_re_encode_plan_no_mismatch(
     video_file_factory: Callable[..., VideoFile],
     converted_video_file_factory: Callable[..., ConvertedVideoFile],
     mocker: MockerFixture,
 ) -> None:
-    """Test that _prepare_audio_re_encode returns None when streams match."""
+    """Test that _prepare_audio_re_encode_plan returns None when streams match."""
     original_file = video_file_factory(
         streams=[
             Stream(codec_type="video", index=0),
@@ -51,17 +51,19 @@ def test_prepare_audio_re_encode_no_mismatch(
     )
     mocker.patch("ts2mp4.audio_reencoder.compare_stream_hashes", return_value=True)
 
-    result = _prepare_audio_re_encode(original_file, encoded_file, Path("output.mp4"))
+    result = _prepare_audio_re_encode_plan(
+        original_file, encoded_file, Path("output.mp4")
+    )
     assert result is None
 
 
 @pytest.mark.unit
-def test_prepare_audio_re_encode_with_mismatch(
+def test_prepare_audio_re_encode_plan_with_mismatch(
     video_file_factory: Callable[..., VideoFile],
     converted_video_file_factory: Callable[..., ConvertedVideoFile],
     mocker: MockerFixture,
 ) -> None:
-    """Test that _prepare_audio_re_encode returns correct results for mismatched streams."""
+    """Test that _prepare_audio_re_encode_plan returns correct results for mismatched streams."""
     original_file = video_file_factory(
         streams=[
             Stream(codec_type="video", index=0),
@@ -72,9 +74,11 @@ def test_prepare_audio_re_encode_with_mismatch(
     mocker.patch("ts2mp4.audio_reencoder.compare_stream_hashes", return_value=False)
     mocker.patch("ts2mp4.audio_reencoder.is_libfdk_aac_available", return_value=True)
 
-    result = _prepare_audio_re_encode(original_file, encoded_file, Path("output.mp4"))
+    result = _prepare_audio_re_encode_plan(
+        original_file, encoded_file, Path("output.mp4")
+    )
 
-    assert isinstance(result, ReEncodeResult)
+    assert isinstance(result, ReEncodePlan)
     assert len(result.stream_sources) > 0
     assert any(
         s.conversion_type == ConversionType.RE_ENCODED

@@ -18,22 +18,23 @@ from .video_file import (
 )
 
 
-class ReEncodeResult(NamedTuple):
-    """A tuple containing the results of the re-encode preparation."""
+class ReEncodePlan(NamedTuple):
+    """A tuple containing the stream sources and FFmpeg arguments for re-encoding."""
 
     stream_sources: Mapping[int, StreamSource]
     ffmpeg_args: list[str]
 
 
-def _prepare_audio_re_encode(
+def _prepare_audio_re_encode_plan(
     original_file: VideoFile,
     encoded_file: ConvertedVideoFile,
     output_path: Path,
-) -> Optional[ReEncodeResult]:
-    """Prepare arguments and stream sources for re-encoding audio streams."""
-    video_stream = next(
-        s for s in encoded_file.media_info.streams if s.codec_type == "video"
-    )
+) -> Optional[ReEncodePlan]:
+    """Prepare a plan for re-encoding mismatched audio streams."""
+    video_stream = next(iter(encoded_file.video_streams), None)
+    if not video_stream:
+        raise ValueError("Encoded file has no video streams.")
+
     new_stream_sources = {
         0: encoded_file.stream_sources[video_stream.index].model_copy(
             update={"conversion_type": ConversionType.COPIED}
@@ -44,7 +45,7 @@ def _prepare_audio_re_encode(
     for i, (original_audio, encoded_audio) in enumerate(
         itertools.zip_longest(original_file.audio_streams, encoded_file.audio_streams)
     ):
-        output_stream_index = i + 1
+        output_stream_index = len(new_stream_sources)
 
         if original_audio is None:
             raise RuntimeError("Encoded file has more audio streams than original.")
@@ -55,7 +56,7 @@ def _prepare_audio_re_encode(
                 original_file, encoded_file, original_audio, encoded_audio
             )
 
-        if integrity_check_passes:
+        if integrity_check_passes and encoded_audio is not None:
             new_stream_sources[output_stream_index] = encoded_file.stream_sources[
                 encoded_audio.index
             ].model_copy(update={"conversion_type": ConversionType.COPIED})
@@ -102,17 +103,18 @@ def _prepare_audio_re_encode(
                         "libfdk_aac not available, falling back to default AAC encoder."
                     )
             codec_args.extend([f"-codec:{stream_index}", codec_name])
-            # Add other codec options if necessary
+            if original_stream.bit_rate:
+                codec_args.extend([f"-b:{stream_index}", str(original_stream.bit_rate)])
 
     ffmpeg_args = (
         ["-hide_banner", "-nostats", "-y"]
         + [arg for path in input_files for arg in ("-i", str(path))]
         + map_args
         + codec_args
-        + ["-f", "mp4", str(output_path)]
+        + ["-f", "mp4", "-bsf:a", "aac_adtstoasc", str(output_path)]
     )
 
-    return ReEncodeResult(
+    return ReEncodePlan(
         stream_sources=MappingProxyType(new_stream_sources), ffmpeg_args=ffmpeg_args
     )
 
@@ -123,20 +125,18 @@ def re_encode_mismatched_audio_streams(
     output_file: Path,
 ) -> Optional[ConvertedVideoFile]:
     """Re-encodes mismatched audio streams from an original file to a new output file."""
-    preparation_result = _prepare_audio_re_encode(
-        original_file, encoded_file, output_file
-    )
+    plan = _prepare_audio_re_encode_plan(original_file, encoded_file, output_file)
 
-    if not preparation_result:
+    if not plan:
         logger.info("No audio streams require re-encoding.")
         return None
 
-    ffmpeg_result = execute_ffmpeg(preparation_result.ffmpeg_args)
+    ffmpeg_result = execute_ffmpeg(plan.ffmpeg_args)
     if ffmpeg_result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {ffmpeg_result.returncode}")
 
     re_encoded_video = ConvertedVideoFile(
-        path=output_file, stream_sources=preparation_result.stream_sources
+        path=output_file, stream_sources=plan.stream_sources
     )
 
     copied_audio_indices = [
