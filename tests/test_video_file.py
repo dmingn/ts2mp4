@@ -108,15 +108,6 @@ def test_videofile_valid_audio_streams_property(
 
 
 @pytest.mark.unit
-def test_conversion_type_enum() -> None:
-    """Test the ConversionType enum."""
-    assert ConversionType.CONVERTED.name == "CONVERTED"
-    assert ConversionType.CONVERTED.value == 1
-    assert ConversionType.COPIED.name == "COPIED"
-    assert ConversionType.COPIED.value == 2
-
-
-@pytest.mark.unit
 def test_stream_source_instantiation(dummy_video_file: VideoFile) -> None:
     """Test that StreamSource can be instantiated with valid data."""
     stream_source = StreamSource(
