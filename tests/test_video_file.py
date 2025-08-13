@@ -114,6 +114,12 @@ def test_videofile_valid_streams_property(
 
     assert len(valid_streams) == 3  # 1 valid video + 2 valid audio
 
+    video_stream_count = sum(1 for s in valid_streams if s.codec_type == "video")
+    audio_stream_count = sum(1 for s in valid_streams if s.codec_type == "audio")
+
+    assert video_stream_count == 1
+    assert audio_stream_count == 2
+
 
 @pytest.mark.unit
 def test_stream_source_instantiation(dummy_video_file: VideoFile) -> None:
