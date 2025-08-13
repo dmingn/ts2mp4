@@ -81,18 +81,6 @@ def test_videofile_media_info_property(
 
 
 @pytest.mark.unit
-def test_videofile_audio_streams_property(
-    mock_get_media_info_func: MagicMock, dummy_video_file: VideoFile
-) -> None:
-    """Test that the audio_streams property returns only audio streams."""
-    audio_streams = dummy_video_file.audio_streams
-
-    assert len(audio_streams) == 3  # The mock contains 3 audio streams
-    for stream in audio_streams:
-        assert stream.codec_type == "audio"
-
-
-@pytest.mark.unit
 def test_videofile_valid_audio_streams_property(
     mock_get_media_info_func: MagicMock, dummy_video_file: VideoFile
 ) -> None:
@@ -103,6 +91,34 @@ def test_videofile_valid_audio_streams_property(
     for stream in valid_audio_streams:
         assert stream.codec_type == "audio"
         assert stream.channels is not None and stream.channels > 0
+
+
+@pytest.mark.unit
+def test_videofile_valid_video_streams_property(
+    mock_get_media_info_func: MagicMock, dummy_video_file: VideoFile
+) -> None:
+    """Test that the valid_video_streams property returns only valid video streams."""
+    valid_video_streams = dummy_video_file.valid_video_streams
+
+    assert len(valid_video_streams) == 1
+    for stream in valid_video_streams:
+        assert stream.codec_type == "video"
+
+
+@pytest.mark.unit
+def test_videofile_valid_streams_property(
+    mock_get_media_info_func: MagicMock, dummy_video_file: VideoFile
+) -> None:
+    """Test that the valid_streams property returns all valid streams."""
+    valid_streams = dummy_video_file.valid_streams
+
+    assert len(valid_streams) == 3  # 1 valid video + 2 valid audio
+
+    video_stream_count = sum(1 for s in valid_streams if s.codec_type == "video")
+    audio_stream_count = sum(1 for s in valid_streams if s.codec_type == "audio")
+
+    assert video_stream_count == 1
+    assert audio_stream_count == 2
 
 
 @pytest.mark.unit
