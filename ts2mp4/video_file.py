@@ -70,12 +70,17 @@ class StreamSource(BaseModel):
     @property
     def source_stream(self) -> Stream:
         """Return the source stream."""
-        return self.source_video_file.media_info.streams[self.source_stream_index]
+        for stream in self.source_video_file.media_info.streams:
+            if stream.index == self.source_stream_index:
+                return stream
+        raise IndexError(f"Stream with index {self.source_stream_index} not found.")
 
     model_config = ConfigDict(frozen=True)
 
 
 class StreamSources(tuple[StreamSource, ...]):
+    """A tuple of StreamSource objects."""
+
     @property
     def video_stream_sources(self) -> frozenset[StreamSource]:
         """Return a set of video stream sources."""
@@ -113,3 +118,5 @@ class ConvertedVideoFile(VideoFile):
     """
 
     stream_sources: StreamSources
+
+    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)

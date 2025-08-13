@@ -1,9 +1,9 @@
 """The main module of the ts2mp4 package."""
 
 from pathlib import Path
-from typing import Self
 
 from logzero import logger
+from typing_extensions import Self
 
 from .audio_reencoder import re_encode_mismatched_audio_streams
 from .ffmpeg import execute_ffmpeg
@@ -18,8 +18,10 @@ from .video_file import (
 
 
 class StreamSourcesForInitialConversion(StreamSources):
+    """Represents the stream sources for the initial conversion."""
 
     def __new__(cls, stream_sources: StreamSources) -> Self:
+        """Initialize the StreamSourcesForInitialConversion."""
         # Stream sources must have at least one video stream
         if not stream_sources.video_stream_sources:
             raise ValueError("At least one video stream is required.")

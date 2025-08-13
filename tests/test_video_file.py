@@ -1,6 +1,7 @@
 """Unit tests for the VideoFile module."""
 
 from pathlib import Path
+from typing import Optional
 from unittest.mock import MagicMock
 
 import pytest
@@ -12,6 +13,7 @@ from ts2mp4.video_file import (
     ConversionType,
     ConvertedVideoFile,
     StreamSource,
+    StreamSources,
     VideoFile,
 )
 
@@ -48,6 +50,61 @@ def stream_source(dummy_video_file: VideoFile) -> StreamSource:
         source_video_file=dummy_video_file,
         source_stream_index=0,
         conversion_type=ConversionType.COPIED,
+    )
+
+
+@pytest.fixture
+def stream_sources(
+    dummy_video_file: VideoFile, mocker: MockerFixture, tmp_path: Path
+) -> StreamSources:
+    """Create a StreamSources instance with mixed stream types."""
+    video_file_1 = dummy_video_file
+    (tmp_path / "test2.ts").touch()
+    video_file_2 = VideoFile(path=(tmp_path / "test2.ts"))
+
+    media_info_1 = MediaInfo(
+        streams=(
+            Stream(codec_type="video", index=0),
+            Stream(codec_type="audio", index=1, channels=2),
+        )
+    )
+    media_info_2 = MediaInfo(
+        streams=(
+            Stream(codec_type="video", index=0),
+            Stream(codec_type="audio", index=1, channels=1),
+        )
+    )
+
+    path_to_media_info = {
+        video_file_1.path: media_info_1,
+        video_file_2.path: media_info_2,
+    }
+
+    def _get_media_info_side_effect(path: Path) -> Optional[MediaInfo]:
+        return path_to_media_info.get(path)
+
+    mocker.patch(
+        "ts2mp4.video_file.get_media_info", side_effect=_get_media_info_side_effect
+    )
+
+    return StreamSources(
+        (
+            StreamSource(
+                source_video_file=video_file_1,
+                source_stream_index=0,
+                conversion_type=ConversionType.CONVERTED,
+            ),
+            StreamSource(
+                source_video_file=video_file_1,
+                source_stream_index=1,
+                conversion_type=ConversionType.COPIED,
+            ),
+            StreamSource(
+                source_video_file=video_file_2,
+                source_stream_index=1,
+                conversion_type=ConversionType.COPIED,
+            ),
+        )
     )
 
 
@@ -152,9 +209,49 @@ def test_converted_video_file_instantiation(
     dummy_video_file: VideoFile, stream_source: StreamSource
 ) -> None:
     """Test that ConvertedVideoFile can be instantiated with valid data."""
+    stream_sources = StreamSources((stream_source,))
     converted_file = ConvertedVideoFile(
         path=dummy_video_file.path,
-        stream_sources=(stream_source,),
+        stream_sources=stream_sources,
     )
     assert converted_file.path == dummy_video_file.path
-    assert converted_file.stream_sources == (stream_source,)
+    assert converted_file.stream_sources == stream_sources
+
+
+@pytest.mark.unit
+def test_stream_sources_video_stream_sources_property(
+    stream_sources: StreamSources,
+) -> None:
+    """Test that the video_stream_sources property returns only video streams."""
+    video_sources = stream_sources.video_stream_sources
+    assert len(video_sources) == 1
+    assert all(s.source_stream.codec_type == "video" for s in video_sources)
+
+
+@pytest.mark.unit
+def test_stream_sources_audio_stream_sources_property(
+    stream_sources: StreamSources,
+) -> None:
+    """Test that the audio_stream_sources property returns only audio streams."""
+    audio_sources = stream_sources.audio_stream_sources
+    assert len(audio_sources) == 2
+    assert all(s.source_stream.codec_type == "audio" for s in audio_sources)
+
+
+@pytest.mark.unit
+def test_stream_sources_source_video_files_property(
+    stream_sources: StreamSources,
+) -> None:
+    """Test that the source_video_files property returns a set of unique source files."""
+    source_files = stream_sources.source_video_files
+    assert len(source_files) == 2
+    assert all(isinstance(f, VideoFile) for f in source_files)
+
+
+@pytest.mark.unit
+def test_stream_sources_properties_with_empty_sources() -> None:
+    """Test that StreamSources properties work correctly with no sources."""
+    empty_stream_sources = StreamSources(())
+    assert len(empty_stream_sources.video_stream_sources) == 0
+    assert len(empty_stream_sources.audio_stream_sources) == 0
+    assert len(empty_stream_sources.source_video_files) == 0
