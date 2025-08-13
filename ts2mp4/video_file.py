@@ -67,10 +67,37 @@ class StreamSource(BaseModel):
     source_stream_index: NonNegativeInt
     conversion_type: ConversionType
 
+    @property
+    def source_stream(self) -> Stream:
+        """Return the source stream."""
+        return self.source_video_file.media_info.streams[self.source_stream_index]
+
     model_config = ConfigDict(frozen=True)
 
 
-StreamSources = tuple[StreamSource, ...]
+class StreamSources(tuple[StreamSource, ...]):
+    @property
+    def video_stream_sources(self) -> frozenset[StreamSource]:
+        """Return a set of video stream sources."""
+        return frozenset(
+            stream_source
+            for stream_source in self
+            if stream_source.source_stream.codec_type == "video"
+        )
+
+    @property
+    def audio_stream_sources(self) -> frozenset[StreamSource]:
+        """Return a set of audio stream sources."""
+        return frozenset(
+            stream_source
+            for stream_source in self
+            if stream_source.source_stream.codec_type == "audio"
+        )
+
+    @property
+    def source_video_files(self) -> frozenset[VideoFile]:
+        """Return a set of source video files for the stream sources."""
+        return frozenset(stream.source_video_file for stream in self)
 
 
 class ConvertedVideoFile(VideoFile):
