@@ -194,7 +194,7 @@ def stream_sources_for_initial_conversion(
             ),
             StreamSource(
                 source_video_file=mock_video_file,
-                source_stream_index=3,
+                source_stream_index=2,
                 conversion_type=ConversionType.COPIED,
             ),
         )
@@ -223,7 +223,7 @@ def test_build_ffmpeg_args_from_stream_sources(
         "-map",
         "0:1",
         "-map",
-        "0:3",
+        "0:2",
         "-f",
         "mp4",
         "-vsync",

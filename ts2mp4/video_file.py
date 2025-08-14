@@ -71,10 +71,15 @@ class StreamSource(BaseModel):
     @property
     def source_stream(self) -> Stream:
         """Return the source stream."""
-        for stream in self.source_video_file.media_info.streams:
-            if stream.index == self.source_stream_index:
-                return stream
-        raise IndexError(f"Stream with index {self.source_stream_index} not found.")
+        # The MediaInfo.validate_stream_indices validator ensures that
+        # stream.index matches its position in the streams tuple.
+        # Therefore, we can directly access the stream by its index.
+        try:
+            return self.source_video_file.media_info.streams[self.source_stream_index]
+        except IndexError:
+            raise IndexError(
+                f"Stream with index {self.source_stream_index} not found in source video file."
+            )
 
     model_config = ConfigDict(frozen=True)
 
