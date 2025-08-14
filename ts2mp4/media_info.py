@@ -50,7 +50,7 @@ class MediaInfo(BaseModel):
                 key=lambda stream_data: (
                     stream_data.index
                     if isinstance(stream_data, Stream)
-                    else stream_data.get("index")
+                    else stream_data["index"]
                 ),
             )
         return v
