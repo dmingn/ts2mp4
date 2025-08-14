@@ -1,7 +1,5 @@
 """A module for verifying stream integrity."""
 
-from typing import Optional
-
 from logzero import logger
 
 from .hashing import get_stream_md5
@@ -45,67 +43,6 @@ def compare_stream_hashes(
         return False
 
     return True
-
-
-def verify_streams(
-    input_file: VideoFile,
-    output_file: VideoFile,
-    stream_type: str,
-    type_specific_stream_indices: Optional[list[int]] = None,
-) -> None:
-    """Verify the integrity of specified streams by comparing their MD5 hashes.
-
-    Args:
-    ----
-        input_file: The VideoFile object for the input file.
-        output_file: The VideoFile object for the output file.
-        stream_type: The type of stream to verify ('audio', 'video', etc.).
-        type_specific_stream_indices: A list of specific stream indices to check.
-                                     If None, all streams of the specified
-                                     type are checked.
-
-    Raises
-    ------
-        RuntimeError: If there's a mismatch in stream counts or if any
-            stream's MD5 hash does not match.
-    """
-    logger.info(
-        f"Verifying {stream_type} stream integrity for {input_file.path.name} and {output_file.path.name}"
-    )
-
-    input_media_info = input_file.media_info
-    output_media_info = output_file.media_info
-
-    input_streams = [s for s in input_media_info.streams if s.codec_type == stream_type]
-    output_streams = [
-        s for s in output_media_info.streams if s.codec_type == stream_type
-    ]
-
-    if type_specific_stream_indices is not None:
-        input_streams = [input_streams[i] for i in type_specific_stream_indices]
-        output_streams = [output_streams[i] for i in type_specific_stream_indices]
-
-    if len(input_streams) != len(output_streams):
-        raise RuntimeError(
-            f"Mismatch in the number of {stream_type} streams: "
-            f"{len(input_streams)} in input, {len(output_streams)} in output."
-        )
-
-    for input_stream, output_stream in zip(input_streams, output_streams):
-        if not compare_stream_hashes(
-            input_video=input_file,
-            output_video=output_file,
-            input_stream=input_stream,
-            output_stream=output_stream,
-        ):
-            raise RuntimeError(
-                f"{stream_type.capitalize()} stream integrity check failed for stream at index "
-                f"{input_stream.index}"
-            )
-
-    logger.info(
-        f"{stream_type.capitalize()} stream integrity verified successfully. All MD5 hashes match."
-    )
 
 
 def verify_copied_streams(converted_file: ConvertedVideoFile) -> None:
