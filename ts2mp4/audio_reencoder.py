@@ -1,6 +1,5 @@
 """Re-encodes audio streams that have integrity issues."""
 
-import itertools
 from pathlib import Path
 from typing import Optional
 
@@ -8,6 +7,7 @@ from logzero import logger
 from typing_extensions import Self
 
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
+from .initial_converter import InitiallyConvertedVideoFile
 from .quality_check import get_audio_quality_metrics
 from .stream_integrity import compare_stream_hashes, verify_copied_streams
 from .video_file import (
@@ -86,68 +86,59 @@ class AudioReEncodedVideoFile(ConvertedVideoFile):
 
 
 def _build_stream_sources_for_audio_re_encoding(
-    original_file: VideoFile, encoded_file: VideoFile
+    original_file: VideoFile, encoded_file: InitiallyConvertedVideoFile
 ) -> StreamSourcesForAudioReEncoding:
     """Build the stream sources for audio re-encoding."""
+    # Source streams are guaranteed to be unique for an initially converted video file
+    original_encoded_stream_mapping = {
+        stream_source.source_stream: encoded_file.media_info.streams[i]
+        for i, stream_source in enumerate(encoded_file.stream_sources)
+    }
+
     stream_sources_list = []
 
-    # Video streams are always copied from the encoded file
-    video_streams = [
-        s for s in encoded_file.media_info.streams if s.codec_type == "video"
-    ]
-    for stream in video_streams:
-        stream_sources_list.append(
-            StreamSource(
-                source_video_file=encoded_file,
-                source_stream_index=stream.index,
-                conversion_type=ConversionType.COPIED,
-            )
-        )
+    for original_stream in sorted(original_file.valid_streams, key=lambda s: s.index):
+        matching_stream = original_encoded_stream_mapping.get(original_stream)
 
-    # Determine whether to copy or re-encode audio streams
-    original_audio_streams = [
-        s for s in original_file.media_info.streams if s.codec_type == "audio"
-    ]
-    encoded_audio_streams = [
-        s for s in encoded_file.media_info.streams if s.codec_type == "audio"
-    ]
-
-    for original_audio_stream, encoded_audio_stream in itertools.zip_longest(
-        original_audio_streams, encoded_audio_streams
-    ):
-        if original_audio_stream is None:
+        if not matching_stream:
             raise RuntimeError(
-                f"Encoded file {encoded_file.path.name} has more audio streams "
-                f"than the original {original_file.path.name}."
+                f"Encoded file {encoded_file.path.name} is missing a required stream "
+                f"from the original {original_file.path.name}."
             )
 
-        should_re_encode = encoded_audio_stream is None or not compare_stream_hashes(
-            input_video=original_file,
-            output_video=encoded_file,
-            input_stream=original_audio_stream,
-            output_stream=encoded_audio_stream,
-        )
-
-        if should_re_encode:
-            if original_audio_stream.codec_name != "aac":
-                raise NotImplementedError(
-                    "Re-encoding is currently only supported for aac audio codec."
-                )
-            stream_sources_list.append(
-                StreamSource(
-                    source_video_file=original_file,
-                    source_stream_index=original_audio_stream.index,
-                    conversion_type=ConversionType.CONVERTED,
-                )
-            )
-        else:
+        if original_stream.codec_type == "video":
+            # Video streams should be always copied from the encoded file
             stream_sources_list.append(
                 StreamSource(
                     source_video_file=encoded_file,
-                    source_stream_index=encoded_audio_stream.index,
+                    source_stream_index=matching_stream.index,
                     conversion_type=ConversionType.COPIED,
                 )
             )
+        elif original_stream.codec_type == "audio":
+            if compare_stream_hashes(
+                input_video=original_file,
+                output_video=encoded_file,
+                input_stream=original_stream,
+                output_stream=matching_stream,
+            ):
+                # If the hashes match, the stream can be copied from the encoded file
+                stream_sources_list.append(
+                    StreamSource(
+                        source_video_file=encoded_file,
+                        source_stream_index=matching_stream.index,
+                        conversion_type=ConversionType.COPIED,
+                    )
+                )
+            else:
+                # If the hashes do not match, the stream must be re-encoded from the original file
+                stream_sources_list.append(
+                    StreamSource(
+                        source_video_file=original_file,
+                        source_stream_index=original_stream.index,
+                        conversion_type=ConversionType.CONVERTED,
+                    )
+                )
 
     return StreamSourcesForAudioReEncoding(StreamSources(stream_sources_list))
 
@@ -166,6 +157,10 @@ def _build_audio_convert_args(
             logger.warning(
                 "libfdk_aac is not available. Falling back to the default AAC encoder."
             )
+    else:
+        raise NotImplementedError(
+            "Re-encoding is currently only supported for aac audio codec."
+        )
 
     convert_args = [
         f"-codec:{output_stream_index}",
@@ -253,7 +248,9 @@ def _build_ffmpeg_args_from_stream_sources(
 
 
 def re_encode_mismatched_audio_streams(
-    original_file: VideoFile, encoded_file: VideoFile, output_file: Path
+    original_file: VideoFile,
+    encoded_file: InitiallyConvertedVideoFile,
+    output_file: Path,
 ) -> Optional[AudioReEncodedVideoFile]:
     """Re-encodes mismatched audio streams from an original file to a new output file.
 
@@ -267,8 +264,9 @@ def re_encode_mismatched_audio_streams(
     Args:
     ----
         original_file: The VideoFile object for the original source file (e.g., .ts).
-        encoded_file: The VideoFile object for the file that has been encoded but may have
-                      audio stream issues.
+        encoded_file: The InitiallyConvertedVideoFile object, which is the result of the
+                      initial conversion. It contains the mapping between original and
+                      encoded streams.
         output_file: The path where the corrected output file will be saved.
 
     Returns

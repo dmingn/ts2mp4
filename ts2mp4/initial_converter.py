@@ -53,6 +53,10 @@ class StreamSourcesForInitialConversion(StreamSources):
                 "All stream sources must originate from the same VideoFile."
             )
 
+        # Source streams must be unique
+        if len(set(s.source_stream for s in stream_sources)) < len(stream_sources):
+            raise ValueError("Source streams must be unique.")
+
         return super().__new__(cls, stream_sources)
 
     @property
