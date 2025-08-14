@@ -114,6 +114,7 @@ def test_stream_sources_for_initial_conversion_success(
             "unsupported_stream_type",
             "Stream sources must only contain video or audio streams.",
         ),
+        ("duplicate_streams", "Source streams must be unique."),
     ],
 )
 def test_stream_sources_for_initial_conversion_failures(
@@ -153,7 +154,6 @@ def test_stream_sources_for_initial_conversion_failures(
             )
         )
     elif modifier == "unsupported_stream_type":
-        # Manually create a new MediaInfo with the subtitle stream
         subtitle_stream = Stream(codec_type="subtitle", index=2)
         original_streams = video_file.media_info.streams
         new_media_info = MediaInfo(streams=original_streams + (subtitle_stream,))
@@ -165,6 +165,8 @@ def test_stream_sources_for_initial_conversion_failures(
                 conversion_type=ConversionType.COPIED,
             )
         )
+    elif modifier == "duplicate_streams":
+        sources.append(sources[0])
 
     with pytest.raises(ValueError, match=error_message):
         StreamSourcesForInitialConversion(StreamSources(sources))

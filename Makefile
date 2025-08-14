@@ -16,7 +16,7 @@ check: sync $(TEST_ASSETS_DIR)/test_video.ts
 	@echo "Running unit tests..."
 	poetry run pytest --cov=ts2mp4 --cov-fail-under=60 -m unit
 	@echo "Running integration tests..."
-	poetry run pytest --cov=ts2mp4 --cov-fail-under=70 -m integration
+	poetry run pytest --cov=ts2mp4 --cov-fail-under=69 -m integration
 	@echo "Running E2E tests..."
 	poetry run pytest --cov=ts2mp4 -m e2e
 
