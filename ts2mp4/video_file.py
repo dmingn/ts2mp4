@@ -1,8 +1,9 @@
 """A module for the VideoFile class."""
 
 from enum import Enum, auto
+from typing import Iterator
 
-from pydantic import BaseModel, ConfigDict, FilePath, NonNegativeInt
+from pydantic import BaseModel, ConfigDict, FilePath, NonNegativeInt, model_validator
 
 from .media_info import MediaInfo, Stream, get_media_info
 
@@ -120,3 +121,19 @@ class ConvertedVideoFile(VideoFile):
     stream_sources: StreamSources
 
     model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+
+    @model_validator(mode="after")
+    def validate_stream_counts(self) -> "ConvertedVideoFile":
+        """Validate that the number of stream sources matches the number of streams."""
+        if len(self.stream_sources) != len(self.media_info.streams):
+            raise ValueError(
+                f"Mismatch in stream counts for {self.path.name}: "
+                f"{len(self.stream_sources)} sources, "
+                f"{len(self.media_info.streams)} output streams."
+            )
+        return self
+
+    @property
+    def stream_with_sources(self) -> Iterator[tuple[Stream, StreamSource]]:
+        """Return a zip object of output streams and their sources."""
+        return zip(self.media_info.streams, self.stream_sources)

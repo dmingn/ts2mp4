@@ -206,9 +206,15 @@ def test_stream_source_instantiation_with_invalid_index(
 
 @pytest.mark.unit
 def test_converted_video_file_instantiation(
-    dummy_video_file: VideoFile, stream_source: StreamSource
+    dummy_video_file: VideoFile, stream_source: StreamSource, mocker: MockerFixture
 ) -> None:
     """Test that ConvertedVideoFile can be instantiated with valid data."""
+    # Mock get_media_info to return a single stream to match the single stream source
+    mocker.patch(
+        "ts2mp4.video_file.get_media_info",
+        return_value=MediaInfo(streams=(Stream(codec_type="video", index=0),)),
+    )
+
     stream_sources = StreamSources((stream_source,))
     converted_file = ConvertedVideoFile(
         path=dummy_video_file.path,
@@ -255,3 +261,51 @@ def test_stream_sources_properties_with_empty_sources() -> None:
     assert len(empty_stream_sources.video_stream_sources) == 0
     assert len(empty_stream_sources.audio_stream_sources) == 0
     assert len(empty_stream_sources.source_video_files) == 0
+
+
+@pytest.mark.unit
+def test_converted_video_file_mismatched_stream_counts_raises_error(
+    dummy_video_file: VideoFile, stream_source: StreamSource, mocker: MockerFixture
+) -> None:
+    """Test that ConvertedVideoFile raises ValueError for mismatched stream counts."""
+    # Mock get_media_info to return a different number of streams
+    mocker.patch(
+        "ts2mp4.video_file.get_media_info",
+        return_value=MediaInfo(
+            streams=(
+                Stream(codec_type="video", index=0),
+                Stream(codec_type="audio", index=1, channels=2),
+            )
+        ),
+    )
+
+    stream_sources = StreamSources((stream_source,))  # Only one stream source
+    with pytest.raises(ValueError, match="Mismatch in stream counts"):
+        ConvertedVideoFile(
+            path=dummy_video_file.path,
+            stream_sources=stream_sources,
+        )
+
+
+@pytest.mark.unit
+def test_converted_video_file_stream_with_sources_property(
+    dummy_video_file: VideoFile, stream_source: StreamSource, mocker: MockerFixture
+) -> None:
+    """Test the stream_with_sources property of ConvertedVideoFile."""
+    mock_stream = Stream(codec_type="video", index=0)
+    mocker.patch(
+        "ts2mp4.video_file.get_media_info",
+        return_value=MediaInfo(streams=(mock_stream,)),
+    )
+
+    stream_sources = StreamSources((stream_source,))
+    converted_file = ConvertedVideoFile(
+        path=dummy_video_file.path,
+        stream_sources=stream_sources,
+    )
+
+    pairs = list(converted_file.stream_with_sources)
+    assert len(pairs) == 1
+    output_stream, source = pairs[0]
+    assert output_stream == mock_stream
+    assert source == stream_source

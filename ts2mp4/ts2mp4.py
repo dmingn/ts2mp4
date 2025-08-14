@@ -7,7 +7,7 @@ from typing_extensions import Self
 
 from .audio_reencoder import re_encode_mismatched_audio_streams
 from .ffmpeg import execute_ffmpeg
-from .stream_integrity import verify_streams
+from .stream_integrity import verify_copied_streams
 from .video_file import (
     ConversionType,
     ConvertedVideoFile,
@@ -160,11 +160,7 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
     output_file = _perform_initial_conversion(input_file, output_path, crf, preset)
 
     try:
-        verify_streams(
-            input_file=input_file,
-            output_file=output_file,
-            stream_type="audio",
-        )
+        verify_copied_streams(converted_file=output_file)
     except RuntimeError as e:
         logger.warning(f"Audio integrity check failed: {e}")
         logger.info("Attempting to re-encode mismatched audio streams.")

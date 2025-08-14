@@ -6,7 +6,7 @@ from logzero import logger
 
 from .hashing import get_stream_md5
 from .media_info import Stream
-from .video_file import VideoFile
+from .video_file import ConversionType, ConvertedVideoFile, VideoFile
 
 
 def compare_stream_hashes(
@@ -106,3 +106,35 @@ def verify_streams(
     logger.info(
         f"{stream_type.capitalize()} stream integrity verified successfully. All MD5 hashes match."
     )
+
+
+def verify_copied_streams(converted_file: ConvertedVideoFile) -> None:
+    """Verify the integrity of copied streams by comparing their MD5 hashes.
+
+    Args:
+    ----
+        converted_file: The ConvertedVideoFile object.
+
+    Raises
+    ------
+        RuntimeError: If any copied stream's MD5 hash does not match.
+    """
+    logger.info(f"Verifying copied stream integrity for {converted_file.path.name}")
+
+    for output_stream, stream_source in converted_file.stream_with_sources:
+        if stream_source.conversion_type != ConversionType.COPIED:
+            continue
+
+        if not compare_stream_hashes(
+            input_video=stream_source.source_video_file,
+            output_video=converted_file,
+            input_stream=stream_source.source_stream,
+            output_stream=output_stream,
+        ):
+            stream_type = output_stream.codec_type or "Unknown"
+            raise RuntimeError(
+                f"{stream_type.capitalize()} stream integrity check "
+                f"failed for stream at index {stream_source.source_stream.index}"
+            )
+
+    logger.info("Copied stream integrity verified successfully. All MD5 hashes match.")
