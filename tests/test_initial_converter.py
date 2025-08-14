@@ -14,12 +14,7 @@ from ts2mp4.initial_converter import (
     perform_initial_conversion,
 )
 from ts2mp4.media_info import MediaInfo, Stream
-from ts2mp4.video_file import (
-    ConversionType,
-    StreamSource,
-    StreamSources,
-    VideoFile,
-)
+from ts2mp4.video_file import ConversionType, StreamSource, StreamSources, VideoFile
 
 
 @pytest.fixture
@@ -273,7 +268,7 @@ def test_perform_initial_conversion_success(
     )
 
     mocker.patch(
-        "ts2mp4.initial_converter.ConvertedVideoFile",
+        "ts2mp4.initial_converter.InitiallyConvertedVideoFile",
         return_value=mocker.MagicMock(spec=VideoFile, path=output_file),
     )
     perform_initial_conversion(mock_video_file, output_file, crf, preset)

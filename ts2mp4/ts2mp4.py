@@ -26,17 +26,19 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
             speed and efficiency (e.g., 'medium', 'fast', 'slow').
 
     """
-    output_file = perform_initial_conversion(input_file, output_path, crf, preset)
+    initially_converted_video_file = perform_initial_conversion(
+        input_file, output_path, crf, preset
+    )
 
     try:
-        verify_copied_streams(converted_file=output_file)
+        verify_copied_streams(converted_file=initially_converted_video_file)
     except RuntimeError as e:
         logger.warning(f"Audio integrity check failed: {e}")
         logger.info("Attempting to re-encode mismatched audio streams.")
         temp_output_file = output_path.with_suffix(output_path.suffix + ".temp")
         re_encode_mismatched_audio_streams(
             original_file=input_file,
-            encoded_file=output_file,
+            encoded_file=initially_converted_video_file,
             output_file=temp_output_file,
         )
         temp_output_file.replace(output_path)
