@@ -3,6 +3,10 @@
 from pathlib import Path
 
 import pytest
+from pytest_mock import MockerFixture
+
+from ts2mp4.media_info import MediaInfo, Stream
+from ts2mp4.video_file import VideoFile
 
 ALLOWED_MARKERS = {"unit", "integration", "e2e"}
 
@@ -48,3 +52,20 @@ def ts_file(project_root: Path) -> Path:
 def mp4_file(project_root: Path) -> Path:
     """Return the path to the test MP4 file."""
     return project_root / "tests" / "assets" / "test_video.mp4"
+
+
+@pytest.fixture
+def mock_video_file(mocker: MockerFixture, tmp_path: Path) -> VideoFile:
+    """Mock VideoFile object for ts2mp4 tests."""
+    dummy_file = tmp_path / "test.ts"
+    dummy_file.touch()
+
+    video_stream = Stream(codec_type="video", index=0)
+    audio_streams = (
+        Stream(codec_type="audio", index=1, channels=2),
+        Stream(codec_type="audio", index=3, channels=6),
+    )
+    media_info = MediaInfo(streams=(video_stream,) + audio_streams)
+    mocker.patch("ts2mp4.video_file.get_media_info", return_value=media_info)
+
+    return VideoFile(path=dummy_file)
