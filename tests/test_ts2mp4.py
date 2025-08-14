@@ -31,7 +31,7 @@ def mock_video_file(mocker: MockerFixture, tmp_path: Path) -> VideoFile:
     video_stream = Stream(codec_type="video", index=0)
     audio_streams = (
         Stream(codec_type="audio", index=1, channels=2),
-        Stream(codec_type="audio", index=3, channels=6),
+        Stream(codec_type="audio", index=2, channels=6),
     )
     media_info = MediaInfo(streams=(video_stream,) + audio_streams)
     mocker.patch("ts2mp4.video_file.get_media_info", return_value=media_info)
@@ -58,7 +58,7 @@ def stream_sources_for_initial_conversion(
             ),
             StreamSource(
                 source_video_file=mock_video_file,
-                source_stream_index=3,
+                source_stream_index=2,
                 conversion_type=ConversionType.COPIED,
             ),
         )
@@ -87,7 +87,7 @@ def test_build_ffmpeg_args_from_stream_sources(
         "-map",
         "0:1",
         "-map",
-        "0:3",
+        "0:2",
         "-f",
         "mp4",
         "-vsync",

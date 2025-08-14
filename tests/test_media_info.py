@@ -103,6 +103,80 @@ def test_get_media_info_success(mocker: MockerFixture, mock_path: MagicMock) -> 
 
 
 @pytest.mark.unit
+def test_sort_streams_sorts_list_of_streams() -> None:
+    """Test that sort_streams sorts a list of Stream objects by index."""
+    streams = [
+        Stream(index=1, codec_type="audio"),
+        Stream(index=0, codec_type="video"),
+        Stream(index=2, codec_type="audio"),
+    ]
+    media_info = MediaInfo(streams=streams)
+    assert media_info.streams[0].index == 0
+    assert media_info.streams[1].index == 1
+    assert media_info.streams[2].index == 2
+
+
+@pytest.mark.unit
+def test_sort_streams_sorts_list_of_dicts() -> None:
+    """Test that sort_streams sorts a list of dicts by index."""
+    streams = [
+        {"index": 1, "codec_type": "audio"},
+        {"index": 0, "codec_type": "video"},
+        {"index": 2, "codec_type": "audio"},
+    ]
+    media_info = MediaInfo(streams=streams)
+    assert media_info.streams[0].index == 0
+    assert media_info.streams[1].index == 1
+    assert media_info.streams[2].index == 2
+
+
+@pytest.mark.unit
+def test_sort_streams_classmethod_ignores_tuple() -> None:
+    """Test that the sort_streams classmethod does not modify tuples."""
+    streams = (
+        Stream(index=1, codec_type="audio"),
+        Stream(index=0, codec_type="video"),
+    )
+    # Call the classmethod directly to avoid other validators
+    result = MediaInfo.sort_streams(streams)
+    assert result is streams
+    assert result[0].index == 1
+    assert result[1].index == 0
+
+
+@pytest.mark.unit
+def test_validate_stream_indices_success() -> None:
+    """Test that validate_stream_indices passes with correct indices."""
+    streams = [
+        Stream(index=0, codec_type="video"),
+        Stream(index=1, codec_type="audio"),
+    ]
+    MediaInfo(streams=streams)  # no exception
+
+
+@pytest.mark.unit
+def test_validate_stream_indices_raises_error_on_gap() -> None:
+    """Test that validate_stream_indices raises ValueError on an index gap."""
+    streams = [
+        Stream(index=0, codec_type="video"),
+        Stream(index=2, codec_type="audio"),
+    ]
+    with pytest.raises(ValueError, match="Stream index 2 does not match tuple index 1"):
+        MediaInfo(streams=streams)
+
+
+@pytest.mark.unit
+def test_validate_stream_indices_raises_error_on_duplicate() -> None:
+    """Test that validate_stream_indices raises ValueError on a duplicate index."""
+    streams = [
+        Stream(index=0, codec_type="video"),
+        Stream(index=0, codec_type="audio"),
+    ]
+    with pytest.raises(ValueError, match="Stream index 0 does not match tuple index 1"):
+        MediaInfo(streams=streams)
+
+
+@pytest.mark.unit
 def test_get_media_info_failure(mocker: MockerFixture, mock_path: MagicMock) -> None:
     """Test that get_media_info raises a RuntimeError on ffprobe failure."""
     # Arrange
