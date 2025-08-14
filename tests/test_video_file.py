@@ -285,3 +285,27 @@ def test_converted_video_file_mismatched_stream_counts_raises_error(
             path=dummy_video_file.path,
             stream_sources=stream_sources,
         )
+
+
+@pytest.mark.unit
+def test_converted_video_file_stream_with_sources_property(
+    dummy_video_file: VideoFile, stream_source: StreamSource, mocker: MockerFixture
+) -> None:
+    """Test the stream_with_sources property of ConvertedVideoFile."""
+    mock_stream = Stream(codec_type="video", index=0)
+    mocker.patch(
+        "ts2mp4.video_file.get_media_info",
+        return_value=MediaInfo(streams=(mock_stream,)),
+    )
+
+    stream_sources = StreamSources((stream_source,))
+    converted_file = ConvertedVideoFile(
+        path=dummy_video_file.path,
+        stream_sources=stream_sources,
+    )
+
+    pairs = list(converted_file.stream_with_sources)
+    assert len(pairs) == 1
+    output_stream, source = pairs[0]
+    assert output_stream == mock_stream
+    assert source == stream_source

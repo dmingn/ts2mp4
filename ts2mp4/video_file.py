@@ -1,6 +1,7 @@
 """A module for the VideoFile class."""
 
 from enum import Enum, auto
+from typing import Iterator
 
 from pydantic import BaseModel, ConfigDict, FilePath, NonNegativeInt, model_validator
 
@@ -131,3 +132,8 @@ class ConvertedVideoFile(VideoFile):
                 f"{len(self.media_info.streams)} output streams."
             )
         return self
+
+    @property
+    def stream_with_sources(self) -> Iterator[tuple[Stream, StreamSource]]:
+        """Return a zip object of output streams and their sources."""
+        return zip(self.media_info.streams, self.stream_sources)
