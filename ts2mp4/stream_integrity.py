@@ -121,11 +121,11 @@ def verify_copied_streams(converted_file: ConvertedVideoFile) -> None:
     """
     logger.info(f"Verifying copied stream integrity for {converted_file.path.name}")
 
-    for i, stream_source in enumerate(converted_file.stream_sources):
+    for stream_source, output_stream in zip(
+        converted_file.stream_sources, converted_file.media_info.streams
+    ):
         if stream_source.conversion_type != ConversionType.COPIED:
             continue
-
-        output_stream = converted_file.media_info.streams[i]
         if not compare_stream_hashes(
             input_video=stream_source.source_video_file,
             output_video=converted_file,
