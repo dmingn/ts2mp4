@@ -61,6 +61,12 @@ class StreamSourcesForInitialConversion(StreamSources):
         return self[0].source_video_file
 
 
+class InitiallyConvertedVideoFile(ConvertedVideoFile):
+    """Represents a ConvertedVideoFile that has undergone the initial conversion."""
+
+    stream_sources: StreamSourcesForInitialConversion
+
+
 def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForInitialConversion:
     """Build the stream sources for the initial conversion."""
     stream_sources = StreamSources(
@@ -126,7 +132,7 @@ def _build_ffmpeg_args_from_stream_sources(
 
 def perform_initial_conversion(
     input_file: VideoFile, output_path: Path, crf: int, preset: str
-) -> ConvertedVideoFile:
+) -> InitiallyConvertedVideoFile:
     """Perform the initial FFmpeg conversion from TS to MP4."""
     stream_sources = _build_stream_sources(input_file)
     ffmpeg_args = _build_ffmpeg_args_from_stream_sources(
@@ -135,4 +141,4 @@ def perform_initial_conversion(
     result = execute_ffmpeg(ffmpeg_args)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
-    return ConvertedVideoFile(path=output_path, stream_sources=stream_sources)
+    return InitiallyConvertedVideoFile(path=output_path, stream_sources=stream_sources)
