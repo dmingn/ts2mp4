@@ -194,7 +194,7 @@ def test_calls_execute_ffmpeg_with_correct_args(
     mock_perform_initial_conversion = mocker.patch(
         "ts2mp4.ts2mp4._perform_initial_conversion"
     )
-    mocker.patch("ts2mp4.ts2mp4.verify_streams")
+    mocker.patch("ts2mp4.ts2mp4.verify_copied_streams")
 
     # Act
     ts2mp4(mock_video_file, output_file, crf, preset)
@@ -225,16 +225,14 @@ def test_calls_verify_streams_on_success(
 
     mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
     mock_execute_ffmpeg.return_value = FFmpegResult(stdout=b"", stderr="", returncode=0)
-    mock_verify_streams = mocker.patch("ts2mp4.ts2mp4.verify_streams")
+    mock_verify_copied_streams = mocker.patch("ts2mp4.ts2mp4.verify_copied_streams")
 
     # Act
     ts2mp4(mock_video_file, output_file, crf, preset)
 
     # Assert
-    mock_verify_streams.assert_called_once_with(
-        input_file=mock_video_file,
-        output_file=mock_output_video_file_instance,
-        stream_type="audio",
+    mock_verify_copied_streams.assert_called_once_with(
+        converted_file=mock_output_video_file_instance
     )
 
 
@@ -255,7 +253,7 @@ def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(
         "ts2mp4.ts2mp4.ConvertedVideoFile", return_value=mock_output_video_file_instance
     )
 
-    mocker.patch("ts2mp4.ts2mp4.verify_streams")
+    mocker.patch("ts2mp4.ts2mp4.verify_copied_streams")
     mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
     mock_execute_ffmpeg.return_value = FFmpegResult(
         stdout=b"", stderr="ffmpeg error", returncode=1
@@ -284,7 +282,7 @@ def test_does_not_call_verify_streams_on_ffmpeg_failure(
     )
 
     mock_execute_ffmpeg = mocker.patch("ts2mp4.ts2mp4.execute_ffmpeg")
-    mock_verify_streams = mocker.patch("ts2mp4.ts2mp4.verify_streams")
+    mock_verify_copied_streams = mocker.patch("ts2mp4.ts2mp4.verify_copied_streams")
     mock_execute_ffmpeg.return_value = FFmpegResult(
         stdout=b"", stderr="ffmpeg error", returncode=1
     )
@@ -293,7 +291,7 @@ def test_does_not_call_verify_streams_on_ffmpeg_failure(
     with pytest.raises(RuntimeError):
         ts2mp4(mock_video_file, output_file, crf, preset)
 
-    mock_verify_streams.assert_not_called()
+    mock_verify_copied_streams.assert_not_called()
 
 
 @pytest.mark.unit
@@ -319,7 +317,7 @@ def test_ts2mp4_re_encodes_on_stream_integrity_failure(
         return_value=FFmpegResult(stdout=b"", stderr="", returncode=0),
     )
     mocker.patch(
-        "ts2mp4.ts2mp4.verify_streams",
+        "ts2mp4.ts2mp4.verify_copied_streams",
         side_effect=RuntimeError("Audio stream integrity check failed"),
     )
     mock_re_encode = mocker.patch("ts2mp4.ts2mp4.re_encode_mismatched_audio_streams")
@@ -359,7 +357,7 @@ def test_ts2mp4_re_encode_failure_raises_error(
         return_value=FFmpegResult(stdout=b"", stderr="", returncode=0),
     )
     mocker.patch(
-        "ts2mp4.ts2mp4.verify_streams",
+        "ts2mp4.ts2mp4.verify_copied_streams",
         side_effect=RuntimeError("Audio stream integrity check failed"),
     )
     mocker.patch(

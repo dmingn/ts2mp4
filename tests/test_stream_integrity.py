@@ -8,8 +8,18 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.media_info import MediaInfo, Stream
-from ts2mp4.stream_integrity import compare_stream_hashes, verify_streams
-from ts2mp4.video_file import VideoFile
+from ts2mp4.stream_integrity import (
+    compare_stream_hashes,
+    verify_copied_streams,
+    verify_streams,
+)
+from ts2mp4.video_file import (
+    ConversionType,
+    ConvertedVideoFile,
+    StreamSource,
+    StreamSources,
+    VideoFile,
+)
 
 
 @pytest.fixture
@@ -258,3 +268,89 @@ def test_verify_streams_video_mismatch(
     assert "Video stream integrity check failed for stream at index 0" in str(
         excinfo.value
     )
+
+
+@pytest.fixture
+def mock_converted_video_file(
+    mocker: MockerFixture, mock_input_video_file: MagicMock
+) -> MagicMock:
+    """Return a mocked ConvertedVideoFile instance."""
+    mock_output = cast(MagicMock, mocker.MagicMock(spec=ConvertedVideoFile))
+    mock_output.path = Path("dummy_output.mp4.part")
+    mock_output.media_info = MediaInfo(
+        streams=(
+            Stream(codec_type="video", index=0),
+            Stream(codec_type="audio", index=1),
+        )
+    )
+    mock_output.stream_sources = StreamSources(
+        [
+            StreamSource(
+                source_video_file=mock_input_video_file,
+                source_stream_index=0,
+                conversion_type=ConversionType.CONVERTED,
+            ),
+            StreamSource(
+                source_video_file=mock_input_video_file,
+                source_stream_index=1,
+                conversion_type=ConversionType.COPIED,
+            ),
+        ]
+    )
+    return mock_output
+
+
+@pytest.mark.unit
+def test_verify_copied_streams_matches(
+    mocker: MockerFixture,
+    mock_converted_video_file: MagicMock,
+) -> None:
+    """Tests that no exception is raised when all copied stream hashes match."""
+    mock_compare_stream_hashes = mocker.patch(
+        "ts2mp4.stream_integrity.compare_stream_hashes", return_value=True
+    )
+
+    verify_copied_streams(mock_converted_video_file)
+
+    mock_compare_stream_hashes.assert_called_once()
+
+
+@pytest.mark.unit
+def test_verify_copied_streams_mismatch(
+    mocker: MockerFixture,
+    mock_converted_video_file: MagicMock,
+) -> None:
+    """Tests that a RuntimeError is raised when a copied stream hash mismatches."""
+    mock_compare_stream_hashes = mocker.patch(
+        "ts2mp4.stream_integrity.compare_stream_hashes", return_value=False
+    )
+
+    with pytest.raises(RuntimeError) as excinfo:
+        verify_copied_streams(mock_converted_video_file)
+
+    assert "Audio stream integrity check failed for stream at index 1" in str(
+        excinfo.value
+    )
+    mock_compare_stream_hashes.assert_called_once()
+
+
+@pytest.mark.unit
+def test_verify_copied_streams_no_copied_streams(
+    mocker: MockerFixture,
+    mock_converted_video_file: MagicMock,
+) -> None:
+    """Tests that no checks are performed if there are no copied streams."""
+    mock_compare_stream_hashes = mocker.patch(
+        "ts2mp4.stream_integrity.compare_stream_hashes"
+    )
+    mock_converted_video_file.stream_sources = StreamSources(
+        [
+            s
+            for s in mock_converted_video_file.stream_sources
+            if s.conversion_type != ConversionType.COPIED
+        ]
+    )
+
+    verify_copied_streams(mock_converted_video_file)
+
+    mock_compare_stream_hashes.assert_not_called()
