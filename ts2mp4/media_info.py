@@ -3,9 +3,9 @@
 import json
 from functools import cache
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional, Union
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .ffmpeg import execute_ffprobe
 
@@ -39,6 +39,32 @@ class MediaInfo(BaseModel):
 
     streams: tuple[Stream, ...] = Field(default_factory=tuple)
     format: Optional[Format] = None
+
+    @field_validator("streams", mode="before")
+    @classmethod
+    def sort_streams(cls, v: Any) -> Union[list[Any], Any]:
+        """Sorts a list of streams by their index."""
+        if v is not None and isinstance(v, list):
+            return sorted(
+                v,
+                key=lambda stream_data: (
+                    stream_data.index
+                    if isinstance(stream_data, Stream)
+                    else stream_data.get("index")
+                ),
+            )
+        return v
+
+    @field_validator("streams", mode="after")
+    @classmethod
+    def validate_stream_indices(cls, streams: tuple[Stream, ...]) -> tuple[Stream, ...]:
+        """Validate that stream indices match their position in the tuple."""
+        for i, stream in enumerate(streams):
+            if stream.index != i:
+                raise ValueError(
+                    f"Stream index {stream.index} does not match tuple index {i}"
+                )
+        return streams
 
 
 @cache
