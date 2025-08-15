@@ -64,9 +64,13 @@ class ConversionType(Enum):
 class StreamSource(BaseModel):
     """A class representing the source of a stream."""
 
-    source_video_file: VideoFile
+    source_video_path: FilePath
     source_stream_index: NonNegativeInt
     conversion_type: ConversionType
+
+    @property
+    def source_video_file(self) -> VideoFile:
+        return VideoFile(path=self.source_video_path)
 
     @property
     def source_stream(self) -> Stream:

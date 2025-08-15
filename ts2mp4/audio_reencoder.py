@@ -110,7 +110,7 @@ def _build_stream_sources_for_audio_re_encoding(
             # Video streams should be always copied from the encoded file
             stream_sources_list.append(
                 StreamSource(
-                    source_video_file=encoded_file,
+                    source_video_path=encoded_file.path,
                     source_stream_index=matching_stream.index,
                     conversion_type=ConversionType.COPIED,
                 )
@@ -125,7 +125,7 @@ def _build_stream_sources_for_audio_re_encoding(
                 # If the hashes match, the stream can be copied from the encoded file
                 stream_sources_list.append(
                     StreamSource(
-                        source_video_file=encoded_file,
+                        source_video_path=encoded_file.path,
                         source_stream_index=matching_stream.index,
                         conversion_type=ConversionType.COPIED,
                     )
@@ -134,7 +134,7 @@ def _build_stream_sources_for_audio_re_encoding(
                 # If the hashes do not match, the stream must be re-encoded from the original file
                 stream_sources_list.append(
                     StreamSource(
-                        source_video_file=original_file,
+                        source_video_path=original_file.path,
                         source_stream_index=original_stream.index,
                         conversion_type=ConversionType.CONVERTED,
                     )

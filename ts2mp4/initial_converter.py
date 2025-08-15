@@ -75,7 +75,7 @@ def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForInitialConve
     """Build the stream sources for the initial conversion."""
     stream_sources = StreamSources(
         StreamSource(
-            source_video_file=input_file,
+            source_video_path=input_file.path,
             source_stream_index=stream.index,
             conversion_type=(
                 ConversionType.CONVERTED
