@@ -8,8 +8,7 @@ from typing_extensions import Self
 
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
 from .initial_converter import InitiallyConvertedVideoFile
-from .quality_check import get_audio_quality_metrics
-from .stream_integrity import compare_stream_hashes, verify_copied_streams
+from .stream_integrity import compare_stream_hashes
 from .video_file import (
     ConversionType,
     ConvertedVideoFile,
@@ -292,24 +291,4 @@ def re_encode_mismatched_audio_streams(
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
 
-    re_encoded_video_file = AudioReEncodedVideoFile(
-        path=output_file, stream_sources=stream_sources
-    )
-
-    # Verify integrity of copied streams
-    verify_copied_streams(re_encoded_video_file)
-
-    # Get quality metrics for re-encoded streams
-    quality_metrics = get_audio_quality_metrics(re_encoded_video_file)
-    for stream_index, metrics in quality_metrics.items():
-        log_parts = []
-        if metrics.apsnr is not None:
-            log_parts.append(f"APSNR={metrics.apsnr:.2f}dB")
-        if metrics.asdr is not None:
-            log_parts.append(f"ASDR={metrics.asdr:.2f}dB")
-        if log_parts:
-            logger.info(
-                f"Audio quality for stream {stream_index}: {', '.join(log_parts)}"
-            )
-
-    return re_encoded_video_file
+    return AudioReEncodedVideoFile(path=output_file, stream_sources=stream_sources)

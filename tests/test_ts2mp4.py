@@ -6,9 +6,16 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
+from ts2mp4.audio_reencoder import StreamSourcesForAudioReEncoding
 from ts2mp4.media_info import MediaInfo, Stream
 from ts2mp4.ts2mp4 import ts2mp4
-from ts2mp4.video_file import VideoFile
+from ts2mp4.video_file import (
+    ConversionType,
+    ConvertedVideoFile,
+    StreamSource,
+    StreamSources,
+    VideoFile,
+)
 
 
 @pytest.fixture
@@ -39,9 +46,10 @@ def test_ts2mp4_orchestrates_calls(
     crf = 23
     preset = "medium"
 
-    mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
+    mock_output_video_file_instance = mocker.MagicMock(spec=ConvertedVideoFile)
     mock_output_video_file_instance.path = output_file
     mock_output_video_file_instance.media_info = MagicMock()
+    mock_output_video_file_instance.stream_with_sources = []
 
     mock_perform_initial_conversion = mocker.patch(
         "ts2mp4.ts2mp4.perform_initial_conversion",
@@ -56,9 +64,7 @@ def test_ts2mp4_orchestrates_calls(
     mock_perform_initial_conversion.assert_called_once_with(
         mock_video_file, output_file, crf, preset
     )
-    mock_verify_copied_streams.assert_called_once_with(
-        converted_file=mock_output_video_file_instance
-    )
+    assert mock_verify_copied_streams.call_count == 2
 
 
 @pytest.mark.unit
@@ -72,9 +78,10 @@ def test_calls_verify_streams_on_success(
     crf = 23
     preset = "medium"
 
-    mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
+    mock_output_video_file_instance = mocker.MagicMock(spec=ConvertedVideoFile)
     mock_output_video_file_instance.path = output_file
     mock_output_video_file_instance.media_info = MagicMock()
+    mock_output_video_file_instance.stream_with_sources = []
     mock_perform_initial_conversion = mocker.patch(
         "ts2mp4.ts2mp4.perform_initial_conversion",
         return_value=mock_output_video_file_instance,
@@ -88,9 +95,7 @@ def test_calls_verify_streams_on_success(
     mock_perform_initial_conversion.assert_called_once_with(
         mock_video_file, output_file, crf, preset
     )
-    mock_verify_copied_streams.assert_called_once_with(
-        converted_file=mock_output_video_file_instance
-    )
+    assert mock_verify_copied_streams.call_count == 2
 
 
 @pytest.mark.unit
@@ -147,9 +152,15 @@ def test_ts2mp4_re_encodes_on_stream_integrity_failure(
     crf = 23
     preset = "medium"
 
-    mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
+    mock_output_video_file_instance = mocker.MagicMock(spec=ConvertedVideoFile)
     mock_output_video_file_instance.path = output_file
-    mock_output_video_file_instance.media_info = MagicMock()
+    mock_output_video_file_instance.media_info = mocker.MagicMock(spec=MediaInfo)
+    mock_output_video_file_instance.media_info.streams = [
+        Stream(codec_type="video", index=0),
+        Stream(codec_type="audio", index=1),
+        Stream(codec_type="audio", index=2),
+    ]
+    mock_output_video_file_instance.stream_with_sources = []
     mocker.patch(
         "ts2mp4.ts2mp4.perform_initial_conversion",
         return_value=mock_output_video_file_instance,
@@ -158,7 +169,34 @@ def test_ts2mp4_re_encodes_on_stream_integrity_failure(
         "ts2mp4.ts2mp4.verify_copied_streams",
         side_effect=RuntimeError("Audio stream integrity check failed"),
     )
-    mock_re_encode = mocker.patch("ts2mp4.ts2mp4.re_encode_mismatched_audio_streams")
+
+    mock_re_encoded_file = mocker.MagicMock()
+    mock_re_encoded_file.stream_sources = StreamSourcesForAudioReEncoding(
+        StreamSources(
+            [
+                StreamSource(
+                    source_video_file=mock_output_video_file_instance,
+                    source_stream_index=0,
+                    conversion_type=ConversionType.COPIED,
+                ),
+                StreamSource(
+                    source_video_file=mock_video_file,
+                    source_stream_index=1,
+                    conversion_type=ConversionType.CONVERTED,
+                ),
+                StreamSource(
+                    source_video_file=mock_output_video_file_instance,
+                    source_stream_index=2,
+                    conversion_type=ConversionType.COPIED,
+                ),
+            ]
+        )
+    )
+
+    mock_re_encode = mocker.patch(
+        "ts2mp4.ts2mp4.re_encode_mismatched_audio_streams",
+        return_value=mock_re_encoded_file,
+    )
     mocker.patch("pathlib.Path.replace")
 
     # Act
