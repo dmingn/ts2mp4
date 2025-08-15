@@ -300,31 +300,16 @@ def re_encode_mismatched_audio_streams(
     verify_copied_streams(re_encoded_video_file)
 
     # Get quality metrics for re-encoded streams
-    audio_sources = [
-        s
-        for s in re_encoded_video_file.stream_sources
-        if s.source_stream.codec_type == "audio"
-    ]
-    re_encoded_audio_indices = [
-        i
-        for i, s in enumerate(audio_sources)
-        if s.conversion_type == ConversionType.CONVERTED
-    ]
-    for audio_stream_index in re_encoded_audio_indices:
-        metrics = get_audio_quality_metrics(
-            original_file=original_file.path,
-            re_encoded_file=output_file,
-            audio_stream_index=audio_stream_index,
-        )
-        if metrics:
-            log_parts = []
-            if metrics.apsnr is not None:
-                log_parts.append(f"APSNR={metrics.apsnr:.2f}dB")
-            if metrics.asdr is not None:
-                log_parts.append(f"ASDR={metrics.asdr:.2f}dB")
-            if log_parts:
-                logger.info(
-                    f"Audio quality for stream {audio_stream_index}: {', '.join(log_parts)}"
-                )
+    quality_metrics = get_audio_quality_metrics(re_encoded_video_file)
+    for stream_index, metrics in quality_metrics.items():
+        log_parts = []
+        if metrics.apsnr is not None:
+            log_parts.append(f"APSNR={metrics.apsnr:.2f}dB")
+        if metrics.asdr is not None:
+            log_parts.append(f"ASDR={metrics.asdr:.2f}dB")
+        if log_parts:
+            logger.info(
+                f"Audio quality for stream {stream_index}: {', '.join(log_parts)}"
+            )
 
     return re_encoded_video_file

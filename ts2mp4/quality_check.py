@@ -1,12 +1,12 @@
 """A module for checking the quality of audio streams."""
 
 import re
-from pathlib import Path
 from typing import NamedTuple, Optional
 
 from logzero import logger
 
 from .ffmpeg import execute_ffmpeg
+from .video_file import ConversionType, ConvertedVideoFile
 
 
 class AudioQualityMetrics(NamedTuple):
@@ -52,40 +52,56 @@ def parse_audio_quality_metrics(output: str) -> AudioQualityMetrics:
 
 
 def get_audio_quality_metrics(
-    original_file: Path,
-    re_encoded_file: Path,
-    audio_stream_index: int,
-) -> Optional[AudioQualityMetrics]:
-    """Calculate APSNR and ASDR for an audio stream using FFmpeg.
+    converted_file: ConvertedVideoFile,
+) -> dict[int, AudioQualityMetrics]:
+    """Calculate audio quality metrics for all converted audio streams.
 
     Args:
     ----
-        original_file: Path to the original file.
-        re_encoded_file: Path to the re-encoded file.
-        audio_stream_index: The index of the audio stream to analyze.
+        converted_file: The converted video file.
 
     Returns
     -------
-        An AudioQualityMetrics namedtuple containing apsnr and asdr, or None if metrics could not be calculated.
+        A dictionary mapping the output audio stream index to its quality metrics.
     """
-    command = [
-        "-hide_banner",
-        "-nostats",
-        "-i",
-        str(original_file),
-        "-i",
-        str(re_encoded_file),
-        "-filter_complex",
-        f"[0:a:{audio_stream_index}][1:a:{audio_stream_index}]apsnr;"
-        + f"[0:a:{audio_stream_index}][1:a:{audio_stream_index}]asdr",
-        "-f",
-        "null",
-        "-",
-    ]
+    quality_metrics: dict[int, AudioQualityMetrics] = {}
 
-    result = execute_ffmpeg(command)
-    if result.returncode != 0:
-        logger.error(f"Error calculating audio quality metrics: {result.stderr}")
-        return None
+    for stream, stream_source in converted_file.stream_with_sources:
+        if (
+            stream.codec_type != "audio"
+            or stream_source.conversion_type != ConversionType.CONVERTED
+        ):
+            continue
 
-    return parse_audio_quality_metrics(result.stderr)
+        original_file = stream_source.source_video_file.path
+        re_encoded_file = converted_file.path
+        original_stream_index = stream_source.source_stream.index
+        re_encoded_stream_index = stream.index
+
+        command = [
+            "-hide_banner",
+            "-nostats",
+            "-i",
+            str(original_file),
+            "-i",
+            str(re_encoded_file),
+            "-filter_complex",
+            f"[0:{original_stream_index}][1:{re_encoded_stream_index}]apsnr;"
+            + f"[0:{original_stream_index}][1:{re_encoded_stream_index}]asdr",
+            "-f",
+            "null",
+            "-",
+        ]
+
+        result = execute_ffmpeg(command)
+        if result.returncode != 0:
+            logger.error(
+                f"Error calculating audio quality metrics for stream {re_encoded_stream_index}: {result.stderr}"
+            )
+            continue
+
+        metrics = parse_audio_quality_metrics(result.stderr)
+        if metrics.apsnr is not None or metrics.asdr is not None:
+            quality_metrics[re_encoded_stream_index] = metrics
+
+    return quality_metrics
