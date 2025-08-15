@@ -80,16 +80,15 @@ def _re_encode_audio_if_necessary(
             output_file=temp_output_file,
         )
 
-        if re_encoded_file:
-            temp_output_file.replace(output_path)
-            logger.info(
-                "Successfully re-encoded audio and replaced the original output file."
+        if not re_encoded_file:
+            raise RuntimeError(
+                "Audio re-encoding was attempted but did not produce a new file, "
+                "even though an integrity check failed. This indicates a potential logic error."
             )
-            return AudioReEncodedVideoFile(
-                path=output_path, stream_sources=re_encoded_file.stream_sources
-            )
-
-        logger.warning(
-            "Audio re-encoding was attempted but did not produce a new file."
+        temp_output_file.replace(output_path)
+        logger.info(
+            "Successfully re-encoded audio and replaced the original output file."
         )
-        return encoded_file
+        return AudioReEncodedVideoFile(
+            path=output_path, stream_sources=re_encoded_file.stream_sources
+        )
