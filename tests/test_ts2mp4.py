@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.media_info import MediaInfo, Stream
+from ts2mp4.media_info import AudioStream, MediaInfo, VideoStream
 from ts2mp4.ts2mp4 import ts2mp4
 from ts2mp4.video_file import VideoFile
 
@@ -17,10 +17,10 @@ def mock_video_file(mocker: MockerFixture, tmp_path: Path) -> VideoFile:
     dummy_file = tmp_path / "test.ts"
     dummy_file.touch()
 
-    video_stream = Stream(codec_type="video", index=0)
+    video_stream = VideoStream(codec_type="video", index=0)
     audio_streams = (
-        Stream(codec_type="audio", index=1, channels=2),
-        Stream(codec_type="audio", index=2, channels=6),
+        AudioStream(codec_type="audio", index=1, channels=2),
+        AudioStream(codec_type="audio", index=2, channels=6),
     )
     media_info = MediaInfo(streams=(video_stream,) + audio_streams)
     mocker.patch("ts2mp4.video_file.get_media_info", return_value=media_info)

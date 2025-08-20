@@ -8,6 +8,7 @@ from typing_extensions import Self
 
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
 from .initial_converter import InitiallyConvertedVideoFile
+from .media_info import AudioStream
 from .quality_check import get_audio_quality_metrics
 from .stream_integrity import compare_stream_hashes, verify_copied_streams
 from .video_file import (
@@ -148,6 +149,10 @@ def _build_audio_convert_args(
 ) -> list[str]:
     """Build FFmpeg arguments for converting an audio stream."""
     original_audio_stream = stream_source.source_stream
+    if not isinstance(original_audio_stream, AudioStream):
+        raise TypeError(
+            f"Expected AudioStream, got {type(original_audio_stream).__name__}"
+        )
 
     codec_name = str(original_audio_stream.codec_name)
     if original_audio_stream.codec_name == "aac":
