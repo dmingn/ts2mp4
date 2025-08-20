@@ -6,7 +6,7 @@ from logzero import logger
 
 from .audio_reencoder import AudioReEncodedVideoFile, re_encode_mismatched_audio_streams
 from .initial_converter import InitiallyConvertedVideoFile, perform_initial_conversion
-from .quality_check import get_audio_quality_metrics
+from .quality_check import check_audio_quality
 from .stream_integrity import verify_copied_streams
 from .video_file import ConvertedVideoFile, VideoFile
 
@@ -46,7 +46,7 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
         logger.error(f"Stream verification failed for the final file: {e}")
 
     logger.info(f"Getting audio quality metrics for {final_video_file.path.name}...")
-    quality_metrics = get_audio_quality_metrics(final_video_file)
+    quality_metrics = check_audio_quality(final_video_file)
     for stream_index, metrics in quality_metrics.items():
         log_parts = []
         if metrics.apsnr is not None:

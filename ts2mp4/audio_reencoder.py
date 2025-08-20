@@ -8,7 +8,9 @@ from typing_extensions import Self
 
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
 from .initial_converter import InitiallyConvertedVideoFile
-from .stream_integrity import compare_stream_hashes
+from .media_info import AudioStream
+from .quality_check import check_audio_quality
+from .stream_integrity import compare_stream_hashes, verify_copied_streams
 from .video_file import (
     ConversionType,
     ConvertedVideoFile,
@@ -147,6 +149,10 @@ def _build_audio_convert_args(
 ) -> list[str]:
     """Build FFmpeg arguments for converting an audio stream."""
     original_audio_stream = stream_source.source_stream
+    if not isinstance(original_audio_stream, AudioStream):
+        raise TypeError(
+            f"Expected AudioStream, got {type(original_audio_stream).__name__}"
+        )
 
     codec_name = str(original_audio_stream.codec_name)
     if original_audio_stream.codec_name == "aac":
@@ -291,4 +297,24 @@ def re_encode_mismatched_audio_streams(
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
 
-    return AudioReEncodedVideoFile(path=output_file, stream_sources=stream_sources)
+    re_encoded_video_file = AudioReEncodedVideoFile(
+        path=output_file, stream_sources=stream_sources
+    )
+
+    # Verify integrity of copied streams
+    verify_copied_streams(re_encoded_video_file)
+
+    # Get quality metrics for re-encoded streams
+    quality_metrics = check_audio_quality(re_encoded_video_file)
+    for stream_index, metrics in quality_metrics.items():
+        log_parts = []
+        if metrics.apsnr is not None:
+            log_parts.append(f"APSNR={metrics.apsnr:.2f}dB")
+        if metrics.asdr is not None:
+            log_parts.append(f"ASDR={metrics.asdr:.2f}dB")
+        if log_parts:
+            logger.info(
+                f"Audio quality for stream {stream_index}: {', '.join(log_parts)}"
+            )
+
+    return re_encoded_video_file

@@ -8,7 +8,7 @@ from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import FFmpegProcessError
 from ts2mp4.hashing import _get_stream_md5_cached, get_stream_md5
-from ts2mp4.media_info import Stream
+from ts2mp4.media_info import AudioStream, Stream, VideoStream
 
 
 async def mock_ffmpeg_stream_success() -> AsyncGenerator[bytes, None]:
@@ -32,7 +32,7 @@ def _clear_hashing_cache() -> None:
 def test_get_stream_md5_caching(mocker: MockerFixture) -> None:
     """Test that get_stream_md5 caches results."""
     file_path = Path("test.ts")
-    stream = Stream(index=0, codec_type="video")
+    stream = VideoStream(index=0, codec_type="video")
 
     mock_resolve = mocker.patch.object(Path, "resolve", return_value=file_path)
     mocker.patch.object(Path, "stat", return_value=mocker.Mock(st_mtime=1, st_size=1))
@@ -55,7 +55,7 @@ def test_get_stream_md5_caching(mocker: MockerFixture) -> None:
 def test_get_stream_md5_cache_invalidation(mocker: MockerFixture) -> None:
     """Test that the cache is invalidated when the file is modified."""
     file_path = Path("test.ts")
-    stream = Stream(index=0, codec_type="video")
+    stream = VideoStream(index=0, codec_type="video")
 
     mock_resolve = mocker.patch.object(Path, "resolve", return_value=file_path)
     mock_stat = mocker.patch(
@@ -91,7 +91,11 @@ def test_get_stream_md5_cache_invalidation(mocker: MockerFixture) -> None:
 )
 def test_get_stream_md5(ts_file: Path, stream_index: int, codec_type: str) -> None:
     """Test the get_stream_md5 function for different stream types."""
-    stream = Stream(index=stream_index, codec_type=codec_type)
+    stream: Stream
+    if codec_type == "video":
+        stream = VideoStream(index=stream_index, codec_type=codec_type)
+    else:
+        stream = AudioStream(index=stream_index, codec_type=codec_type)
     actual_md5 = get_stream_md5(ts_file, stream)
     # Check if the returned MD5 hash is a valid 32-character hexadecimal string
     assert len(actual_md5) == 32
@@ -114,6 +118,10 @@ def test_get_stream_md5_failure(
         "ts2mp4.hashing.execute_ffmpeg_streamed",
         return_value=mock_ffmpeg_stream_failure(),
     )
-    stream = Stream(index=stream_index, codec_type=codec_type)
+    stream: Stream
+    if codec_type == "video":
+        stream = VideoStream(index=stream_index, codec_type=codec_type)
+    else:
+        stream = AudioStream(index=stream_index, codec_type=codec_type)
     with pytest.raises(FFmpegProcessError, match="ffmpeg failed"):
         get_stream_md5(ts_file, stream)

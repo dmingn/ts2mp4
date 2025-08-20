@@ -5,7 +5,13 @@ from typing import Iterator
 
 from pydantic import BaseModel, ConfigDict, FilePath, NonNegativeInt, model_validator
 
-from .media_info import MediaInfo, Stream, get_media_info
+from .media_info import (
+    AudioStream,
+    MediaInfo,
+    Stream,
+    VideoStream,
+    get_media_info,
+)
 
 
 class VideoFile(BaseModel):
@@ -21,31 +27,33 @@ class VideoFile(BaseModel):
         return get_media_info(self.path)
 
     @staticmethod
-    def _is_valid_audio_stream(stream: Stream) -> bool:
+    def _is_valid_audio_stream(stream: AudioStream) -> bool:
         """Return True if the audio stream is valid."""
         return stream.channels is not None and stream.channels > 0
 
     @staticmethod
-    def _is_valid_video_stream(stream: Stream) -> bool:
+    def _is_valid_video_stream(stream: VideoStream) -> bool:
         """Return True if the video stream is valid."""
         return True
 
     @property
-    def valid_audio_streams(self) -> tuple[Stream, ...]:
+    def valid_audio_streams(self) -> tuple[AudioStream, ...]:
         """Return a tuple of valid audio streams."""
         return tuple(
             stream
             for stream in self.media_info.streams
-            if stream.codec_type == "audio" and VideoFile._is_valid_audio_stream(stream)
+            if isinstance(stream, AudioStream)
+            and VideoFile._is_valid_audio_stream(stream)
         )
 
     @property
-    def valid_video_streams(self) -> tuple[Stream, ...]:
+    def valid_video_streams(self) -> tuple[VideoStream, ...]:
         """Return a tuple of valid video streams."""
         return tuple(
             stream
             for stream in self.media_info.streams
-            if stream.codec_type == "video" and VideoFile._is_valid_video_stream(stream)
+            if isinstance(stream, VideoStream)
+            and VideoFile._is_valid_video_stream(stream)
         )
 
     @property

@@ -8,7 +8,7 @@ import pytest
 from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
-from ts2mp4.media_info import MediaInfo, Stream
+from ts2mp4.media_info import AudioStream, MediaInfo, OtherStream, VideoStream
 from ts2mp4.video_file import (
     ConversionType,
     ConvertedVideoFile,
@@ -25,11 +25,13 @@ def mock_get_media_info_func(mocker: MockerFixture) -> MagicMock:
         "ts2mp4.video_file.get_media_info",
         return_value=MediaInfo(
             streams=(
-                Stream(codec_type="video", index=0),
-                Stream(codec_type="audio", index=1, channels=2),
-                Stream(codec_type="audio", index=2, channels=0),  # Invalid audio stream
-                Stream(codec_type="audio", index=3, channels=6),
-                Stream(codec_type="subtitle", index=4),
+                VideoStream(codec_type="video", index=0),
+                AudioStream(codec_type="audio", index=1, channels=2),
+                AudioStream(
+                    codec_type="audio", index=2, channels=0
+                ),  # Invalid audio stream
+                AudioStream(codec_type="audio", index=3, channels=6),
+                OtherStream(codec_type="subtitle", index=4),
             )
         ),
     )
@@ -64,14 +66,14 @@ def stream_sources(
 
     media_info_1 = MediaInfo(
         streams=(
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="audio", index=1, channels=2),
+            VideoStream(codec_type="video", index=0),
+            AudioStream(codec_type="audio", index=1, channels=2),
         )
     )
     media_info_2 = MediaInfo(
         streams=(
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="audio", index=1, channels=1),
+            VideoStream(codec_type="video", index=0),
+            AudioStream(codec_type="audio", index=1, channels=1),
         )
     )
 
@@ -171,8 +173,8 @@ def test_videofile_valid_streams_property(
 
     assert len(valid_streams) == 3  # 1 valid video + 2 valid audio
 
-    video_stream_count = sum(1 for s in valid_streams if s.codec_type == "video")
-    audio_stream_count = sum(1 for s in valid_streams if s.codec_type == "audio")
+    video_stream_count = sum(1 for s in valid_streams if isinstance(s, VideoStream))
+    audio_stream_count = sum(1 for s in valid_streams if isinstance(s, AudioStream))
 
     assert video_stream_count == 1
     assert audio_stream_count == 2
@@ -212,7 +214,7 @@ def test_converted_video_file_instantiation(
     # Mock get_media_info to return a single stream to match the single stream source
     mocker.patch(
         "ts2mp4.video_file.get_media_info",
-        return_value=MediaInfo(streams=(Stream(codec_type="video", index=0),)),
+        return_value=MediaInfo(streams=(VideoStream(codec_type="video", index=0),)),
     )
 
     stream_sources = StreamSources((stream_source,))
@@ -273,8 +275,8 @@ def test_converted_video_file_mismatched_stream_counts_raises_error(
         "ts2mp4.video_file.get_media_info",
         return_value=MediaInfo(
             streams=(
-                Stream(codec_type="video", index=0),
-                Stream(codec_type="audio", index=1, channels=2),
+                VideoStream(codec_type="video", index=0),
+                AudioStream(codec_type="audio", index=1, channels=2),
             )
         ),
     )
@@ -292,7 +294,7 @@ def test_converted_video_file_stream_with_sources_property(
     dummy_video_file: VideoFile, stream_source: StreamSource, mocker: MockerFixture
 ) -> None:
     """Test the stream_with_sources property of ConvertedVideoFile."""
-    mock_stream = Stream(codec_type="video", index=0)
+    mock_stream = VideoStream(codec_type="video", index=0)
     mocker.patch(
         "ts2mp4.video_file.get_media_info",
         return_value=MediaInfo(streams=(mock_stream,)),

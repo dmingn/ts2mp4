@@ -1,11 +1,12 @@
 """A module for checking the quality of audio streams."""
 
+import asyncio
 import re
-from typing import NamedTuple, Optional
+from typing import AsyncIterable, NamedTuple, Optional
 
 from logzero import logger
 
-from .ffmpeg import execute_ffmpeg
+from .ffmpeg import FFmpegProcessError, execute_ffmpeg_stderr_streamed
 from .video_file import ConversionType, ConvertedVideoFile
 
 
@@ -16,33 +17,41 @@ class AudioQualityMetrics(NamedTuple):
     asdr: Optional[float]  # Average Signal-to-Distortion Ratio
 
 
-def parse_audio_quality_metrics(output: str) -> AudioQualityMetrics:
+async def parse_audio_quality_metrics(
+    output_lines: AsyncIterable[str],
+) -> AudioQualityMetrics:
     """Parse FFmpeg output and log APSNR and ASDR metrics."""
-    apsnr = None
-    asdr = None
+    apsnr: Optional[float] = None
+    asdr: Optional[float] = None
 
-    for line in output.splitlines():
-        if "Parsed_apsnr" in line:
+    async for line in output_lines:
+        if "Parsed_apsnr" in line and apsnr is None:
             match = re.search(
-                r"PSNR ch0: ([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?|inf|-inf|nan) dB",
+                r"PSNR ch\d+: ([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?|inf|-inf|-?nan) dB",
                 line,
             )
             if match:
                 try:
-                    apsnr = float(match.group(1))
+                    value_str = match.group(1)
+                    if value_str == "-nan":
+                        value_str = "nan"
+                    apsnr = float(value_str)
                 except ValueError as e:
                     logger.warning(f"Could not parse APSNR from line: {line} - {e}")
             else:
                 logger.warning(f"Could not find APSNR in line: {line}")
 
-        if "Parsed_asdr" in line:
+        if "Parsed_asdr" in line and asdr is None:
             match = re.search(
-                r"SDR ch0: ([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?|inf|-inf|nan) dB",
+                r"SDR ch\d+: ([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?|inf|-inf|-?nan) dB",
                 line,
             )
             if match:
                 try:
-                    asdr = float(match.group(1))
+                    value_str = match.group(1)
+                    if value_str == "-nan":
+                        value_str = "nan"
+                    asdr = float(value_str)
                 except ValueError as e:
                     logger.warning(f"Could not parse ASDR from line: {line} - {e}")
             else:
@@ -51,7 +60,7 @@ def parse_audio_quality_metrics(output: str) -> AudioQualityMetrics:
     return AudioQualityMetrics(apsnr=apsnr, asdr=asdr)
 
 
-def get_audio_quality_metrics(
+async def get_audio_quality_metrics(
     converted_file: ConvertedVideoFile,
 ) -> dict[int, AudioQualityMetrics]:
     """Calculate audio quality metrics for all converted audio streams.
@@ -93,15 +102,22 @@ def get_audio_quality_metrics(
             "-",
         ]
 
-        result = execute_ffmpeg(command)
-        if result.returncode != 0:
+        try:
+            lines = execute_ffmpeg_stderr_streamed(command)
+            metrics = await parse_audio_quality_metrics(lines)
+            if metrics.apsnr is not None or metrics.asdr is not None:
+                quality_metrics[re_encoded_stream_index] = metrics
+        except FFmpegProcessError as e:
             logger.error(
-                f"Error calculating audio quality metrics for stream {re_encoded_stream_index}: {result.stderr}"
+                f"Error calculating audio quality metrics for stream {re_encoded_stream_index}: {e}"
             )
             continue
 
-        metrics = parse_audio_quality_metrics(result.stderr)
-        if metrics.apsnr is not None or metrics.asdr is not None:
-            quality_metrics[re_encoded_stream_index] = metrics
-
     return quality_metrics
+
+
+def check_audio_quality(
+    converted_file: ConvertedVideoFile,
+) -> dict[int, AudioQualityMetrics]:
+    """Get audio quality metrics in a synchronous context."""
+    return asyncio.run(get_audio_quality_metrics(converted_file))
