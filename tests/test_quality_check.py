@@ -65,6 +65,21 @@ from ts2mp4.video_file import (
             None,
             -5.25,
         ),
+        (
+            "[Parsed_apsnr_0 @ 0x7f9990004800] PSNR ch1: 42.0 dB",
+            42.0,
+            None,
+        ),
+        (
+            "[Parsed_asdr_1 @ 0x7f9990004ac0] SDR ch1: -nan dB",
+            None,
+            float("nan"),
+        ),
+        (
+            "[Parsed_apsnr_0 @ 0x123] PSNR ch0: 10.0 dB\n[Parsed_apsnr_0 @ 0x123] PSNR ch1: 20.0 dB",
+            10.0,
+            None,
+        ),
     ],
 )
 def test_parse_audio_quality_metrics(
@@ -74,8 +89,9 @@ def test_parse_audio_quality_metrics(
 ) -> None:
     """Test parsing of audio quality metrics from FFmpeg output."""
     metrics = parse_audio_quality_metrics(ffmpeg_output)
-    assert metrics.apsnr == expected_apsnr
-    assert metrics.asdr == expected_asdr
+
+    assert metrics.apsnr == pytest.approx(expected_apsnr, nan_ok=True)
+    assert metrics.asdr == pytest.approx(expected_asdr, nan_ok=True)
 
 
 @pytest.mark.unit
