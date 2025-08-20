@@ -1,6 +1,5 @@
 """Unit and integration tests for the quality_check module."""
 
-import math
 from pathlib import Path
 from typing import Union
 
@@ -83,25 +82,8 @@ def test_parse_audio_quality_metrics(
     """Test parsing of audio quality metrics from FFmpeg output."""
     metrics = parse_audio_quality_metrics(ffmpeg_output)
 
-    # Handle NaN comparison for APSNR
-    if (
-        expected_apsnr is not None
-        and isinstance(expected_apsnr, float)
-        and math.isnan(expected_apsnr)
-    ):
-        assert metrics.apsnr is not None and math.isnan(metrics.apsnr)
-    else:
-        assert metrics.apsnr == expected_apsnr
-
-    # Handle NaN comparison for ASDR
-    if (
-        expected_asdr is not None
-        and isinstance(expected_asdr, float)
-        and math.isnan(expected_asdr)
-    ):
-        assert metrics.asdr is not None and math.isnan(metrics.asdr)
-    else:
-        assert metrics.asdr == expected_asdr
+    assert metrics.apsnr == pytest.approx(expected_apsnr, nan_ok=True)
+    assert metrics.asdr == pytest.approx(expected_asdr, nan_ok=True)
 
 
 @pytest.mark.unit
