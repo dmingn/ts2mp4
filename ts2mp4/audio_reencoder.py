@@ -9,7 +9,7 @@ from typing_extensions import Self
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
 from .initial_converter import InitiallyConvertedVideoFile
 from .media_info import AudioStream
-from .quality_check import get_audio_quality_metrics
+from .quality_check import check_audio_quality
 from .stream_integrity import compare_stream_hashes, verify_copied_streams
 from .video_file import (
     ConversionType,
@@ -305,7 +305,7 @@ def re_encode_mismatched_audio_streams(
     verify_copied_streams(re_encoded_video_file)
 
     # Get quality metrics for re-encoded streams
-    quality_metrics = get_audio_quality_metrics(re_encoded_video_file)
+    quality_metrics = check_audio_quality(re_encoded_video_file)
     for stream_index, metrics in quality_metrics.items():
         log_parts = []
         if metrics.apsnr is not None:

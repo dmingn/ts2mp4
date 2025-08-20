@@ -118,6 +118,40 @@ async def _stream_stdout(
         )
 
 
+async def _stream_stderr(
+    executable: Literal["ffmpeg", "ffprobe"], args: list[str]
+) -> AsyncGenerator[str, None]:
+    """Execute a process and yield its stderr line by line, while also logging it."""
+    command = [executable] + args
+    logger.info(f"Running command: {' '.join(command)}")
+
+    try:
+        process = await asyncio.create_subprocess_exec(
+            *command,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+    except OSError as e:
+        raise FFmpegProcessError(f"Failed to start {executable} process: {e}") from e
+
+    if process.stderr is None:
+        raise FFmpegProcessError("Failed to open stderr for the process.")
+
+    stderr_stream = process.stderr
+
+    while line_bytes := await stderr_stream.readline():
+        line_str = line_bytes.decode("utf-8", errors="replace")
+        logger.info(line_str.strip())
+        yield line_str
+
+    returncode = await process.wait()
+
+    if returncode != 0:
+        raise FFmpegProcessError(
+            f"{executable} failed with exit code {returncode}. Check logs for details."
+        )
+
+
 def execute_ffmpeg(args: list[str]) -> FFmpegResult:
     """Execute ffmpeg and returns the result.
 
@@ -148,6 +182,21 @@ async def execute_ffmpeg_streamed(
     """
     async for chunk in _stream_stdout("ffmpeg", args):
         yield chunk
+
+
+async def execute_ffmpeg_stderr_streamed(args: list[str]) -> AsyncGenerator[str, None]:
+    """Execute ffmpeg and returns a generator for stderr lines.
+
+    Args:
+    ----
+        args: A list of arguments for the command.
+
+    Returns
+    -------
+        An generator that yields stderr lines.
+    """
+    async for line in _stream_stderr("ffmpeg", args):
+        yield line
 
 
 def execute_ffprobe(args: list[str]) -> FFmpegResult:
