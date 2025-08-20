@@ -152,7 +152,7 @@ jobs:
         id: prepare_branch
         if: steps.update_version.outputs.version_updated == 'true'
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.PAT_FOR_CREATING_PR }}
         run: |
           BRANCH_NAME="feature/auto-version-update"
           echo "branch_name=$BRANCH_NAME" >> $GITHUB_OUTPUT
