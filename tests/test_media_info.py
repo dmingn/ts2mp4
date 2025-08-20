@@ -372,16 +372,7 @@ def test_get_media_info_integration(ts_file: Path) -> None:
         ),
         format=Format(format_name="mpegts"),
     )
-    # The real ffprobe output has more fields, but we only care about the ones we model.
-    # Pydantic will ignore the extra fields when validating the result.
-    # We need to compare the models field by field.
-
-    assert result.format == expected.format
-    assert len(result.streams) == len(expected.streams)
-    assert isinstance(result.streams[0], VideoStream)
-    assert result.streams[0].index == expected.streams[0].index
-    assert result.streams[0].codec_type == expected.streams[0].codec_type
-
-    # For AudioStreams, we can do a direct comparison
-    assert result.streams[1] == expected.streams[1]
-    assert result.streams[2] == expected.streams[2]
+    # The real ffprobe output has more fields than what is defined in the MediaInfo model.
+    # Pydantic ignores these extra fields during validation, so a direct object comparison
+    # is sufficient and more concise.
+    assert result == expected
