@@ -8,9 +8,11 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.media_info import (
+    AudioStream,
     Format,
     MediaInfo,
-    Stream,
+    OtherStream,
+    VideoStream,
     _get_media_info_cached,
     get_media_info,
 )
@@ -74,24 +76,24 @@ def test_get_media_info_success(mocker: MockerFixture, mock_path: MagicMock) -> 
     # Assert
     expected = MediaInfo(
         streams=(
-            Stream(codec_type="video", index=0, codec_name="h264"),
-            Stream(
-                codec_type="audio",
+            VideoStream(index=0, codec_type="video"),
+            AudioStream(
                 index=1,
                 codec_name="aac",
                 profile="LC",
                 channels=2,
                 sample_rate=48000,
                 bit_rate=192000,
-            ),
-            Stream(
                 codec_type="audio",
+            ),
+            AudioStream(
                 index=2,
                 codec_name="mp3",
                 profile="unknown",
                 channels=1,
                 sample_rate=44100,
                 bit_rate=128000,
+                codec_type="audio",
             ),
         ),
         format=Format(format_name="mpegts"),
@@ -103,12 +105,54 @@ def test_get_media_info_success(mocker: MockerFixture, mock_path: MagicMock) -> 
 
 
 @pytest.mark.unit
+def test_get_media_info_success_with_other_stream(
+    mocker: MockerFixture, mock_path: MagicMock
+) -> None:
+    """Test that get_media_info returns a MediaInfo object on success."""
+    # Arrange
+    mock_execute_ffprobe = mocker.patch("ts2mp4.media_info.execute_ffprobe")
+    ffprobe_output = {
+        "streams": [
+            {
+                "codec_type": "video",
+                "index": 0,
+                "codec_name": "h264",
+            },
+            {
+                "codec_type": "subtitle",
+                "index": 1,
+                "codec_name": "srt",
+            },
+        ],
+        "format": {"format_name": "mkv"},
+    }
+    mock_result = MagicMock()
+    mock_result.returncode = 0
+    mock_result.stdout = json.dumps(ffprobe_output).encode("utf-8")
+    mock_execute_ffprobe.return_value = mock_result
+
+    # Act
+    result = get_media_info(mock_path)
+
+    # Assert
+    expected = MediaInfo(
+        streams=(
+            VideoStream(index=0, codec_type="video"),
+            OtherStream(index=1, codec_type="subtitle"),
+        ),
+        format=Format(format_name="mkv"),
+    )
+    assert result == expected
+    mock_execute_ffprobe.assert_called_once()
+
+
+@pytest.mark.unit
 def test_sort_streams_sorts_list_of_streams() -> None:
     """Test that sort_streams sorts a list of Stream objects by index."""
     streams = [
-        Stream(index=1, codec_type="audio"),
-        Stream(index=0, codec_type="video"),
-        Stream(index=2, codec_type="audio"),
+        AudioStream(index=1, codec_type="audio"),
+        VideoStream(index=0, codec_type="video"),
+        AudioStream(index=2, codec_type="audio"),
     ]
     media_info = MediaInfo(streams=streams)
     assert media_info.streams[0].index == 0
@@ -134,8 +178,8 @@ def test_sort_streams_sorts_list_of_dicts() -> None:
 def test_sort_streams_classmethod_ignores_tuple() -> None:
     """Test that the sort_streams classmethod does not modify tuples."""
     streams = (
-        Stream(index=1, codec_type="audio"),
-        Stream(index=0, codec_type="video"),
+        AudioStream(index=1, codec_type="audio"),
+        VideoStream(index=0, codec_type="video"),
     )
     # Call the classmethod directly to avoid other validators
     result = MediaInfo.sort_streams(streams)
@@ -148,8 +192,8 @@ def test_sort_streams_classmethod_ignores_tuple() -> None:
 def test_validate_stream_indices_success() -> None:
     """Test that validate_stream_indices passes with correct indices."""
     streams = [
-        Stream(index=0, codec_type="video"),
-        Stream(index=1, codec_type="audio"),
+        VideoStream(index=0, codec_type="video"),
+        AudioStream(index=1, codec_type="audio"),
     ]
     MediaInfo(streams=streams)  # no exception
 
@@ -158,8 +202,8 @@ def test_validate_stream_indices_success() -> None:
 def test_validate_stream_indices_raises_error_on_gap() -> None:
     """Test that validate_stream_indices raises ValueError on an index gap."""
     streams = [
-        Stream(index=0, codec_type="video"),
-        Stream(index=2, codec_type="audio"),
+        VideoStream(index=0, codec_type="video"),
+        AudioStream(index=2, codec_type="audio"),
     ]
     with pytest.raises(ValueError, match="Stream index 2 does not match tuple index 1"):
         MediaInfo(streams=streams)
@@ -169,8 +213,8 @@ def test_validate_stream_indices_raises_error_on_gap() -> None:
 def test_validate_stream_indices_raises_error_on_duplicate() -> None:
     """Test that validate_stream_indices raises ValueError on a duplicate index."""
     streams = [
-        Stream(index=0, codec_type="video"),
-        Stream(index=0, codec_type="audio"),
+        VideoStream(index=0, codec_type="video"),
+        AudioStream(index=0, codec_type="audio"),
     ]
     with pytest.raises(ValueError, match="Stream index 0 does not match tuple index 1"):
         MediaInfo(streams=streams)
@@ -303,13 +347,11 @@ def test_get_media_info_integration(ts_file: Path) -> None:
     # Assuming a real ts file has at least one video and one audio stream at indices 0 and 1
     expected = MediaInfo(
         streams=(
-            Stream(
+            VideoStream(
                 codec_type="video",
                 index=0,
-                codec_name="mpeg2video",
-                profile="Main",
             ),
-            Stream(
+            AudioStream(
                 codec_type="audio",
                 index=1,
                 codec_name="aac",
@@ -318,7 +360,7 @@ def test_get_media_info_integration(ts_file: Path) -> None:
                 sample_rate=44100,
                 bit_rate=5267,
             ),
-            Stream(
+            AudioStream(
                 codec_type="audio",
                 index=2,
                 codec_name="aac",
@@ -330,5 +372,16 @@ def test_get_media_info_integration(ts_file: Path) -> None:
         ),
         format=Format(format_name="mpegts"),
     )
+    # The real ffprobe output has more fields, but we only care about the ones we model.
+    # Pydantic will ignore the extra fields when validating the result.
+    # We need to compare the models field by field.
 
-    assert result == expected
+    assert result.format == expected.format
+    assert len(result.streams) == len(expected.streams)
+    assert isinstance(result.streams[0], VideoStream)
+    assert result.streams[0].index == expected.streams[0].index
+    assert result.streams[0].codec_type == expected.streams[0].codec_type
+
+    # For AudioStreams, we can do a direct comparison
+    assert result.streams[1] == expected.streams[1]
+    assert result.streams[2] == expected.streams[2]

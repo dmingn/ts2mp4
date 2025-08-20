@@ -3,25 +3,44 @@
 import json
 from functools import cache
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Literal, Optional, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from .ffmpeg import execute_ffprobe
 
 
-class Stream(BaseModel):
-    """A class to hold information about a single stream."""
+class BaseStream(BaseModel):
+    """A base class to hold information about a single stream."""
 
     model_config = ConfigDict(frozen=True)
 
     index: int
-    codec_type: Optional[str] = None
+    codec_type: str
+
+
+class VideoStream(BaseStream):
+    """A class to hold information about a video stream."""
+
+    codec_type: Literal["video"]
+
+
+class AudioStream(BaseStream):
+    """A class to hold information about an audio stream."""
+
+    codec_type: Literal["audio"]
     codec_name: Optional[str] = None
     profile: Optional[str] = None
     bit_rate: Optional[int] = None
     channels: Optional[int] = None
     sample_rate: Optional[int] = None
+
+
+class OtherStream(BaseStream):
+    """A class to hold information about other stream types."""
+
+
+Stream = Union[VideoStream, AudioStream, OtherStream]
 
 
 class Format(BaseModel):
@@ -49,7 +68,7 @@ class MediaInfo(BaseModel):
                 v,
                 key=lambda stream_data: (
                     stream_data.index
-                    if isinstance(stream_data, Stream)
+                    if isinstance(stream_data, BaseStream)
                     else stream_data["index"]
                 ),
             )
@@ -57,7 +76,9 @@ class MediaInfo(BaseModel):
 
     @field_validator("streams", mode="after")
     @classmethod
-    def validate_stream_indices(cls, streams: tuple[Stream, ...]) -> tuple[Stream, ...]:
+    def validate_stream_indices(
+        cls, streams: tuple[BaseStream, ...]
+    ) -> tuple[BaseStream, ...]:
         """Validate that stream indices match their position in the tuple."""
         for i, stream in enumerate(streams):
             if stream.index != i:

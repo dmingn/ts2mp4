@@ -18,7 +18,7 @@ from ts2mp4.initial_converter import (
     InitiallyConvertedVideoFile,
     StreamSourcesForInitialConversion,
 )
-from ts2mp4.media_info import Stream
+from ts2mp4.media_info import AudioStream, OtherStream, VideoStream
 from ts2mp4.video_file import ConversionType, StreamSource, StreamSources, VideoFile
 
 
@@ -30,9 +30,9 @@ def mock_original_video_file(mocker: MockerFixture, tmp_path: Path) -> VideoFile
     path.touch()
     mock_file.path = path
 
-    original_video_stream = Stream(codec_type="video", index=0, codec_name="h264")
-    original_audio_stream_1 = Stream(codec_type="audio", index=1, codec_name="aac")
-    original_audio_stream_2 = Stream(codec_type="audio", index=2, codec_name="aac")
+    original_video_stream = VideoStream(codec_type="video", index=0)
+    original_audio_stream_1 = AudioStream(codec_type="audio", index=1, codec_name="aac")
+    original_audio_stream_2 = AudioStream(codec_type="audio", index=2, codec_name="aac")
 
     all_streams = (
         original_video_stream,
@@ -64,12 +64,17 @@ def mock_initially_converted_video_file_factory(
         original_streams = original_file.media_info.streams
 
         encoded_streams = tuple(
-            Stream(
-                codec_type=original_streams[i].codec_type,
-                index=new_index,
-                codec_name="h265"
+            (
+                VideoStream(
+                    codec_type="video",
+                    index=new_index,
+                )
                 if original_streams[i].codec_type == "video"
-                else "aac",
+                else AudioStream(
+                    codec_type="audio",
+                    index=new_index,
+                    codec_name="aac",
+                )
             )
             for new_index, i in enumerate(encoded_streams_indices)
         )
@@ -175,7 +180,7 @@ def test_build_audio_convert_args(mocker: MockerFixture) -> None:
     """Test that audio convert arguments are built correctly."""
     mocker.patch("ts2mp4.audio_reencoder.is_libfdk_aac_available", return_value=False)
     mock_stream_source = mocker.MagicMock(spec=StreamSource)
-    mock_stream_source.source_stream = Stream(
+    mock_stream_source.source_stream = AudioStream(
         index=1,
         codec_name="aac",
         codec_type="audio",
@@ -206,7 +211,7 @@ def test_build_audio_convert_args_with_libfdk_aac(mocker: MockerFixture) -> None
     """Test that libfdk_aac is used when available for audio conversion."""
     mocker.patch("ts2mp4.audio_reencoder.is_libfdk_aac_available", return_value=True)
     mock_stream_source = mocker.MagicMock(spec=StreamSource)
-    mock_stream_source.source_stream = Stream(
+    mock_stream_source.source_stream = AudioStream(
         index=1,
         codec_name="aac",
         codec_type="audio",
@@ -221,7 +226,7 @@ def test_build_audio_convert_args_without_libfdk_aac(mocker: MockerFixture) -> N
     mocker.patch("ts2mp4.audio_reencoder.is_libfdk_aac_available", return_value=False)
     mock_logger_warning = mocker.patch("ts2mp4.audio_reencoder.logger.warning")
     mock_stream_source = mocker.MagicMock(spec=StreamSource)
-    mock_stream_source.source_stream = Stream(
+    mock_stream_source.source_stream = AudioStream(
         index=1,
         codec_name="aac",
         codec_type="audio",
@@ -238,7 +243,7 @@ def test_build_audio_convert_args_with_none_values(mocker: MockerFixture) -> Non
     """Test that audio convert arguments are built correctly with minimal stream info."""
     mocker.patch("ts2mp4.audio_reencoder.is_libfdk_aac_available", return_value=False)
     mock_stream_source = mocker.MagicMock(spec=StreamSource)
-    mock_stream_source.source_stream = Stream(
+    mock_stream_source.source_stream = AudioStream(
         index=1, codec_name="aac", codec_type="audio"
     )
     args = _build_audio_convert_args(mock_stream_source, 1)
@@ -251,7 +256,7 @@ def test_build_audio_convert_args_raises_for_unsupported_codec(
 ) -> None:
     """Test that an error is raised for unsupported audio codecs."""
     mock_stream_source = mocker.MagicMock(spec=StreamSource)
-    mock_stream_source.source_stream = Stream(
+    mock_stream_source.source_stream = AudioStream(
         index=1,
         codec_name="mp3",  # Unsupported codec
         codec_type="audio",
@@ -438,13 +443,13 @@ def test_stream_sources_for_audio_re_encoding_validation_success(
                 spec=StreamSource,
                 source_video_file=mock_encoded_file,
                 conversion_type=ConversionType.COPIED,
-                source_stream=mocker.MagicMock(spec=Stream, codec_type="video"),
+                source_stream=mocker.MagicMock(spec=VideoStream, codec_type="video"),
             ),
             mocker.MagicMock(
                 spec=StreamSource,
                 source_video_file=mock_original_file,
                 conversion_type=ConversionType.CONVERTED,
-                source_stream=mocker.MagicMock(spec=Stream, codec_type="audio"),
+                source_stream=mocker.MagicMock(spec=AudioStream, codec_type="audio"),
             ),
         ]
     )
@@ -497,19 +502,19 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
             spec=StreamSource,
             source_video_file=mock_encoded_file,
             conversion_type=ConversionType.COPIED,
-            source_stream=mocker.MagicMock(spec=Stream, codec_type="video"),
+            source_stream=mocker.MagicMock(spec=VideoStream, codec_type="video"),
         ),
         mocker.MagicMock(
             spec=StreamSource,
             source_video_file=mock_encoded_file,
             conversion_type=ConversionType.COPIED,
-            source_stream=mocker.MagicMock(spec=Stream, codec_type="audio"),
+            source_stream=mocker.MagicMock(spec=AudioStream, codec_type="audio"),
         ),
         mocker.MagicMock(
             spec=StreamSource,
             source_video_file=mock_original_file,
             conversion_type=ConversionType.CONVERTED,
-            source_stream=mocker.MagicMock(spec=Stream, codec_type="audio"),
+            source_stream=mocker.MagicMock(spec=AudioStream, codec_type="audio"),
         ),
     ]
 
@@ -527,7 +532,7 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
                 spec=StreamSource,
                 source_video_file=mock_original_file,
                 conversion_type=ConversionType.COPIED,
-                source_stream=mocker.MagicMock(spec=Stream, codec_type="audio"),
+                source_stream=mocker.MagicMock(spec=AudioStream, codec_type="audio"),
             )
         )
     elif modifier == "converted_audio_from_encoded":
@@ -538,7 +543,7 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
                 spec=StreamSource,
                 source_video_file=mock_original_file,
                 conversion_type=ConversionType.CONVERTED,
-                source_stream=mocker.MagicMock(spec=Stream, codec_type="subtitle"),
+                source_stream=mocker.MagicMock(spec=OtherStream, codec_type="subtitle"),
             )
         )
     elif modifier == "only_converted":
@@ -549,7 +554,7 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
                 spec=StreamSource,
                 source_video_file=mock_another_original,
                 conversion_type=ConversionType.CONVERTED,
-                source_stream=mocker.MagicMock(spec=Stream, codec_type="audio"),
+                source_stream=mocker.MagicMock(spec=AudioStream, codec_type="audio"),
             )
         )
 

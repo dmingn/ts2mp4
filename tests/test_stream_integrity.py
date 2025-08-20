@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.media_info import MediaInfo, Stream
+from ts2mp4.media_info import AudioStream, MediaInfo, OtherStream, VideoStream
 from ts2mp4.stream_integrity import compare_stream_hashes, verify_copied_streams
 from ts2mp4.video_file import (
     ConversionType,
@@ -26,8 +26,8 @@ def mock_input_video_file(mocker: MockerFixture) -> MagicMock:
     # Set default media_info for input, can be overridden in tests if needed
     mock_input.media_info = MediaInfo(
         streams=(
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="audio", index=1),
+            VideoStream(codec_type="video", index=0),
+            AudioStream(codec_type="audio", index=1),
         )
     )
     return mock_input
@@ -41,8 +41,8 @@ def mock_output_video_file(mocker: MockerFixture) -> MagicMock:
     # Set default media_info for output, can be overridden in tests if needed
     mock_output.media_info = MediaInfo(
         streams=(
-            Stream(codec_type="video", index=0),
-            Stream(codec_type="audio", index=1),
+            VideoStream(codec_type="video", index=0),
+            AudioStream(codec_type="audio", index=1),
         )
     )
     return mock_output
@@ -57,7 +57,7 @@ def test_compare_stream_hashes_matching_hashes(
     """Tests that compare_stream_hashes returns True when MD5 hashes match."""
     mocker.patch("ts2mp4.stream_integrity.get_stream_md5", return_value="same_hash")
 
-    stream = Stream(codec_type="audio", index=1)
+    stream = AudioStream(codec_type="audio", index=1)
 
     assert compare_stream_hashes(
         input_video=mock_input_video_file,
@@ -77,7 +77,7 @@ def test_compare_stream_hashes_mismatching_hashes(
     mocker.patch(
         "ts2mp4.stream_integrity.get_stream_md5", side_effect=["hash1", "hash2"]
     )
-    stream = Stream(codec_type="audio", index=1)
+    stream = AudioStream(codec_type="audio", index=1)
 
     assert not compare_stream_hashes(
         input_video=mock_input_video_file,
@@ -98,7 +98,7 @@ def test_compare_stream_hashes_hash_generation_fails(
         "ts2mp4.stream_integrity.get_stream_md5",
         side_effect=RuntimeError("Mock error"),
     )
-    stream = Stream(codec_type="audio", index=1)
+    stream = AudioStream(codec_type="audio", index=1)
 
     assert not compare_stream_hashes(
         input_video=mock_input_video_file,
@@ -202,7 +202,7 @@ def test_verify_copied_streams_unknown_stream_type(
     """Tests that a RuntimeError is raised with "Unknown" for a missing stream type."""
     mocker.patch("ts2mp4.stream_integrity.compare_stream_hashes", return_value=False)
     streams = list(mock_converted_video_file.media_info.streams)
-    streams[1] = Stream(index=1, codec_type=None)
+    streams[1] = OtherStream(index=1, codec_type="unknown")
     mock_converted_video_file.media_info = MediaInfo(streams=tuple(streams))
 
     type(mock_converted_video_file).stream_with_sources = mocker.PropertyMock(
@@ -215,6 +215,7 @@ def test_verify_copied_streams_unknown_stream_type(
     with pytest.raises(RuntimeError) as excinfo:
         verify_copied_streams(mock_converted_video_file)
 
-    assert "Unknown stream integrity check failed for stream at index 1" in str(
-        excinfo.value
+    assert (
+        "unknown stream integrity check failed for stream at index 1"
+        in str(excinfo.value).lower()
     )

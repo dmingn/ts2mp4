@@ -13,7 +13,7 @@ from ts2mp4.initial_converter import (
     _build_stream_sources,
     perform_initial_conversion,
 )
-from ts2mp4.media_info import MediaInfo, Stream
+from ts2mp4.media_info import AudioStream, MediaInfo, OtherStream, Stream, VideoStream
 from ts2mp4.video_file import ConversionType, StreamSource, StreamSources, VideoFile
 
 
@@ -29,12 +29,12 @@ def mock_video_file_factory(
         dummy_file = tmp_path / file_name
         dummy_file.touch()
 
-        streams = []
+        streams: list[Stream] = []
         for i in range(video_streams):
-            streams.append(Stream(codec_type="video", index=i))
+            streams.append(VideoStream(codec_type="video", index=i))
         for i in range(audio_streams):
             streams.append(
-                Stream(codec_type="audio", index=video_streams + i, channels=2)
+                AudioStream(codec_type="audio", index=video_streams + i, channels=2)
             )
 
         media_info = MediaInfo(streams=tuple(streams))
@@ -154,7 +154,7 @@ def test_stream_sources_for_initial_conversion_failures(
             )
         )
     elif modifier == "unsupported_stream_type":
-        subtitle_stream = Stream(codec_type="subtitle", index=2)
+        subtitle_stream = OtherStream(codec_type="subtitle", index=2)
         original_streams = video_file.media_info.streams
         new_media_info = MediaInfo(streams=original_streams + (subtitle_stream,))
         mocker.patch("ts2mp4.video_file.get_media_info", return_value=new_media_info)
