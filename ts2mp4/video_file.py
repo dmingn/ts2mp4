@@ -1,17 +1,14 @@
 """A module for the VideoFile class."""
 
+from __future__ import annotations
+
 from enum import Enum, auto
-from typing import Iterator
+from pathlib import Path
+from typing import Generic, Iterator, TypeVar
 
-from pydantic import BaseModel, ConfigDict, FilePath, NonNegativeInt, model_validator
+from pydantic import BaseModel, ConfigDict, FilePath, model_validator
 
-from .media_info import (
-    AudioStream,
-    MediaInfo,
-    Stream,
-    VideoStream,
-    get_media_info,
-)
+from .media_info import AudioStream, MediaInfo, Stream, VideoStream, get_media_info
 
 
 class VideoFile(BaseModel):
@@ -69,27 +66,23 @@ class ConversionType(Enum):
     COPIED = auto()
 
 
-class StreamSource(BaseModel):
+StreamT = TypeVar("StreamT", bound=Stream)
+
+
+class StreamSource(BaseModel, Generic[StreamT]):
     """A class representing the source of a stream."""
 
-    source_video_file: VideoFile
-    source_stream_index: NonNegativeInt
+    source_video_path: Path
+    source_stream: StreamT
     conversion_type: ConversionType
 
-    @property
-    def source_stream(self) -> Stream:
-        """Return the source stream."""
-        # The MediaInfo.validate_stream_indices validator ensures that
-        # stream.index matches its position in the streams tuple.
-        # Therefore, we can directly access the stream by its index.
-        try:
-            return self.source_video_file.media_info.streams[self.source_stream_index]
-        except IndexError:
-            raise IndexError(
-                f"Stream with index {self.source_stream_index} not found in source video file."
-            )
-
     model_config = ConfigDict(frozen=True)
+
+    @model_validator(mode="after")
+    def validate_stream_in_file(self) -> StreamSource[StreamT]:
+        if self.source_stream not in get_media_info(self.source_video_path).streams:
+            raise ValueError("Source stream is not part of the source video file.")
+        return self
 
 
 class StreamSources(tuple[StreamSource, ...]):
