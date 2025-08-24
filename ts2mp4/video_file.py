@@ -7,7 +7,6 @@ from pydantic import (
     BaseModel,
     ConfigDict,
     FilePath,
-    NonNegativeInt,
     RootModel,
     model_validator,
 )
@@ -79,24 +78,11 @@ class ConversionType(Enum):
 class StreamSource(BaseModel):
     """A class representing the source of a stream."""
 
-    source_video_file: VideoFile
-    source_stream_index: NonNegativeInt
+    source_video_path: FilePath
+    source_stream: Stream
     conversion_type: ConversionType
 
-    @property
-    def source_stream(self) -> Stream:
-        """Return the source stream."""
-        # The MediaInfo.validate_stream_indices validator ensures that
-        # stream.index matches its position in the streams tuple.
-        # Therefore, we can directly access the stream by its index.
-        try:
-            return self.source_video_file.media_info.streams[self.source_stream_index]
-        except IndexError:
-            raise IndexError(
-                f"Stream with index {self.source_stream_index} not found in source video file."
-            )
-
-    model_config = ConfigDict(frozen=True)
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
 
 class StreamSources(RootModel[tuple[StreamSource, ...]]):
@@ -137,7 +123,9 @@ class StreamSources(RootModel[tuple[StreamSource, ...]]):
     @property
     def source_video_files(self) -> frozenset[VideoFile]:
         """Return a set of source video files for the stream sources."""
-        return frozenset(stream.source_video_file for stream in self.root)
+        return frozenset(
+            VideoFile(path=stream.source_video_path) for stream in self.root
+        )
 
 
 class ConvertedVideoFile(VideoFile):

@@ -87,13 +87,13 @@ async def test_get_audio_quality_metrics_unit(mocker: MockerFixture) -> None:
     mock_source1 = MagicMock(
         conversion_type=ConversionType.CONVERTED,
         source_stream=MagicMock(index=0),
-        source_video_file=MagicMock(path="original.ts"),
+        source_video_path="original.ts",
     )
     mock_source2 = MagicMock(conversion_type=ConversionType.COPIED)
     mock_source3 = MagicMock(
         conversion_type=ConversionType.CONVERTED,
         source_stream=MagicMock(index=1),
-        source_video_file=MagicMock(path="original.ts"),
+        source_video_path="original.ts",
     )
 
     mock_converted_file.stream_with_sources = [
@@ -137,12 +137,12 @@ async def test_get_audio_quality_metrics_partial_failure(
     mock_source1 = MagicMock(
         conversion_type=ConversionType.CONVERTED,
         source_stream=MagicMock(index=0),
-        source_video_file=MagicMock(path="original.ts"),
+        source_video_path="original.ts",
     )
     mock_source2 = MagicMock(
         conversion_type=ConversionType.CONVERTED,
         source_stream=MagicMock(index=1),
-        source_video_file=MagicMock(path="original.ts"),
+        source_video_path="original.ts",
     )
 
     mock_converted_file.stream_with_sources = [
@@ -179,7 +179,7 @@ async def test_get_audio_quality_metrics_no_metrics_parsed(
     mock_source1 = MagicMock(
         conversion_type=ConversionType.CONVERTED,
         source_stream=MagicMock(index=0),
-        source_video_file=MagicMock(path="original.ts"),
+        source_video_path="original.ts",
     )
     mock_converted_file.stream_with_sources = [(mock_stream1, mock_source1)]
     mock_converted_file.path = "converted.mp4"
@@ -209,8 +209,8 @@ async def test_get_audio_quality_metrics_integration(ts_file: Path) -> None:
     for stream in video_file.media_info.streams:
         stream_sources.append(
             StreamSource(
-                source_video_file=video_file,
-                source_stream_index=stream.index,
+                source_video_path=video_file.path,
+                source_stream=stream,
                 conversion_type=(
                     ConversionType.CONVERTED
                     if stream.codec_type == "audio"

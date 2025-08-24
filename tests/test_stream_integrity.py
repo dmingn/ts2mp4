@@ -19,10 +19,12 @@ from ts2mp4.video_file import (
 
 
 @pytest.fixture
-def mock_input_video_file(mocker: MockerFixture) -> MagicMock:
+def mock_input_video_file(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
     """Return a mocked input VideoFile instance."""
     mock_input = cast(MagicMock, mocker.MagicMock(spec=VideoFile))
-    mock_input.path = Path("dummy_input.ts")
+    dummy_file = tmp_path / "dummy_input.ts"
+    dummy_file.touch()
+    mock_input.path = dummy_file
     # Set default media_info for input, can be overridden in tests if needed
     mock_input.media_info = MediaInfo(
         streams=(
@@ -34,10 +36,12 @@ def mock_input_video_file(mocker: MockerFixture) -> MagicMock:
 
 
 @pytest.fixture
-def mock_output_video_file(mocker: MockerFixture) -> MagicMock:
+def mock_output_video_file(mocker: MockerFixture, tmp_path: Path) -> MagicMock:
     """Return a mocked output VideoFile instance."""
     mock_output = cast(MagicMock, mocker.MagicMock(spec=VideoFile))
-    mock_output.path = Path("dummy_output.mp4.part")
+    dummy_file = tmp_path / "dummy_output.mp4.part"
+    dummy_file.touch()
+    mock_output.path = dummy_file
     # Set default media_info for output, can be overridden in tests if needed
     mock_output.media_info = MediaInfo(
         streams=(
@@ -121,13 +125,13 @@ def mock_converted_video_file(
     mock_converted_file.stream_sources = StreamSources(
         root=(
             StreamSource(
-                source_video_file=mock_input_video_file,
-                source_stream_index=0,
+                source_video_path=mock_input_video_file.path,
+                source_stream=mock_input_video_file.media_info.streams[0],
                 conversion_type=ConversionType.CONVERTED,
             ),
             StreamSource(
-                source_video_file=mock_input_video_file,
-                source_stream_index=1,
+                source_video_path=mock_input_video_file.path,
+                source_stream=mock_input_video_file.media_info.streams[1],
                 conversion_type=ConversionType.COPIED,
             ),
         )
@@ -177,8 +181,8 @@ def test_verify_copied_streams_no_copied_streams(
     )
     stream_sources = list(mock_converted_video_file.stream_sources)
     stream_sources[1] = StreamSource(
-        source_video_file=stream_sources[1].source_video_file,
-        source_stream_index=1,
+        source_video_path=stream_sources[1].source_video_path,
+        source_stream=stream_sources[1].source_stream,
         conversion_type=ConversionType.CONVERTED,
     )
     mock_converted_video_file.stream_sources = StreamSources(root=tuple(stream_sources))

@@ -63,7 +63,7 @@ class StreamSourcesForInitialConversion(StreamSources):
     @property
     def source_video_file(self) -> VideoFile:
         """Return the source video file for the stream sources."""
-        return self.root[0].source_video_file
+        return next(iter(self.source_video_files))
 
 
 class InitiallyConvertedVideoFile(ConvertedVideoFile):
@@ -77,8 +77,8 @@ def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForInitialConve
     stream_sources = StreamSources(
         root=tuple(
             StreamSource(
-                source_video_file=input_file,
-                source_stream_index=stream.index,
+                source_video_path=input_file.path,
+                source_stream=stream,
                 conversion_type=(
                     ConversionType.CONVERTED
                     if stream.codec_type == "video"
@@ -113,7 +113,7 @@ def _build_ffmpeg_args_from_stream_sources(
         + [
             arg
             for source in stream_sources
-            for arg in ("-map", f"0:{source.source_stream_index}")
+            for arg in ("-map", f"0:{source.source_stream.index}")
         ]
         + [
             "-f",
