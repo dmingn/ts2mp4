@@ -83,7 +83,7 @@ def mock_initially_converted_video_file_factory(
         )
 
         stream_sources = StreamSources(
-            tuple(
+            root=tuple(
                 StreamSource(
                     source_video_file=original_file,
                     source_stream_index=i,
@@ -294,19 +294,17 @@ def test_re_encode_mismatched_audio_streams_integration(
     encoded_video_file = InitiallyConvertedVideoFile(
         path=encoded_file_path,
         stream_sources=StreamSourcesForInitialConversion(
-            StreamSources(
-                (
-                    StreamSource(
-                        source_video_file=original_video_file,
-                        source_stream_index=original_streams[0].index,
-                        conversion_type=ConversionType.CONVERTED,
-                    ),
-                    StreamSource(
-                        source_video_file=original_video_file,
-                        source_stream_index=original_streams[1].index,
-                        conversion_type=ConversionType.COPIED,
-                    ),
-                )
+            root=(
+                StreamSource(
+                    source_video_file=original_video_file,
+                    source_stream_index=original_streams[0].index,
+                    conversion_type=ConversionType.CONVERTED,
+                ),
+                StreamSource(
+                    source_video_file=original_video_file,
+                    source_stream_index=original_streams[1].index,
+                    conversion_type=ConversionType.COPIED,
+                ),
             )
         ),
     )
@@ -329,19 +327,17 @@ def test_re_encode_mismatched_audio_streams_no_re_encoding_needed(
     original_streams = original_video_file.media_info.streams
 
     encoded_stream_sources = StreamSourcesForInitialConversion(
-        StreamSources(
-            tuple(
-                StreamSource(
-                    source_video_file=original_video_file,
-                    source_stream_index=s.index,
-                    conversion_type=(
-                        ConversionType.CONVERTED
-                        if s.codec_type == "video"
-                        else ConversionType.COPIED
-                    ),
-                )
-                for s in original_streams
+        root=tuple(
+            StreamSource(
+                source_video_file=original_video_file,
+                source_stream_index=s.index,
+                conversion_type=(
+                    ConversionType.CONVERTED
+                    if s.codec_type == "video"
+                    else ConversionType.COPIED
+                ),
             )
+            for s in original_streams
         )
     )
     encoded_video_file = InitiallyConvertedVideoFile(
@@ -437,23 +433,21 @@ def test_stream_sources_for_audio_re_encoding_validation_success(
     mock_original_file.path = Path("original.ts")
     mock_encoded_file.path = Path("encoded.mp4")
 
-    valid_sources = StreamSources(
-        [
-            mocker.MagicMock(
-                spec=StreamSource,
-                source_video_file=mock_encoded_file,
-                conversion_type=ConversionType.COPIED,
-                source_stream=mocker.MagicMock(spec=VideoStream, codec_type="video"),
-            ),
-            mocker.MagicMock(
-                spec=StreamSource,
-                source_video_file=mock_original_file,
-                conversion_type=ConversionType.CONVERTED,
-                source_stream=mocker.MagicMock(spec=AudioStream, codec_type="audio"),
-            ),
-        ]
-    )
-    StreamSourcesForAudioReEncoding(valid_sources)
+    valid_sources = [
+        mocker.MagicMock(
+            spec=StreamSource,
+            source_video_file=mock_encoded_file,
+            conversion_type=ConversionType.COPIED,
+            source_stream=mocker.MagicMock(spec=VideoStream, codec_type="video"),
+        ),
+        mocker.MagicMock(
+            spec=StreamSource,
+            source_video_file=mock_original_file,
+            conversion_type=ConversionType.CONVERTED,
+            source_stream=mocker.MagicMock(spec=AudioStream, codec_type="audio"),
+        ),
+    ]
+    StreamSourcesForAudioReEncoding(root=tuple(valid_sources))
 
 
 @pytest.mark.unit
@@ -559,4 +553,4 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
         )
 
     with pytest.raises(ValueError, match=error_message):
-        StreamSourcesForAudioReEncoding(StreamSources(sources))
+        StreamSourcesForAudioReEncoding(root=tuple(sources))

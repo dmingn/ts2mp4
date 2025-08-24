@@ -90,7 +90,7 @@ def stream_sources(
     )
 
     return StreamSources(
-        (
+        root=(
             StreamSource(
                 source_video_file=video_file_1,
                 source_stream_index=0,
@@ -217,7 +217,7 @@ def test_converted_video_file_instantiation(
         return_value=MediaInfo(streams=(VideoStream(codec_type="video", index=0),)),
     )
 
-    stream_sources = StreamSources((stream_source,))
+    stream_sources = StreamSources(root=(stream_source,))
     converted_file = ConvertedVideoFile(
         path=dummy_video_file.path,
         stream_sources=stream_sources,
@@ -259,7 +259,7 @@ def test_stream_sources_source_video_files_property(
 @pytest.mark.unit
 def test_stream_sources_properties_with_empty_sources() -> None:
     """Test that StreamSources properties work correctly with no sources."""
-    empty_stream_sources = StreamSources(())
+    empty_stream_sources = StreamSources(root=())
     assert len(empty_stream_sources.video_stream_sources) == 0
     assert len(empty_stream_sources.audio_stream_sources) == 0
     assert len(empty_stream_sources.source_video_files) == 0
@@ -281,7 +281,7 @@ def test_converted_video_file_mismatched_stream_counts_raises_error(
         ),
     )
 
-    stream_sources = StreamSources((stream_source,))  # Only one stream source
+    stream_sources = StreamSources(root=(stream_source,))  # Only one stream source
     with pytest.raises(ValueError, match="Mismatch in stream counts"):
         ConvertedVideoFile(
             path=dummy_video_file.path,
@@ -300,7 +300,7 @@ def test_converted_video_file_stream_with_sources_property(
         return_value=MediaInfo(streams=(mock_stream,)),
     )
 
-    stream_sources = StreamSources((stream_source,))
+    stream_sources = StreamSources(root=(stream_source,))
     converted_file = ConvertedVideoFile(
         path=dummy_video_file.path,
         stream_sources=stream_sources,

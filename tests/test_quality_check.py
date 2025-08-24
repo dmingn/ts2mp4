@@ -220,7 +220,7 @@ async def test_get_audio_quality_metrics_integration(ts_file: Path) -> None:
         )
 
     converted_file = ConvertedVideoFile(
-        path=ts_file, stream_sources=StreamSources(stream_sources)
+        path=ts_file, stream_sources=StreamSources(root=tuple(stream_sources))
     )
 
     metrics_dict = await get_audio_quality_metrics(converted_file)

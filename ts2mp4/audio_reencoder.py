@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from logzero import logger
+from pydantic import model_validator
 from typing_extensions import Self
 
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
@@ -23,35 +24,45 @@ from .video_file import (
 class StreamSourcesForAudioReEncoding(StreamSources):
     """Represents the stream sources for the audio re-encoding."""
 
-    def __new__(cls, stream_sources: StreamSources) -> Self:
-        """Initialize and validate the StreamSourcesForAudioReEncoding."""
-        video_sources = stream_sources.video_stream_sources
-        audio_sources = stream_sources.audio_stream_sources
-
-        # 1. Check for unsupported stream types
-        if len(stream_sources) != len(video_sources) + len(audio_sources):
+    @model_validator(mode="after")
+    def validate_stream_types(self) -> Self:
+        """Validate that only video and audio streams are present."""
+        if len(self.root) != len(self.video_stream_sources) + len(
+            self.audio_stream_sources
+        ):
             raise ValueError("Only video and audio streams are supported.")
+        return self
 
-        # 2. Check for presence of video and audio streams
-        if not video_sources:
+    @model_validator(mode="after")
+    def validate_stream_presence(self) -> Self:
+        """Validate the presence of at least one video and one audio stream."""
+        if not self.video_stream_sources:
             raise ValueError("At least one video stream is required.")
-        if not audio_sources:
+        if not self.audio_stream_sources:
             raise ValueError("At least one audio stream is required.")
+        return self
 
-        # 3. Check video stream properties
-        if not all(s.conversion_type == ConversionType.COPIED for s in video_sources):
+    @model_validator(mode="after")
+    def validate_video_stream_properties(self) -> Self:
+        """Validate that all video streams are copied."""
+        if not all(
+            s.conversion_type == ConversionType.COPIED
+            for s in self.video_stream_sources
+        ):
             raise ValueError("All video streams must be copied.")
+        return self
 
-        # 4. Grouping and source validation
+    @model_validator(mode="after")
+    def validate_source_grouping(self) -> Self:
+        """Validate the grouping and sources of the streams."""
         copied_sources = [
-            s for s in stream_sources if s.conversion_type == ConversionType.COPIED
+            s for s in self.root if s.conversion_type == ConversionType.COPIED
         ]
         converted_sources = [
-            s for s in stream_sources if s.conversion_type == ConversionType.CONVERTED
+            s for s in self.root if s.conversion_type == ConversionType.CONVERTED
         ]
 
         if not copied_sources:
-            # This should be unreachable if there's at least one video stream and it's copied.
             raise ValueError("At least one stream must be copied.")
 
         encoded_files = {s.source_video_file for s in copied_sources}
@@ -77,7 +88,7 @@ class StreamSourcesForAudioReEncoding(StreamSources):
                     "Original and encoded files cannot be the same when re-encoding."
                 )
 
-        return super().__new__(cls, stream_sources)
+        return self
 
 
 class AudioReEncodedVideoFile(ConvertedVideoFile):
@@ -141,7 +152,7 @@ def _build_stream_sources_for_audio_re_encoding(
                     )
                 )
 
-    return StreamSourcesForAudioReEncoding(StreamSources(stream_sources_list))
+    return StreamSourcesForAudioReEncoding(root=tuple(stream_sources_list))
 
 
 def _build_audio_convert_args(

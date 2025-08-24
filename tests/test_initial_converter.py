@@ -85,7 +85,7 @@ def valid_stream_sources(
         source_stream_index=1,
         conversion_type=ConversionType.COPIED,
     )
-    return StreamSources((video_stream, audio_stream))
+    return StreamSources(root=(video_stream, audio_stream))
 
 
 @pytest.mark.unit
@@ -94,7 +94,7 @@ def test_stream_sources_for_initial_conversion_success(
 ) -> None:
     """Test that StreamSourcesForInitialConversion can be instantiated with valid data."""
     # This should not raise an error
-    instance = StreamSourcesForInitialConversion(valid_stream_sources)
+    instance = StreamSourcesForInitialConversion(root=valid_stream_sources.root)
     assert instance is not None
 
 
@@ -169,7 +169,7 @@ def test_stream_sources_for_initial_conversion_failures(
         sources.append(sources[0])
 
     with pytest.raises(ValueError, match=error_message):
-        StreamSourcesForInitialConversion(StreamSources(sources))
+        StreamSourcesForInitialConversion(root=tuple(sources))
 
 
 @pytest.fixture
@@ -177,26 +177,24 @@ def stream_sources_for_initial_conversion(
     mock_video_file: VideoFile,
 ) -> StreamSourcesForInitialConversion:
     """Create a StreamSourcesForInitialConversion instance for testing."""
-    sources = StreamSources(
-        (
-            StreamSource(
-                source_video_file=mock_video_file,
-                source_stream_index=0,
-                conversion_type=ConversionType.CONVERTED,
-            ),
-            StreamSource(
-                source_video_file=mock_video_file,
-                source_stream_index=1,
-                conversion_type=ConversionType.COPIED,
-            ),
-            StreamSource(
-                source_video_file=mock_video_file,
-                source_stream_index=2,
-                conversion_type=ConversionType.COPIED,
-            ),
-        )
+    sources = (
+        StreamSource(
+            source_video_file=mock_video_file,
+            source_stream_index=0,
+            conversion_type=ConversionType.CONVERTED,
+        ),
+        StreamSource(
+            source_video_file=mock_video_file,
+            source_stream_index=1,
+            conversion_type=ConversionType.COPIED,
+        ),
+        StreamSource(
+            source_video_file=mock_video_file,
+            source_stream_index=2,
+            conversion_type=ConversionType.COPIED,
+        ),
     )
-    return StreamSourcesForInitialConversion(sources)
+    return StreamSourcesForInitialConversion(root=sources)
 
 
 @pytest.mark.unit

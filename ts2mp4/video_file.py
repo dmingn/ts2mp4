@@ -3,7 +3,14 @@
 from enum import Enum, auto
 from typing import Iterator
 
-from pydantic import BaseModel, ConfigDict, FilePath, NonNegativeInt, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    FilePath,
+    NonNegativeInt,
+    RootModel,
+    model_validator,
+)
 
 from .media_info import (
     AudioStream,
@@ -92,15 +99,29 @@ class StreamSource(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class StreamSources(tuple[StreamSource, ...]):
+class StreamSources(RootModel[tuple[StreamSource, ...]]):
     """A tuple of StreamSource objects."""
+
+    model_config = ConfigDict(frozen=True)
+
+    def __iter__(self) -> Iterator[StreamSource]:  # type: ignore[override]
+        """Return an iterator over the StreamSource objects."""
+        return iter(self.root)
+
+    def __getitem__(self, item: int) -> StreamSource:
+        """Return the StreamSource object at the given index."""
+        return self.root[item]
+
+    def __len__(self) -> int:
+        """Return the number of StreamSource objects."""
+        return len(self.root)
 
     @property
     def video_stream_sources(self) -> frozenset[StreamSource]:
         """Return a set of video stream sources."""
         return frozenset(
             stream_source
-            for stream_source in self
+            for stream_source in self.root
             if stream_source.source_stream.codec_type == "video"
         )
 
@@ -109,14 +130,14 @@ class StreamSources(tuple[StreamSource, ...]):
         """Return a set of audio stream sources."""
         return frozenset(
             stream_source
-            for stream_source in self
+            for stream_source in self.root
             if stream_source.source_stream.codec_type == "audio"
         )
 
     @property
     def source_video_files(self) -> frozenset[VideoFile]:
         """Return a set of source video files for the stream sources."""
-        return frozenset(stream.source_video_file for stream in self)
+        return frozenset(stream.source_video_file for stream in self.root)
 
 
 class ConvertedVideoFile(VideoFile):
