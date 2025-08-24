@@ -63,7 +63,7 @@ def verify_copied_streams(converted_file: ConvertedVideoFile) -> None:
             continue
 
         if not compare_stream_hashes(
-            input_video=stream_source.source_video_file,
+            input_video=VideoFile(path=stream_source.source_video_path),
             output_video=converted_file,
             input_stream=stream_source.source_stream,
             output_stream=output_stream,

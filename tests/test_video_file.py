@@ -49,8 +49,8 @@ def dummy_video_file(tmp_path: Path) -> VideoFile:
 def stream_source(dummy_video_file: VideoFile) -> StreamSource:
     """Create a dummy StreamSource instance."""
     return StreamSource(
-        source_video_file=dummy_video_file,
-        source_stream_index=0,
+        source_video_path=dummy_video_file.path,
+        source_stream=VideoStream(codec_type="video", index=0),
         conversion_type=ConversionType.COPIED,
     )
 
@@ -92,18 +92,18 @@ def stream_sources(
     return StreamSources(
         root=(
             StreamSource(
-                source_video_file=video_file_1,
-                source_stream_index=0,
+                source_video_path=video_file_1.path,
+                source_stream=media_info_1.streams[0],
                 conversion_type=ConversionType.CONVERTED,
             ),
             StreamSource(
-                source_video_file=video_file_1,
-                source_stream_index=1,
+                source_video_path=video_file_1.path,
+                source_stream=media_info_1.streams[1],
                 conversion_type=ConversionType.COPIED,
             ),
             StreamSource(
-                source_video_file=video_file_2,
-                source_stream_index=1,
+                source_video_path=video_file_2.path,
+                source_stream=media_info_2.streams[1],
                 conversion_type=ConversionType.COPIED,
             ),
         )
@@ -183,27 +183,15 @@ def test_videofile_valid_streams_property(
 @pytest.mark.unit
 def test_stream_source_instantiation(dummy_video_file: VideoFile) -> None:
     """Test that StreamSource can be instantiated with valid data."""
+    stream = VideoStream(codec_type="video", index=0)
     stream_source = StreamSource(
-        source_video_file=dummy_video_file,
-        source_stream_index=0,
+        source_video_path=dummy_video_file.path,
+        source_stream=stream,
         conversion_type=ConversionType.COPIED,
     )
-    assert stream_source.source_video_file == dummy_video_file
-    assert stream_source.source_stream_index == 0
+    assert stream_source.source_video_path == dummy_video_file.path
+    assert stream_source.source_stream == stream
     assert stream_source.conversion_type == ConversionType.COPIED
-
-
-@pytest.mark.unit
-def test_stream_source_instantiation_with_invalid_index(
-    dummy_video_file: VideoFile,
-) -> None:
-    """Test that StreamSource raises ValidationError for a negative stream index."""
-    with pytest.raises(ValidationError):
-        StreamSource(
-            source_video_file=dummy_video_file,
-            source_stream_index=-1,
-            conversion_type=ConversionType.COPIED,
-        )
 
 
 @pytest.mark.unit
@@ -214,7 +202,7 @@ def test_converted_video_file_instantiation(
     # Mock get_media_info to return a single stream to match the single stream source
     mocker.patch(
         "ts2mp4.video_file.get_media_info",
-        return_value=MediaInfo(streams=(VideoStream(codec_type="video", index=0),)),
+        return_value=MediaInfo(streams=(stream_source.source_stream,)),
     )
 
     stream_sources = StreamSources(root=(stream_source,))
@@ -294,7 +282,7 @@ def test_converted_video_file_stream_with_sources_property(
     dummy_video_file: VideoFile, stream_source: StreamSource, mocker: MockerFixture
 ) -> None:
     """Test the stream_with_sources property of ConvertedVideoFile."""
-    mock_stream = VideoStream(codec_type="video", index=0)
+    mock_stream = stream_source.source_stream
     mocker.patch(
         "ts2mp4.video_file.get_media_info",
         return_value=MediaInfo(streams=(mock_stream,)),

@@ -65,7 +65,7 @@ class StreamSourcesForAudioReEncoding(StreamSources):
         if not copied_sources:
             raise ValueError("At least one stream must be copied.")
 
-        encoded_files = {s.source_video_file for s in copied_sources}
+        encoded_files = {VideoFile(path=s.source_video_path) for s in copied_sources}
         if len(encoded_files) != 1:
             raise ValueError("All copied streams must come from the same encoded file.")
 
@@ -75,7 +75,9 @@ class StreamSourcesForAudioReEncoding(StreamSources):
             ):
                 raise ValueError("Only audio streams can be converted.")
 
-            original_files = {s.source_video_file for s in converted_sources}
+            original_files = {
+                VideoFile(path=s.source_video_path) for s in converted_sources
+            }
             if len(original_files) != 1:
                 raise ValueError(
                     "All converted streams must come from the same original file."
@@ -122,8 +124,8 @@ def _build_stream_sources_for_audio_re_encoding(
             # Video streams should be always copied from the encoded file
             stream_sources_list.append(
                 StreamSource(
-                    source_video_file=encoded_file,
-                    source_stream_index=matching_stream.index,
+                    source_video_path=encoded_file.path,
+                    source_stream=matching_stream,
                     conversion_type=ConversionType.COPIED,
                 )
             )
@@ -137,8 +139,8 @@ def _build_stream_sources_for_audio_re_encoding(
                 # If the hashes match, the stream can be copied from the encoded file
                 stream_sources_list.append(
                     StreamSource(
-                        source_video_file=encoded_file,
-                        source_stream_index=matching_stream.index,
+                        source_video_path=encoded_file.path,
+                        source_stream=matching_stream,
                         conversion_type=ConversionType.COPIED,
                     )
                 )
@@ -146,8 +148,8 @@ def _build_stream_sources_for_audio_re_encoding(
                 # If the hashes do not match, the stream must be re-encoded from the original file
                 stream_sources_list.append(
                     StreamSource(
-                        source_video_file=original_file,
-                        source_stream_index=original_stream.index,
+                        source_video_path=original_file.path,
+                        source_stream=original_stream,
                         conversion_type=ConversionType.CONVERTED,
                     )
                 )
@@ -224,7 +226,9 @@ def _build_ffmpeg_args_from_stream_sources(
 ) -> list[str]:
     """Build FFmpeg arguments from a StreamSources object."""
     # Create a unique, ordered list of input files and a mapping to their index
-    input_files = list(dict.fromkeys(s.source_video_file for s in stream_sources))
+    input_files = list(
+        dict.fromkeys(VideoFile(path=s.source_video_path) for s in stream_sources)
+    )
     input_file_map = {file: i for i, file in enumerate(input_files)}
 
     ffmpeg_args = [
@@ -241,7 +245,7 @@ def _build_ffmpeg_args_from_stream_sources(
 
     # Add -map and codec arguments for each stream
     for i, source in enumerate(stream_sources):
-        input_index = input_file_map[source.source_video_file]
+        input_index = input_file_map[VideoFile(path=source.source_video_path)]
 
         # Add map argument using the original stream index from the source file
         ffmpeg_args.extend(["-map", f"{input_index}:{source.source_stream.index}"])

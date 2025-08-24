@@ -82,7 +82,7 @@ async def get_audio_quality_metrics(
         ):
             continue
 
-        original_file = stream_source.source_video_file.path
+        original_file = stream_source.source_video_path
         re_encoded_file = converted_file.path
         original_stream_index = stream_source.source_stream.index
         re_encoded_stream_index = stream.index
