@@ -1,4 +1,3 @@
-# mypy: disable-error-code="var-annotated"
 """Unit tests for the business logic in the ts2mp4 module."""
 
 from pathlib import Path
@@ -179,7 +178,7 @@ def stream_sources_for_initial_conversion(
 ) -> StreamSourcesForInitialConversion:
     """Create a StreamSourcesForInitialConversion instance for testing."""
     mock_video_file = mock_video_file_factory(video_streams=1, audio_streams=2)
-    sources = (
+    sources: tuple[StreamSource[Stream], ...] = (
         StreamSource(
             source_video_path=mock_video_file.path,
             source_stream=mock_video_file.media_info.streams[0],
