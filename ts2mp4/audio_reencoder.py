@@ -25,26 +25,36 @@ class StreamSourcesForAudioReEncoding(StreamSources):
     """Represents the stream sources for the audio re-encoding."""
 
     @model_validator(mode="after")
-    def validate_stream_sources(self) -> Self:
-        """Validate the stream sources."""
-        video_sources = self.video_stream_sources
-        audio_sources = self.audio_stream_sources
-
-        # 1. Check for unsupported stream types
-        if len(self.root) != len(video_sources) + len(audio_sources):
+    def validate_stream_types(self) -> Self:
+        """Validate that only video and audio streams are present."""
+        if len(self.root) != len(self.video_stream_sources) + len(
+            self.audio_stream_sources
+        ):
             raise ValueError("Only video and audio streams are supported.")
+        return self
 
-        # 2. Check for presence of video and audio streams
-        if not video_sources:
+    @model_validator(mode="after")
+    def validate_stream_presence(self) -> Self:
+        """Validate the presence of at least one video and one audio stream."""
+        if not self.video_stream_sources:
             raise ValueError("At least one video stream is required.")
-        if not audio_sources:
+        if not self.audio_stream_sources:
             raise ValueError("At least one audio stream is required.")
+        return self
 
-        # 3. Check video stream properties
-        if not all(s.conversion_type == ConversionType.COPIED for s in video_sources):
+    @model_validator(mode="after")
+    def validate_video_stream_properties(self) -> Self:
+        """Validate that all video streams are copied."""
+        if not all(
+            s.conversion_type == ConversionType.COPIED
+            for s in self.video_stream_sources
+        ):
             raise ValueError("All video streams must be copied.")
+        return self
 
-        # 4. Grouping and source validation
+    @model_validator(mode="after")
+    def validate_source_grouping(self) -> Self:
+        """Validate the grouping and sources of the streams."""
         copied_sources = [
             s for s in self.root if s.conversion_type == ConversionType.COPIED
         ]
@@ -53,7 +63,6 @@ class StreamSourcesForAudioReEncoding(StreamSources):
         ]
 
         if not copied_sources:
-            # This should be unreachable if there's at least one video stream and it's copied.
             raise ValueError("At least one stream must be copied.")
 
         encoded_files = {s.source_video_file for s in copied_sources}
