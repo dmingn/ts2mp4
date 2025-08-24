@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Optional
 
 from logzero import logger
+from pydantic import model_validator
 from typing_extensions import Self
 
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
@@ -23,13 +24,14 @@ from .video_file import (
 class StreamSourcesForAudioReEncoding(StreamSources):
     """Represents the stream sources for the audio re-encoding."""
 
-    def __new__(cls, stream_sources: StreamSources) -> Self:
-        """Initialize and validate the StreamSourcesForAudioReEncoding."""
-        video_sources = stream_sources.video_stream_sources
-        audio_sources = stream_sources.audio_stream_sources
+    @model_validator(mode="after")
+    def validate_stream_sources(self) -> Self:
+        """Validate the stream sources."""
+        video_sources = self.video_stream_sources
+        audio_sources = self.audio_stream_sources
 
         # 1. Check for unsupported stream types
-        if len(stream_sources) != len(video_sources) + len(audio_sources):
+        if len(self.root) != len(video_sources) + len(audio_sources):
             raise ValueError("Only video and audio streams are supported.")
 
         # 2. Check for presence of video and audio streams
@@ -44,10 +46,10 @@ class StreamSourcesForAudioReEncoding(StreamSources):
 
         # 4. Grouping and source validation
         copied_sources = [
-            s for s in stream_sources if s.conversion_type == ConversionType.COPIED
+            s for s in self.root if s.conversion_type == ConversionType.COPIED
         ]
         converted_sources = [
-            s for s in stream_sources if s.conversion_type == ConversionType.CONVERTED
+            s for s in self.root if s.conversion_type == ConversionType.CONVERTED
         ]
 
         if not copied_sources:
@@ -77,7 +79,7 @@ class StreamSourcesForAudioReEncoding(StreamSources):
                     "Original and encoded files cannot be the same when re-encoding."
                 )
 
-        return super().__new__(cls, stream_sources)
+        return self
 
 
 class AudioReEncodedVideoFile(ConvertedVideoFile):
@@ -141,7 +143,7 @@ def _build_stream_sources_for_audio_re_encoding(
                     )
                 )
 
-    return StreamSourcesForAudioReEncoding(StreamSources(stream_sources_list))
+    return StreamSourcesForAudioReEncoding(root=tuple(stream_sources_list))
 
 
 def _build_audio_convert_args(

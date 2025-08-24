@@ -119,7 +119,7 @@ def mock_converted_video_file(
     mock_converted_file.path = mock_output_video_file.path
     mock_converted_file.media_info = mock_output_video_file.media_info
     mock_converted_file.stream_sources = StreamSources(
-        [
+        root=(
             StreamSource(
                 source_video_file=mock_input_video_file,
                 source_stream_index=0,
@@ -130,7 +130,7 @@ def mock_converted_video_file(
                 source_stream_index=1,
                 conversion_type=ConversionType.COPIED,
             ),
-        ]
+        )
     )
 
     # MagicMock doesn't automatically handle properties that are generators
@@ -181,7 +181,7 @@ def test_verify_copied_streams_no_copied_streams(
         source_stream_index=1,
         conversion_type=ConversionType.CONVERTED,
     )
-    mock_converted_video_file.stream_sources = StreamSources(stream_sources)
+    mock_converted_video_file.stream_sources = StreamSources(root=tuple(stream_sources))
 
     type(mock_converted_video_file).stream_with_sources = mocker.PropertyMock(
         return_value=zip(
