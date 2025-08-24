@@ -1,3 +1,4 @@
+# mypy: disable-error-code="var-annotated"
 """Unit tests for the business logic in the ts2mp4 module."""
 
 from pathlib import Path
@@ -75,12 +76,12 @@ def valid_stream_sources(
 ) -> StreamSources:
     """Fixture to create a valid StreamSources object for validation tests."""
     video_file = mock_video_file_factory()
-    video_stream = StreamSource(
+    video_stream: StreamSource[VideoStream] = StreamSource(
         source_video_path=video_file.path,
         source_stream=video_file.media_info.streams[0],
         conversion_type=ConversionType.CONVERTED,
     )
-    audio_stream = StreamSource(
+    audio_stream: StreamSource[AudioStream] = StreamSource(
         source_video_path=video_file.path,
         source_stream=video_file.media_info.streams[1],
         conversion_type=ConversionType.COPIED,
@@ -126,20 +127,20 @@ def test_stream_sources_for_initial_conversion_failures(
 ) -> None:
     """Test the validation rules in StreamSourcesForInitialConversion.__new__."""
     video_file = VideoFile(path=valid_stream_sources[0].source_video_path)
-    sources = list(valid_stream_sources)
+    sources: list[StreamSource[Stream]] = list(valid_stream_sources)
 
     if modifier == "no_video":
         sources = [s for s in sources if s.source_stream.codec_type != "video"]
     elif modifier == "no_audio":
         sources = [s for s in sources if s.source_stream.codec_type != "audio"]
     elif modifier == "video_not_converted":
-        sources[0] = StreamSource(
+        sources[0] = StreamSource[VideoStream](
             source_video_path=video_file.path,
             source_stream=video_file.media_info.streams[0],
             conversion_type=ConversionType.COPIED,
         )
     elif modifier == "audio_not_copied":
-        sources[1] = StreamSource(
+        sources[1] = StreamSource[AudioStream](
             source_video_path=video_file.path,
             source_stream=video_file.media_info.streams[1],
             conversion_type=ConversionType.CONVERTED,
@@ -147,7 +148,7 @@ def test_stream_sources_for_initial_conversion_failures(
     elif modifier == "multiple_sources":
         other_video_file = mock_video_file_factory(file_name="other.ts")
         sources.append(
-            StreamSource(
+            StreamSource[VideoStream](
                 source_video_path=other_video_file.path,
                 source_stream=other_video_file.media_info.streams[0],
                 conversion_type=ConversionType.CONVERTED,
@@ -159,7 +160,7 @@ def test_stream_sources_for_initial_conversion_failures(
         new_media_info = MediaInfo(streams=original_streams + (subtitle_stream,))
         mocker.patch("ts2mp4.video_file.get_media_info", return_value=new_media_info)
         sources.append(
-            StreamSource(
+            StreamSource[OtherStream](
                 source_video_path=video_file.path,
                 source_stream=subtitle_stream,
                 conversion_type=ConversionType.COPIED,

@@ -9,7 +9,7 @@ from typing_extensions import Self
 
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
 from .initial_converter import InitiallyConvertedVideoFile
-from .media_info import AudioStream
+from .media_info import AudioStream, Stream
 from .quality_check import check_audio_quality
 from .stream_integrity import compare_stream_hashes, verify_copied_streams
 from .video_file import (
@@ -18,6 +18,7 @@ from .video_file import (
     StreamSource,
     StreamSources,
     VideoFile,
+    is_audio_stream_source,
 )
 
 
@@ -109,7 +110,7 @@ def _build_stream_sources_for_audio_re_encoding(
         for i, stream_source in enumerate(encoded_file.stream_sources)
     }
 
-    stream_sources_list = []
+    stream_sources_list: list[StreamSource[Stream]] = []
 
     for original_stream in sorted(original_file.valid_streams, key=lambda s: s.index):
         matching_stream = original_encoded_stream_mapping.get(original_stream)
@@ -158,14 +159,10 @@ def _build_stream_sources_for_audio_re_encoding(
 
 
 def _build_audio_convert_args(
-    stream_source: StreamSource, output_stream_index: int
+    stream_source: StreamSource[AudioStream], output_stream_index: int
 ) -> list[str]:
     """Build FFmpeg arguments for converting an audio stream."""
     original_audio_stream = stream_source.source_stream
-    if not isinstance(original_audio_stream, AudioStream):
-        raise TypeError(
-            f"Expected AudioStream, got {type(original_audio_stream).__name__}"
-        )
 
     codec_name = str(original_audio_stream.codec_name)
     if original_audio_stream.codec_name == "aac":
@@ -253,7 +250,7 @@ def _build_ffmpeg_args_from_stream_sources(
         # Add codec arguments using the global output stream index
         if source.conversion_type == ConversionType.COPIED:
             ffmpeg_args.extend([f"-codec:{i}", "copy"])
-        elif source.source_stream.codec_type == "audio":
+        elif is_audio_stream_source(source):
             ffmpeg_args.extend(_build_audio_convert_args(source, i))
         else:
             # This path should be unreachable due to validation in StreamSourcesForAudioReEncoding
