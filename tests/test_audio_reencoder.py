@@ -18,7 +18,7 @@ from ts2mp4.initial_converter import (
     InitiallyConvertedVideoFile,
     StreamSourcesForInitialConversion,
 )
-from ts2mp4.media_info import AudioStream, OtherStream, VideoStream
+from ts2mp4.media_info import AudioStream, OtherStream, Stream, VideoStream
 from ts2mp4.video_file import ConversionType, StreamSource, StreamSources, VideoFile
 
 
@@ -374,17 +374,17 @@ def test_build_ffmpeg_args_from_stream_sources(
     dummy_encoded_file.touch()
     mock_encoded_file.path = dummy_encoded_file
 
-    ss1 = StreamSource(
+    ss1: StreamSource[VideoStream] = StreamSource(
         source_video_path=mock_encoded_file.path,
         source_stream=VideoStream(codec_type="video", index=0),
         conversion_type=ConversionType.COPIED,
     )
-    ss2 = StreamSource(
+    ss2: StreamSource[AudioStream] = StreamSource(
         source_video_path=mock_encoded_file.path,
         source_stream=AudioStream(codec_type="audio", index=1),
         conversion_type=ConversionType.COPIED,
     )
-    ss3 = StreamSource(
+    ss3: StreamSource[AudioStream] = StreamSource(
         source_video_path=mock_original_file.path,
         source_stream=AudioStream(codec_type="audio", index=2),
         conversion_type=ConversionType.CONVERTED,
@@ -446,7 +446,7 @@ def test_stream_sources_for_audio_re_encoding_validation_success(
     dummy_encoded_file.touch()
     mock_encoded_file.path = dummy_encoded_file
 
-    valid_sources = [
+    valid_sources: list[StreamSource[Stream]] = [
         StreamSource(
             source_video_path=mock_encoded_file.path,
             conversion_type=ConversionType.COPIED,
@@ -510,7 +510,7 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
     dummy_another_original.touch()
     mock_another_original.path = dummy_another_original
 
-    sources = [
+    sources: list[StreamSource[Stream]] = [
         StreamSource(
             source_video_path=mock_encoded_file.path,
             conversion_type=ConversionType.COPIED,

@@ -46,7 +46,7 @@ def dummy_video_file(tmp_path: Path) -> VideoFile:
 
 
 @pytest.fixture
-def stream_source(dummy_video_file: VideoFile) -> StreamSource:
+def stream_source(dummy_video_file: VideoFile) -> StreamSource[VideoStream]:
     """Create a dummy StreamSource instance."""
     return StreamSource(
         source_video_path=dummy_video_file.path,
@@ -184,7 +184,7 @@ def test_videofile_valid_streams_property(
 def test_stream_source_instantiation(dummy_video_file: VideoFile) -> None:
     """Test that StreamSource can be instantiated with valid data."""
     stream = VideoStream(codec_type="video", index=0)
-    stream_source = StreamSource(
+    stream_source: StreamSource[VideoStream] = StreamSource(
         source_video_path=dummy_video_file.path,
         source_stream=stream,
         conversion_type=ConversionType.COPIED,
@@ -196,7 +196,9 @@ def test_stream_source_instantiation(dummy_video_file: VideoFile) -> None:
 
 @pytest.mark.unit
 def test_converted_video_file_instantiation(
-    dummy_video_file: VideoFile, stream_source: StreamSource, mocker: MockerFixture
+    dummy_video_file: VideoFile,
+    stream_source: StreamSource[VideoStream],
+    mocker: MockerFixture,
 ) -> None:
     """Test that ConvertedVideoFile can be instantiated with valid data."""
     # Mock get_media_info to return a single stream to match the single stream source
@@ -255,7 +257,9 @@ def test_stream_sources_properties_with_empty_sources() -> None:
 
 @pytest.mark.unit
 def test_converted_video_file_mismatched_stream_counts_raises_error(
-    dummy_video_file: VideoFile, stream_source: StreamSource, mocker: MockerFixture
+    dummy_video_file: VideoFile,
+    stream_source: StreamSource[VideoStream],
+    mocker: MockerFixture,
 ) -> None:
     """Test that ConvertedVideoFile raises ValueError for mismatched stream counts."""
     # Mock get_media_info to return a different number of streams
@@ -279,7 +283,9 @@ def test_converted_video_file_mismatched_stream_counts_raises_error(
 
 @pytest.mark.unit
 def test_converted_video_file_stream_with_sources_property(
-    dummy_video_file: VideoFile, stream_source: StreamSource, mocker: MockerFixture
+    dummy_video_file: VideoFile,
+    stream_source: StreamSource[VideoStream],
+    mocker: MockerFixture,
 ) -> None:
     """Test the stream_with_sources property of ConvertedVideoFile."""
     mock_stream = stream_source.source_stream

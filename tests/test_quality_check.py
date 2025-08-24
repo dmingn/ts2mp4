@@ -8,6 +8,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import FFmpegProcessError
+from ts2mp4.media_info import Stream
 from ts2mp4.quality_check import (
     AudioQualityMetrics,
     check_audio_quality,
@@ -205,7 +206,7 @@ def test_check_audio_quality(mocker: MockerFixture) -> None:
 async def test_get_audio_quality_metrics_integration(ts_file: Path) -> None:
     """Test get_audio_quality_metrics with a real video file."""
     video_file = VideoFile(path=ts_file)
-    stream_sources = []
+    stream_sources: list[StreamSource[Stream]] = []
     for stream in video_file.media_info.streams:
         stream_sources.append(
             StreamSource(

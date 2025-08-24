@@ -1,7 +1,7 @@
 """A module for the VideoFile class."""
 
 from enum import Enum, auto
-from typing import Iterator
+from typing import Generic, Iterator, TypeVar
 
 from pydantic import (
     BaseModel,
@@ -10,6 +10,7 @@ from pydantic import (
     RootModel,
     model_validator,
 )
+from typing_extensions import TypeGuard
 
 from .media_info import (
     AudioStream,
@@ -18,6 +19,8 @@ from .media_info import (
     VideoStream,
     get_media_info,
 )
+
+StreamT = TypeVar("StreamT", bound=Stream, covariant=True)
 
 
 class VideoFile(BaseModel):
@@ -75,26 +78,40 @@ class ConversionType(Enum):
     COPIED = auto()
 
 
-class StreamSource(BaseModel):
+class StreamSource(BaseModel, Generic[StreamT]):
     """A class representing the source of a stream."""
 
     source_video_path: FilePath
-    source_stream: Stream
+    source_stream: StreamT
     conversion_type: ConversionType
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
 
 
-class StreamSources(RootModel[tuple[StreamSource, ...]]):
+def is_video_stream_source(
+    source: StreamSource[Stream],
+) -> TypeGuard[StreamSource[VideoStream]]:
+    """Return True if the source is a video stream source."""
+    return isinstance(source.source_stream, VideoStream)
+
+
+def is_audio_stream_source(
+    source: StreamSource[Stream],
+) -> TypeGuard[StreamSource[AudioStream]]:
+    """Return True if the source is an audio stream source."""
+    return isinstance(source.source_stream, AudioStream)
+
+
+class StreamSources(RootModel[tuple[StreamSource[Stream], ...]]):
     """A tuple of StreamSource objects."""
 
     model_config = ConfigDict(frozen=True)
 
-    def __iter__(self) -> Iterator[StreamSource]:  # type: ignore[override]
+    def __iter__(self) -> Iterator[StreamSource[Stream]]:  # type: ignore[override]
         """Return an iterator over the StreamSource objects."""
         return iter(self.root)
 
-    def __getitem__(self, item: int) -> StreamSource:
+    def __getitem__(self, item: int) -> StreamSource[Stream]:
         """Return the StreamSource object at the given index."""
         return self.root[item]
 
@@ -103,22 +120,14 @@ class StreamSources(RootModel[tuple[StreamSource, ...]]):
         return len(self.root)
 
     @property
-    def video_stream_sources(self) -> frozenset[StreamSource]:
+    def video_stream_sources(self) -> frozenset[StreamSource[VideoStream]]:
         """Return a set of video stream sources."""
-        return frozenset(
-            stream_source
-            for stream_source in self.root
-            if stream_source.source_stream.codec_type == "video"
-        )
+        return frozenset(filter(is_video_stream_source, self.root))
 
     @property
-    def audio_stream_sources(self) -> frozenset[StreamSource]:
+    def audio_stream_sources(self) -> frozenset[StreamSource[AudioStream]]:
         """Return a set of audio stream sources."""
-        return frozenset(
-            stream_source
-            for stream_source in self.root
-            if stream_source.source_stream.codec_type == "audio"
-        )
+        return frozenset(filter(is_audio_stream_source, self.root))
 
     @property
     def source_video_files(self) -> frozenset[VideoFile]:
@@ -156,6 +165,6 @@ class ConvertedVideoFile(VideoFile):
         return self
 
     @property
-    def stream_with_sources(self) -> Iterator[tuple[Stream, StreamSource]]:
+    def stream_with_sources(self) -> Iterator[tuple[Stream, StreamSource[Stream]]]:
         """Return a zip object of output streams and their sources."""
         return zip(self.media_info.streams, self.stream_sources)
