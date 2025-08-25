@@ -1,7 +1,6 @@
 """A module for the VideoFile class."""
 
-from enum import Enum, auto
-from typing import Generic, Iterator, TypeVar
+from typing import Generic, Iterator, Literal, TypeVar
 
 from pydantic import (
     BaseModel,
@@ -71,21 +70,26 @@ class VideoFile(BaseModel):
         return self.valid_video_streams + self.valid_audio_streams
 
 
-class ConversionType(Enum):
-    """An enumeration for stream conversion types."""
-
-    CONVERTED = auto()
-    COPIED = auto()
-
-
 class StreamSource(BaseModel, Generic[StreamT]):
     """A class representing the source of a stream."""
 
     source_video_path: FilePath
     source_stream: StreamT
-    conversion_type: ConversionType
+    conversion_type: str
 
     model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+
+class ConvertedStreamSource(StreamSource[StreamT]):
+    """A class representing the source of a converted stream."""
+
+    conversion_type: Literal["converted"] = "converted"
+
+
+class CopiedStreamSource(StreamSource[StreamT]):
+    """A class representing the source of a copied stream."""
+
+    conversion_type: Literal["copied"] = "copied"
 
 
 def is_video_stream_source(

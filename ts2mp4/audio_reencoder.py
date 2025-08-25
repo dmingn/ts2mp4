@@ -13,8 +13,9 @@ from .media_info import AudioStream, Stream
 from .quality_check import check_audio_quality
 from .stream_integrity import compare_stream_hashes, verify_copied_streams
 from .video_file import (
-    ConversionType,
+    ConvertedStreamSource,
     ConvertedVideoFile,
+    CopiedStreamSource,
     StreamSource,
     StreamSources,
     VideoFile,
@@ -46,22 +47,15 @@ class StreamSourcesForAudioReEncoding(StreamSources):
     @model_validator(mode="after")
     def validate_video_stream_properties(self) -> Self:
         """Validate that all video streams are copied."""
-        if not all(
-            s.conversion_type == ConversionType.COPIED
-            for s in self.video_stream_sources
-        ):
+        if not all(s.conversion_type == "copied" for s in self.video_stream_sources):
             raise ValueError("All video streams must be copied.")
         return self
 
     @model_validator(mode="after")
     def validate_source_grouping(self) -> Self:
         """Validate the grouping and sources of the streams."""
-        copied_sources = [
-            s for s in self.root if s.conversion_type == ConversionType.COPIED
-        ]
-        converted_sources = [
-            s for s in self.root if s.conversion_type == ConversionType.CONVERTED
-        ]
+        copied_sources = [s for s in self.root if s.conversion_type == "copied"]
+        converted_sources = [s for s in self.root if s.conversion_type == "converted"]
 
         if not copied_sources:
             raise ValueError("At least one stream must be copied.")
@@ -124,10 +118,9 @@ def _build_stream_sources_for_audio_re_encoding(
         if original_stream.codec_type == "video":
             # Video streams should be always copied from the encoded file
             stream_sources_list.append(
-                StreamSource(
+                CopiedStreamSource(
                     source_video_path=encoded_file.path,
                     source_stream=matching_stream,
-                    conversion_type=ConversionType.COPIED,
                 )
             )
         elif original_stream.codec_type == "audio":
@@ -139,19 +132,17 @@ def _build_stream_sources_for_audio_re_encoding(
             ):
                 # If the hashes match, the stream can be copied from the encoded file
                 stream_sources_list.append(
-                    StreamSource(
+                    CopiedStreamSource(
                         source_video_path=encoded_file.path,
                         source_stream=matching_stream,
-                        conversion_type=ConversionType.COPIED,
                     )
                 )
             else:
                 # If the hashes do not match, the stream must be re-encoded from the original file
                 stream_sources_list.append(
-                    StreamSource(
+                    ConvertedStreamSource(
                         source_video_path=original_file.path,
                         source_stream=original_stream,
-                        conversion_type=ConversionType.CONVERTED,
                     )
                 )
 
@@ -248,9 +239,9 @@ def _build_ffmpeg_args_from_stream_sources(
         ffmpeg_args.extend(["-map", f"{input_index}:{source.source_stream.index}"])
 
         # Add codec arguments using the global output stream index
-        if source.conversion_type == ConversionType.COPIED:
+        if source.conversion_type == "copied":
             ffmpeg_args.extend([f"-codec:{i}", "copy"])
-        elif is_audio_stream_source(source):
+        elif source.conversion_type == "converted" and is_audio_stream_source(source):
             ffmpeg_args.extend(_build_audio_convert_args(source, i))
         else:
             # This path should be unreachable due to validation in StreamSourcesForAudioReEncoding
@@ -295,7 +286,7 @@ def re_encode_mismatched_audio_streams(
     )
 
     # If all audio streams are to be copied, no re-encoding is needed.
-    if not any(s.conversion_type == ConversionType.CONVERTED for s in stream_sources):
+    if not any(isinstance(s, ConvertedStreamSource) for s in stream_sources):
         logger.info("No audio streams require re-encoding. Skipping.")
         return None
 

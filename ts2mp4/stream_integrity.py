@@ -4,7 +4,7 @@ from logzero import logger
 
 from .hashing import get_stream_md5
 from .media_info import Stream
-from .video_file import ConversionType, ConvertedVideoFile, VideoFile
+from .video_file import ConvertedVideoFile, VideoFile
 
 
 def compare_stream_hashes(
@@ -59,7 +59,7 @@ def verify_copied_streams(converted_file: ConvertedVideoFile) -> None:
     logger.info(f"Verifying copied stream integrity for {converted_file.path.name}")
 
     for output_stream, stream_source in converted_file.stream_with_sources:
-        if stream_source.conversion_type != ConversionType.COPIED:
+        if stream_source.conversion_type != "copied":
             continue
 
         if not compare_stream_hashes(

@@ -6,9 +6,11 @@ from pydantic import model_validator
 from typing_extensions import Self
 
 from .ffmpeg import execute_ffmpeg
+from .media_info import Stream
 from .video_file import (
-    ConversionType,
+    ConvertedStreamSource,
     ConvertedVideoFile,
+    CopiedStreamSource,
     StreamSource,
     StreamSources,
     VideoFile,
@@ -30,15 +32,9 @@ class StreamSourcesForInitialConversion(StreamSources):
     @model_validator(mode="after")
     def validate_conversion_types(self) -> Self:
         """Validate that video streams are converted and audio streams are copied."""
-        if not all(
-            s.conversion_type == ConversionType.CONVERTED
-            for s in self.video_stream_sources
-        ):
+        if not all(s.conversion_type == "converted" for s in self.video_stream_sources):
             raise ValueError("All video streams must be converted.")
-        if not all(
-            s.conversion_type == ConversionType.COPIED
-            for s in self.audio_stream_sources
-        ):
+        if not all(s.conversion_type == "copied" for s in self.audio_stream_sources):
             raise ValueError("All audio streams must be copied.")
         return self
 
@@ -74,23 +70,24 @@ class InitiallyConvertedVideoFile(ConvertedVideoFile):
 
 def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForInitialConversion:
     """Build the stream sources for the initial conversion."""
-    stream_sources = StreamSources(
-        root=tuple(
-            StreamSource(
+    stream_sources_list: list[StreamSource[Stream]] = []
+    for stream in sorted(input_file.valid_streams, key=lambda s: s.index):
+        if stream.codec_type not in ["video", "audio"]:
+            continue
+
+        source_class = (
+            ConvertedStreamSource
+            if stream.codec_type == "video"
+            else CopiedStreamSource
+        )
+        stream_sources_list.append(
+            source_class(
                 source_video_path=input_file.path,
                 source_stream=stream,
-                conversion_type=(
-                    ConversionType.CONVERTED
-                    if stream.codec_type == "video"
-                    else ConversionType.COPIED
-                ),
             )
-            for stream in sorted(input_file.valid_streams, key=lambda s: s.index)
-            if stream.codec_type in ["video", "audio"]
         )
-    )
 
-    return StreamSourcesForInitialConversion(root=stream_sources.root)
+    return StreamSourcesForInitialConversion(root=tuple(stream_sources_list))
 
 
 def _build_ffmpeg_args_from_stream_sources(

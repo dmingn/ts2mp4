@@ -10,9 +10,9 @@ from pytest_mock import MockerFixture
 from ts2mp4.media_info import AudioStream, MediaInfo, OtherStream, VideoStream
 from ts2mp4.stream_integrity import compare_stream_hashes, verify_copied_streams
 from ts2mp4.video_file import (
-    ConversionType,
+    ConvertedStreamSource,
     ConvertedVideoFile,
-    StreamSource,
+    CopiedStreamSource,
     StreamSources,
     VideoFile,
 )
@@ -124,15 +124,13 @@ def mock_converted_video_file(
     mock_converted_file.media_info = mock_output_video_file.media_info
     mock_converted_file.stream_sources = StreamSources(
         root=(
-            StreamSource(
+            ConvertedStreamSource(
                 source_video_path=mock_input_video_file.path,
                 source_stream=mock_input_video_file.media_info.streams[0],
-                conversion_type=ConversionType.CONVERTED,
             ),
-            StreamSource(
+            CopiedStreamSource(
                 source_video_path=mock_input_video_file.path,
                 source_stream=mock_input_video_file.media_info.streams[1],
-                conversion_type=ConversionType.COPIED,
             ),
         )
     )
@@ -180,10 +178,9 @@ def test_verify_copied_streams_no_copied_streams(
         "ts2mp4.stream_integrity.compare_stream_hashes"
     )
     stream_sources = list(mock_converted_video_file.stream_sources)
-    stream_sources[1] = StreamSource(
+    stream_sources[1] = ConvertedStreamSource(
         source_video_path=stream_sources[1].source_video_path,
         source_stream=stream_sources[1].source_stream,
-        conversion_type=ConversionType.CONVERTED,
     )
     mock_converted_video_file.stream_sources = StreamSources(root=tuple(stream_sources))
 

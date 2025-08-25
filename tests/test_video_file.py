@@ -10,8 +10,9 @@ from pytest_mock import MockerFixture
 
 from ts2mp4.media_info import AudioStream, MediaInfo, OtherStream, VideoStream
 from ts2mp4.video_file import (
-    ConversionType,
+    ConvertedStreamSource,
     ConvertedVideoFile,
+    CopiedStreamSource,
     StreamSource,
     StreamSources,
     VideoFile,
@@ -48,10 +49,9 @@ def dummy_video_file(tmp_path: Path) -> VideoFile:
 @pytest.fixture
 def stream_source(dummy_video_file: VideoFile) -> StreamSource[VideoStream]:
     """Create a dummy StreamSource instance."""
-    return StreamSource(
+    return CopiedStreamSource(
         source_video_path=dummy_video_file.path,
         source_stream=VideoStream(codec_type="video", index=0),
-        conversion_type=ConversionType.COPIED,
     )
 
 
@@ -91,20 +91,17 @@ def stream_sources(
 
     return StreamSources(
         root=(
-            StreamSource(
+            ConvertedStreamSource(
                 source_video_path=video_file_1.path,
                 source_stream=media_info_1.streams[0],
-                conversion_type=ConversionType.CONVERTED,
             ),
-            StreamSource(
+            CopiedStreamSource(
                 source_video_path=video_file_1.path,
                 source_stream=media_info_1.streams[1],
-                conversion_type=ConversionType.COPIED,
             ),
-            StreamSource(
+            CopiedStreamSource(
                 source_video_path=video_file_2.path,
                 source_stream=media_info_2.streams[1],
-                conversion_type=ConversionType.COPIED,
             ),
         )
     )
@@ -184,14 +181,13 @@ def test_videofile_valid_streams_property(
 def test_stream_source_instantiation(dummy_video_file: VideoFile) -> None:
     """Test that StreamSource can be instantiated with valid data."""
     stream = VideoStream(codec_type="video", index=0)
-    stream_source: StreamSource[VideoStream] = StreamSource(
+    stream_source: StreamSource[VideoStream] = CopiedStreamSource(
         source_video_path=dummy_video_file.path,
         source_stream=stream,
-        conversion_type=ConversionType.COPIED,
     )
     assert stream_source.source_video_path == dummy_video_file.path
     assert stream_source.source_stream == stream
-    assert stream_source.conversion_type == ConversionType.COPIED
+    assert isinstance(stream_source, CopiedStreamSource)
 
 
 @pytest.mark.unit
@@ -304,4 +300,6 @@ def test_converted_video_file_stream_with_sources_property(
     assert len(pairs) == 1
     output_stream, source = pairs[0]
     assert output_stream == mock_stream
-    assert source == stream_source
+    assert source.source_video_path == stream_source.source_video_path
+    assert source.source_stream == stream_source.source_stream
+    assert source.conversion_type == stream_source.conversion_type
