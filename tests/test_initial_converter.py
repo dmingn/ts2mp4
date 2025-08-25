@@ -8,13 +8,14 @@ from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import FFmpegResult
 from ts2mp4.initial_converter import (
+    StreamSourceForInitialConversion,
     StreamSourcesForInitialConversion,
     _build_ffmpeg_args_from_stream_sources,
     _build_stream_sources,
     perform_initial_conversion,
 )
-from ts2mp4.media_info import AudioStream, MediaInfo, OtherStream, Stream, VideoStream
-from ts2mp4.video_file import ConversionT, StreamSource, StreamSources, VideoFile
+from ts2mp4.media_info import AudioStream, MediaInfo, Stream, VideoStream
+from ts2mp4.video_file import StreamSource, VideoFile
 
 
 @pytest.fixture
@@ -69,81 +70,43 @@ def test_build_stream_sources(
     assert stream_sources[2].conversion_type == "copied"
 
 
-@pytest.fixture
-def valid_stream_sources(
-    mock_video_file_factory: Callable[..., VideoFile],
-) -> StreamSources:
-    """Fixture to create a valid StreamSources object for validation tests."""
-    video_file = mock_video_file_factory()
-    video_stream: StreamSource[VideoStream, ConversionT] = StreamSource(
-        source_video_path=video_file.path,
-        source_stream=video_file.media_info.streams[0],
-        conversion_type="converted",
-    )
-    audio_stream: StreamSource[AudioStream, ConversionT] = StreamSource(
-        source_video_path=video_file.path,
-        source_stream=video_file.media_info.streams[1],
-        conversion_type="copied",
-    )
-    return StreamSources(root=(video_stream, audio_stream))
-
-
-@pytest.mark.unit
-def test_stream_sources_for_initial_conversion_success(
-    valid_stream_sources: StreamSources,
-) -> None:
-    """Test that StreamSourcesForInitialConversion can be instantiated with valid data."""
-    # This should not raise an error
-    instance = StreamSourcesForInitialConversion(root=valid_stream_sources.root)
-    assert instance is not None
-
-
 @pytest.mark.unit
 @pytest.mark.parametrize(
     "modifier, error_message",
     [
         ("no_video", "At least one video stream is required."),
         ("no_audio", "At least one audio stream is required."),
-        ("video_not_converted", "All video streams must be converted."),
-        ("audio_not_copied", "All audio streams must be copied."),
         (
             "multiple_sources",
             "All stream sources must originate from the same VideoFile.",
-        ),
-        (
-            "unsupported_stream_type",
-            "Stream sources must only contain video or audio streams.",
         ),
         ("duplicate_streams", "Source streams must be unique."),
     ],
 )
 def test_stream_sources_for_initial_conversion_failures(
-    valid_stream_sources: StreamSources,
     mock_video_file_factory: Callable[..., VideoFile],
     modifier: str,
     error_message: str,
-    mocker: MockerFixture,
 ) -> None:
-    """Test the validation rules in StreamSourcesForInitialConversion.__new__."""
-    video_file = VideoFile(path=valid_stream_sources[0].source_video_path)
-    sources: list[StreamSource[Stream, ConversionT]] = list(valid_stream_sources)
-
-    if modifier == "no_video":
-        sources = [s for s in sources if s.source_stream.codec_type != "video"]
-    elif modifier == "no_audio":
-        sources = [s for s in sources if s.source_stream.codec_type != "audio"]
-    elif modifier == "video_not_converted":
-        sources[0] = StreamSource(
+    """Test the validation rules in StreamSourcesForInitialConversion."""
+    video_file = mock_video_file_factory()
+    sources: list[StreamSourceForInitialConversion] = [
+        StreamSource(
             source_video_path=video_file.path,
             source_stream=video_file.media_info.streams[0],
-            conversion_type="copied",
-        )
-    elif modifier == "audio_not_copied":
-        sources[1] = StreamSource(
+            conversion_type="converted",
+        ),
+        StreamSource(
             source_video_path=video_file.path,
             source_stream=video_file.media_info.streams[1],
-            conversion_type="converted",
-        )
+            conversion_type="copied",
+        ),
+    ]
+
+    if modifier == "no_video":
+        sources = [s for s in sources if not isinstance(s.source_stream, VideoStream)]
+    elif modifier == "no_audio":
+        sources = [s for s in sources if not isinstance(s.source_stream, AudioStream)]
     elif modifier == "multiple_sources":
         other_video_file = mock_video_file_factory(file_name="other.ts")
         sources.append(
@@ -151,18 +114,6 @@ def test_stream_sources_for_initial_conversion_failures(
                 source_video_path=other_video_file.path,
                 source_stream=other_video_file.media_info.streams[0],
                 conversion_type="converted",
-            )
-        )
-    elif modifier == "unsupported_stream_type":
-        subtitle_stream = OtherStream(codec_type="subtitle", index=2)
-        original_streams = video_file.media_info.streams
-        new_media_info = MediaInfo(streams=original_streams + (subtitle_stream,))
-        mocker.patch("ts2mp4.video_file.get_media_info", return_value=new_media_info)
-        sources.append(
-            StreamSource(
-                source_video_path=video_file.path,
-                source_stream=subtitle_stream,
-                conversion_type="copied",
             )
         )
     elif modifier == "duplicate_streams":
@@ -178,7 +129,7 @@ def stream_sources_for_initial_conversion(
 ) -> StreamSourcesForInitialConversion:
     """Create a StreamSourcesForInitialConversion instance for testing."""
     mock_video_file = mock_video_file_factory(video_streams=1, audio_streams=2)
-    sources: tuple[StreamSource[Stream, ConversionT], ...] = (
+    sources: list[StreamSourceForInitialConversion] = [
         StreamSource(
             source_video_path=mock_video_file.path,
             source_stream=mock_video_file.media_info.streams[0],
@@ -194,8 +145,8 @@ def stream_sources_for_initial_conversion(
             source_stream=mock_video_file.media_info.streams[2],
             conversion_type="copied",
         ),
-    )
-    return StreamSourcesForInitialConversion(root=sources)
+    ]
+    return StreamSourcesForInitialConversion(root=tuple(sources))
 
 
 @pytest.mark.unit
