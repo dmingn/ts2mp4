@@ -108,7 +108,7 @@ async def get_audio_quality_metrics(
             if metrics.apsnr is not None or metrics.asdr is not None:
                 quality_metrics[re_encoded_stream_index] = metrics
         except FFmpegProcessError as e:
-            logger.exception(
+            logger.error(
                 f"Error calculating audio quality metrics for stream {re_encoded_stream_index}: {e}"
             )
             continue
