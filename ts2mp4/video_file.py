@@ -2,22 +2,10 @@
 
 from typing import Generic, Iterator, Literal, TypeVar
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    FilePath,
-    RootModel,
-    model_validator,
-)
+from pydantic import BaseModel, ConfigDict, FilePath, RootModel, model_validator
 from typing_extensions import TypeGuard
 
-from .media_info import (
-    AudioStream,
-    MediaInfo,
-    Stream,
-    VideoStream,
-    get_media_info,
-)
+from .media_info import AudioStream, MediaInfo, Stream, VideoStream, get_media_info
 
 StreamT = TypeVar("StreamT", bound=Stream, covariant=True)
 
@@ -85,15 +73,15 @@ class StreamSource(BaseModel, Generic[StreamT, ConversionTypeT]):
 
 
 def is_video_stream_source(
-    source: StreamSource[Stream, ConversionT],
-) -> TypeGuard[StreamSource[VideoStream, ConversionT]]:
+    source: StreamSource[Stream, ConversionTypeT],
+) -> TypeGuard[StreamSource[VideoStream, ConversionTypeT]]:
     """Return True if the source is a video stream source."""
     return isinstance(source.source_stream, VideoStream)
 
 
 def is_audio_stream_source(
-    source: StreamSource[Stream, ConversionT],
-) -> TypeGuard[StreamSource[AudioStream, ConversionT]]:
+    source: StreamSource[Stream, ConversionTypeT],
+) -> TypeGuard[StreamSource[AudioStream, ConversionTypeT]]:
     """Return True if the source is an audio stream source."""
     return isinstance(source.source_stream, AudioStream)
 
