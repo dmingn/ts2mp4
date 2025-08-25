@@ -1,11 +1,13 @@
 """Handles the initial conversion from TS to MP4."""
 
 from pathlib import Path
+from typing import Literal, Union
 
 from pydantic import model_validator
 from typing_extensions import Self
 
 from .ffmpeg import execute_ffmpeg
+from .media_info import AudioStream, VideoStream
 from .video_file import (
     ConvertedVideoFile,
     StreamSource,
@@ -13,9 +15,16 @@ from .video_file import (
     VideoFile,
 )
 
+StreamSourceForInitialConversion = Union[
+    StreamSource[VideoStream, Literal["converted"]],
+    StreamSource[AudioStream, Literal["copied"]],
+]
+
 
 class StreamSourcesForInitialConversion(StreamSources):
     """Represents the stream sources for the initial conversion."""
+
+    root: tuple[StreamSourceForInitialConversion, ...]
 
     @model_validator(mode="after")
     def validate_stream_presence(self) -> Self:
@@ -24,22 +33,6 @@ class StreamSourcesForInitialConversion(StreamSources):
             raise ValueError("At least one video stream is required.")
         if not self.audio_stream_sources:
             raise ValueError("At least one audio stream is required.")
-        return self
-
-    @model_validator(mode="after")
-    def validate_conversion_types(self) -> Self:
-        """Validate that video streams are converted and audio streams are copied."""
-        if not all(s.conversion_type == "converted" for s in self.video_stream_sources):
-            raise ValueError("All video streams must be converted.")
-        if not all(s.conversion_type == "copied" for s in self.audio_stream_sources):
-            raise ValueError("All audio streams must be copied.")
-        return self
-
-    @model_validator(mode="after")
-    def validate_stream_types(self) -> Self:
-        """Validate that stream sources only contain video or audio streams."""
-        if not all(s.source_stream.codec_type in ["video", "audio"] for s in self.root):
-            raise ValueError("Stream sources must only contain video or audio streams.")
         return self
 
     @model_validator(mode="after")
@@ -67,21 +60,24 @@ class InitiallyConvertedVideoFile(ConvertedVideoFile):
 
 def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForInitialConversion:
     """Build the stream sources for the initial conversion."""
-    stream_sources = StreamSources(
-        root=tuple(
-            StreamSource(
-                source_video_path=input_file.path,
-                source_stream=stream,
-                conversion_type=(
-                    "converted" if stream.codec_type == "video" else "copied"
-                ),
-            )
-            for stream in sorted(input_file.valid_streams, key=lambda s: s.index)
-            if stream.codec_type in ["video", "audio"]
+    video_sources: list[StreamSourceForInitialConversion] = [
+        StreamSource(
+            source_video_path=input_file.path,
+            source_stream=stream,
+            conversion_type="converted",
         )
-    )
+        for stream in input_file.valid_video_streams
+    ]
+    audio_sources: list[StreamSourceForInitialConversion] = [
+        StreamSource(
+            source_video_path=input_file.path,
+            source_stream=stream,
+            conversion_type="copied",
+        )
+        for stream in input_file.valid_audio_streams
+    ]
 
-    return StreamSourcesForInitialConversion(root=stream_sources.root)
+    return StreamSourcesForInitialConversion(root=tuple(video_sources + audio_sources))
 
 
 def _build_ffmpeg_args_from_stream_sources(
