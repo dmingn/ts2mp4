@@ -71,7 +71,7 @@ class VideoFile(BaseModel):
 
 
 ConversionT = Literal["converted", "copied"]
-ConversionTypeT = TypeVar("ConversionTypeT", bound=ConversionT)
+ConversionTypeT = TypeVar("ConversionTypeT", bound=ConversionT, covariant=True)
 
 
 class StreamSource(BaseModel, Generic[StreamT, ConversionTypeT]):
