@@ -19,7 +19,7 @@ from ts2mp4.initial_converter import (
     StreamSourcesForInitialConversion,
 )
 from ts2mp4.media_info import AudioStream, OtherStream, Stream, VideoStream
-from ts2mp4.video_file import ConversionType, StreamSource, StreamSources, VideoFile
+from ts2mp4.video_file import ConversionT, StreamSource, StreamSources, VideoFile
 
 
 @pytest.fixture
@@ -90,9 +90,9 @@ def mock_initially_converted_video_file_factory(
                     source_video_path=original_file.path,
                     source_stream=original_streams[i],
                     conversion_type=(
-                        ConversionType.CONVERTED
+                        "converted"
                         if original_streams[i].codec_type == "video"
-                        else ConversionType.COPIED
+                        else "copied"
                     ),
                 )
                 for i in encoded_streams_indices
@@ -126,7 +126,7 @@ def test_build_stream_sources_for_audio_re_encoding_no_mismatch(
     )
 
     assert len(stream_sources) == 3
-    assert all(s.conversion_type == ConversionType.COPIED for s in stream_sources)
+    assert all(s.conversion_type == "copied" for s in stream_sources)
     assert all(
         s.source_video_path == mock_encoded_video_file.path for s in stream_sources
     )
@@ -153,9 +153,9 @@ def test_build_stream_sources_for_audio_re_encoding_with_mismatch(
     )
 
     source_map = {s.source_stream.index: s for s in stream_sources}
-    assert source_map[0].conversion_type == ConversionType.COPIED
-    assert source_map[1].conversion_type == ConversionType.COPIED
-    assert source_map[2].conversion_type == ConversionType.CONVERTED
+    assert source_map[0].conversion_type == "copied"
+    assert source_map[1].conversion_type == "copied"
+    assert source_map[2].conversion_type == "converted"
     assert source_map[2].source_video_path == mock_original_video_file.path
 
 
@@ -302,12 +302,12 @@ def test_re_encode_mismatched_audio_streams_integration(
                 StreamSource(
                     source_video_path=original_video_file.path,
                     source_stream=original_streams[0],
-                    conversion_type=ConversionType.CONVERTED,
+                    conversion_type="converted",
                 ),
                 StreamSource(
                     source_video_path=original_video_file.path,
                     source_stream=original_streams[1],
-                    conversion_type=ConversionType.COPIED,
+                    conversion_type="copied",
                 ),
             )
         ),
@@ -335,11 +335,7 @@ def test_re_encode_mismatched_audio_streams_no_re_encoding_needed(
             StreamSource(
                 source_video_path=original_video_file.path,
                 source_stream=s,
-                conversion_type=(
-                    ConversionType.CONVERTED
-                    if s.codec_type == "video"
-                    else ConversionType.COPIED
-                ),
+                conversion_type=("converted" if s.codec_type == "video" else "copied"),
             )
             for s in original_streams
         )
@@ -374,20 +370,20 @@ def test_build_ffmpeg_args_from_stream_sources(
     dummy_encoded_file.touch()
     mock_encoded_file.path = dummy_encoded_file
 
-    ss1: StreamSource[VideoStream] = StreamSource(
+    ss1: StreamSource[VideoStream, ConversionT] = StreamSource(
         source_video_path=mock_encoded_file.path,
         source_stream=VideoStream(codec_type="video", index=0),
-        conversion_type=ConversionType.COPIED,
+        conversion_type="copied",
     )
-    ss2: StreamSource[AudioStream] = StreamSource(
+    ss2: StreamSource[AudioStream, ConversionT] = StreamSource(
         source_video_path=mock_encoded_file.path,
         source_stream=AudioStream(codec_type="audio", index=1),
-        conversion_type=ConversionType.COPIED,
+        conversion_type="copied",
     )
-    ss3: StreamSource[AudioStream] = StreamSource(
+    ss3: StreamSource[AudioStream, ConversionT] = StreamSource(
         source_video_path=mock_original_file.path,
         source_stream=AudioStream(codec_type="audio", index=2),
-        conversion_type=ConversionType.CONVERTED,
+        conversion_type="converted",
     )
 
     stream_sources = StreamSourcesForAudioReEncoding(root=(ss1, ss2, ss3))
@@ -446,15 +442,15 @@ def test_stream_sources_for_audio_re_encoding_validation_success(
     dummy_encoded_file.touch()
     mock_encoded_file.path = dummy_encoded_file
 
-    valid_sources: list[StreamSource[Stream]] = [
+    valid_sources: list[StreamSource[Stream, ConversionT]] = [
         StreamSource(
             source_video_path=mock_encoded_file.path,
-            conversion_type=ConversionType.COPIED,
+            conversion_type="copied",
             source_stream=VideoStream(codec_type="video", index=0),
         ),
         StreamSource(
             source_video_path=mock_original_file.path,
-            conversion_type=ConversionType.CONVERTED,
+            conversion_type="converted",
             source_stream=AudioStream(codec_type="audio", index=1),
         ),
     ]
@@ -510,20 +506,20 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
     dummy_another_original.touch()
     mock_another_original.path = dummy_another_original
 
-    sources: list[StreamSource[Stream]] = [
+    sources: list[StreamSource[Stream, ConversionT]] = [
         StreamSource(
             source_video_path=mock_encoded_file.path,
-            conversion_type=ConversionType.COPIED,
+            conversion_type="copied",
             source_stream=VideoStream(codec_type="video", index=0),
         ),
         StreamSource(
             source_video_path=mock_encoded_file.path,
-            conversion_type=ConversionType.COPIED,
+            conversion_type="copied",
             source_stream=AudioStream(codec_type="audio", index=1),
         ),
         StreamSource(
             source_video_path=mock_original_file.path,
-            conversion_type=ConversionType.CONVERTED,
+            conversion_type="converted",
             source_stream=AudioStream(codec_type="audio", index=2),
         ),
     ]
@@ -534,7 +530,7 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
         sources[0] = StreamSource(
             source_video_path=sources[0].source_video_path,
             source_stream=sources[0].source_stream,
-            conversion_type=ConversionType.CONVERTED,
+            conversion_type="converted",
         )
     elif modifier == "video_from_original":
         sources[0] = StreamSource(
@@ -548,7 +544,7 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
         sources.append(
             StreamSource(
                 source_video_path=mock_original_file.path,
-                conversion_type=ConversionType.COPIED,
+                conversion_type="copied",
                 source_stream=AudioStream(codec_type="audio", index=3),
             )
         )
@@ -562,7 +558,7 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
         sources.append(
             StreamSource(
                 source_video_path=mock_original_file.path,
-                conversion_type=ConversionType.CONVERTED,
+                conversion_type="converted",
                 source_stream=OtherStream(codec_type="subtitle", index=3),
             )
         )
@@ -572,7 +568,7 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
         sources.append(
             StreamSource(
                 source_video_path=mock_another_original.path,
-                conversion_type=ConversionType.CONVERTED,
+                conversion_type="converted",
                 source_stream=AudioStream(codec_type="audio", index=3),
             )
         )

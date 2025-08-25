@@ -1,24 +1,11 @@
 """A module for the VideoFile class."""
 
-from enum import Enum, auto
-from typing import Generic, Iterator, TypeVar
+from typing import Generic, Iterator, Literal, TypeVar
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    FilePath,
-    RootModel,
-    model_validator,
-)
+from pydantic import BaseModel, ConfigDict, FilePath, RootModel, model_validator
 from typing_extensions import TypeGuard
 
-from .media_info import (
-    AudioStream,
-    MediaInfo,
-    Stream,
-    VideoStream,
-    get_media_info,
-)
+from .media_info import AudioStream, MediaInfo, Stream, VideoStream, get_media_info
 
 StreamT = TypeVar("StreamT", bound=Stream, covariant=True)
 
@@ -71,47 +58,44 @@ class VideoFile(BaseModel):
         return self.valid_video_streams + self.valid_audio_streams
 
 
-class ConversionType(Enum):
-    """An enumeration for stream conversion types."""
-
-    CONVERTED = auto()
-    COPIED = auto()
+ConversionT = Literal["converted", "copied"]
+ConversionTypeT = TypeVar("ConversionTypeT", bound=ConversionT, covariant=True)
 
 
-class StreamSource(BaseModel, Generic[StreamT]):
+class StreamSource(BaseModel, Generic[StreamT, ConversionTypeT]):
     """A class representing the source of a stream."""
 
     source_video_path: FilePath
     source_stream: StreamT
-    conversion_type: ConversionType
+    conversion_type: ConversionTypeT
 
-    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+    model_config = ConfigDict(frozen=True)
 
 
 def is_video_stream_source(
-    source: StreamSource[Stream],
-) -> TypeGuard[StreamSource[VideoStream]]:
+    source: StreamSource[Stream, ConversionTypeT],
+) -> TypeGuard[StreamSource[VideoStream, ConversionTypeT]]:
     """Return True if the source is a video stream source."""
     return isinstance(source.source_stream, VideoStream)
 
 
 def is_audio_stream_source(
-    source: StreamSource[Stream],
-) -> TypeGuard[StreamSource[AudioStream]]:
+    source: StreamSource[Stream, ConversionTypeT],
+) -> TypeGuard[StreamSource[AudioStream, ConversionTypeT]]:
     """Return True if the source is an audio stream source."""
     return isinstance(source.source_stream, AudioStream)
 
 
-class StreamSources(RootModel[tuple[StreamSource[Stream], ...]]):
+class StreamSources(RootModel[tuple[StreamSource[Stream, ConversionT], ...]]):
     """A tuple of StreamSource objects."""
 
     model_config = ConfigDict(frozen=True)
 
-    def __iter__(self) -> Iterator[StreamSource[Stream]]:  # type: ignore[override]
+    def __iter__(self) -> Iterator[StreamSource[Stream, ConversionT]]:  # type: ignore[override]
         """Return an iterator over the StreamSource objects."""
         return iter(self.root)
 
-    def __getitem__(self, item: int) -> StreamSource[Stream]:
+    def __getitem__(self, item: int) -> StreamSource[Stream, ConversionT]:
         """Return the StreamSource object at the given index."""
         return self.root[item]
 
@@ -120,12 +104,16 @@ class StreamSources(RootModel[tuple[StreamSource[Stream], ...]]):
         return len(self.root)
 
     @property
-    def video_stream_sources(self) -> frozenset[StreamSource[VideoStream]]:
+    def video_stream_sources(
+        self,
+    ) -> frozenset[StreamSource[VideoStream, ConversionT]]:
         """Return a set of video stream sources."""
         return frozenset(filter(is_video_stream_source, self.root))
 
     @property
-    def audio_stream_sources(self) -> frozenset[StreamSource[AudioStream]]:
+    def audio_stream_sources(
+        self,
+    ) -> frozenset[StreamSource[AudioStream, ConversionT]]:
         """Return a set of audio stream sources."""
         return frozenset(filter(is_audio_stream_source, self.root))
 
@@ -165,6 +153,8 @@ class ConvertedVideoFile(VideoFile):
         return self
 
     @property
-    def stream_with_sources(self) -> Iterator[tuple[Stream, StreamSource[Stream]]]:
+    def stream_with_sources(
+        self,
+    ) -> Iterator[tuple[Stream, StreamSource[Stream, ConversionT]]]:
         """Return a zip object of output streams and their sources."""
         return zip(self.media_info.streams, self.stream_sources)

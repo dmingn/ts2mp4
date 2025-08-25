@@ -16,7 +16,7 @@ from ts2mp4.quality_check import (
     parse_audio_quality_metrics,
 )
 from ts2mp4.video_file import (
-    ConversionType,
+    ConversionT,
     ConvertedVideoFile,
     StreamSource,
     StreamSources,
@@ -86,13 +86,13 @@ async def test_get_audio_quality_metrics_unit(mocker: MockerFixture) -> None:
     mock_stream3 = MagicMock(index=2, codec_type="audio")
 
     mock_source1 = MagicMock(
-        conversion_type=ConversionType.CONVERTED,
+        conversion_type="converted",
         source_stream=MagicMock(index=0),
         source_video_path="original.ts",
     )
-    mock_source2 = MagicMock(conversion_type=ConversionType.COPIED)
+    mock_source2 = MagicMock(conversion_type="copied")
     mock_source3 = MagicMock(
-        conversion_type=ConversionType.CONVERTED,
+        conversion_type="converted",
         source_stream=MagicMock(index=1),
         source_video_path="original.ts",
     )
@@ -136,12 +136,12 @@ async def test_get_audio_quality_metrics_partial_failure(
     mock_stream2 = MagicMock(index=2, codec_type="audio")
 
     mock_source1 = MagicMock(
-        conversion_type=ConversionType.CONVERTED,
+        conversion_type="converted",
         source_stream=MagicMock(index=0),
         source_video_path="original.ts",
     )
     mock_source2 = MagicMock(
-        conversion_type=ConversionType.CONVERTED,
+        conversion_type="converted",
         source_stream=MagicMock(index=1),
         source_video_path="original.ts",
     )
@@ -178,7 +178,7 @@ async def test_get_audio_quality_metrics_no_metrics_parsed(
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
     mock_stream1 = MagicMock(index=0, codec_type="audio")
     mock_source1 = MagicMock(
-        conversion_type=ConversionType.CONVERTED,
+        conversion_type="converted",
         source_stream=MagicMock(index=0),
         source_video_path="original.ts",
     )
@@ -206,16 +206,14 @@ def test_check_audio_quality(mocker: MockerFixture) -> None:
 async def test_get_audio_quality_metrics_integration(ts_file: Path) -> None:
     """Test get_audio_quality_metrics with a real video file."""
     video_file = VideoFile(path=ts_file)
-    stream_sources: list[StreamSource[Stream]] = []
+    stream_sources: list[StreamSource[Stream, ConversionT]] = []
     for stream in video_file.media_info.streams:
         stream_sources.append(
             StreamSource(
                 source_video_path=video_file.path,
                 source_stream=stream,
                 conversion_type=(
-                    ConversionType.CONVERTED
-                    if stream.codec_type == "audio"
-                    else ConversionType.COPIED
+                    "converted" if stream.codec_type == "audio" else "copied"
                 ),
             )
         )

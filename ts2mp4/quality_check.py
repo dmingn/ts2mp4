@@ -7,7 +7,7 @@ from typing import AsyncIterable, NamedTuple, Optional
 from logzero import logger
 
 from .ffmpeg import FFmpegProcessError, execute_ffmpeg_stderr_streamed
-from .video_file import ConversionType, ConvertedVideoFile
+from .video_file import ConvertedVideoFile
 
 
 class AudioQualityMetrics(NamedTuple):
@@ -76,10 +76,7 @@ async def get_audio_quality_metrics(
     quality_metrics: dict[int, AudioQualityMetrics] = {}
 
     for stream, stream_source in converted_file.stream_with_sources:
-        if (
-            stream.codec_type != "audio"
-            or stream_source.conversion_type != ConversionType.CONVERTED
-        ):
+        if stream.codec_type != "audio" or stream_source.conversion_type != "converted":
             continue
 
         original_file = stream_source.source_video_path
