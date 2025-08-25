@@ -69,7 +69,7 @@ class StreamSource(BaseModel, Generic[StreamT, ConversionTypeT]):
     source_stream: StreamT
     conversion_type: ConversionTypeT
 
-    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+    model_config = ConfigDict(frozen=True)
 
 
 def is_video_stream_source(
