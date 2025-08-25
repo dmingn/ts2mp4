@@ -7,7 +7,6 @@ from typing_extensions import Self
 
 from .ffmpeg import execute_ffmpeg
 from .video_file import (
-    ConversionType,
     ConvertedVideoFile,
     StreamSource,
     StreamSources,
@@ -30,15 +29,9 @@ class StreamSourcesForInitialConversion(StreamSources):
     @model_validator(mode="after")
     def validate_conversion_types(self) -> Self:
         """Validate that video streams are converted and audio streams are copied."""
-        if not all(
-            s.conversion_type == ConversionType.CONVERTED
-            for s in self.video_stream_sources
-        ):
+        if not all(s.conversion_type == "converted" for s in self.video_stream_sources):
             raise ValueError("All video streams must be converted.")
-        if not all(
-            s.conversion_type == ConversionType.COPIED
-            for s in self.audio_stream_sources
-        ):
+        if not all(s.conversion_type == "copied" for s in self.audio_stream_sources):
             raise ValueError("All audio streams must be copied.")
         return self
 
@@ -80,9 +73,7 @@ def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForInitialConve
                 source_video_path=input_file.path,
                 source_stream=stream,
                 conversion_type=(
-                    ConversionType.CONVERTED
-                    if stream.codec_type == "video"
-                    else ConversionType.COPIED
+                    "converted" if stream.codec_type == "video" else "copied"
                 ),
             )
             for stream in sorted(input_file.valid_streams, key=lambda s: s.index)
