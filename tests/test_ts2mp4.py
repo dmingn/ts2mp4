@@ -154,22 +154,31 @@ def test_ts2mp4_re_encodes_on_stream_integrity_failure(
         "ts2mp4.ts2mp4.perform_initial_conversion",
         return_value=mock_output_video_file_instance,
     )
-    mocker.patch(
+    mock_verify_copied_streams = mocker.patch(
         "ts2mp4.ts2mp4.verify_copied_streams",
-        side_effect=RuntimeError("Audio stream integrity check failed"),
+        side_effect=[RuntimeError("Audio stream integrity check failed"), None],
     )
-    mock_re_encode = mocker.patch("ts2mp4.ts2mp4.re_encode_mismatched_audio_streams")
-    mocker.patch("pathlib.Path.replace")
+    mock_re_encode = mocker.patch(
+        "ts2mp4.ts2mp4.re_encode_mismatched_audio_streams",
+        return_value=mocker.MagicMock(spec=VideoFile),
+    )
+    mock_check_audio_quality = mocker.patch(
+        "ts2mp4.ts2mp4.check_audio_quality", return_value={}
+    )
+    mock_replace = mocker.patch("pathlib.Path.replace")
 
     # Act
     ts2mp4(mock_video_file, output_file, crf, preset)
 
     # Assert
+    assert mock_verify_copied_streams.call_count == 2
     mock_re_encode.assert_called_once_with(
         original_file=mock_video_file,
         encoded_file=mock_output_video_file_instance,
         output_file=output_file.with_suffix(output_file.suffix + ".temp"),
     )
+    mock_check_audio_quality.assert_called_once()
+    mock_replace.assert_called_once()
 
 
 @pytest.mark.unit
