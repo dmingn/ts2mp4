@@ -6,6 +6,7 @@ from logzero import logger
 
 from .audio_reencoder import re_encode_mismatched_audio_streams
 from .initial_converter import perform_initial_conversion
+from .quality_check import check_audio_quality
 from .stream_integrity import verify_copied_streams
 from .video_file import VideoFile
 
@@ -36,12 +37,25 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
         logger.warning(f"Audio integrity check failed: {e}")
         logger.info("Attempting to re-encode mismatched audio streams.")
         temp_output_file = output_path.with_suffix(output_path.suffix + ".temp")
-        re_encode_mismatched_audio_streams(
+        re_encoded_file = re_encode_mismatched_audio_streams(
             original_file=input_file,
             encoded_file=initially_converted_video_file,
             output_file=temp_output_file,
         )
-        temp_output_file.replace(output_path)
-        logger.info(
-            f"Successfully re-encoded audio for {output_path.name} and replaced original."
-        )
+        if re_encoded_file:
+            verify_copied_streams(re_encoded_file)
+            quality_metrics = check_audio_quality(re_encoded_file)
+            for stream_index, metrics in quality_metrics.items():
+                log_parts = []
+                if metrics.apsnr is not None:
+                    log_parts.append(f"APSNR={metrics.apsnr:.2f}dB")
+                if metrics.asdr is not None:
+                    log_parts.append(f"ASDR={metrics.asdr:.2f}dB")
+                if log_parts:
+                    logger.info(
+                        f"Audio quality for stream {stream_index}: {', '.join(log_parts)}"
+                    )
+            temp_output_file.replace(output_path)
+            logger.info(
+                f"Successfully re-encoded audio for {output_path.name} and replaced original."
+            )
