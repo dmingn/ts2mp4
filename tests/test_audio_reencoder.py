@@ -1,12 +1,13 @@
 """Unit and integration tests for the audio_reencoder module."""
 
 from pathlib import Path
-from typing import Callable, cast
+from typing import Callable, Literal, cast
 
 import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.audio_reencoder import (
+    StreamSourceForAudioReEncoding,
     StreamSourcesForAudioReEncoding,
     _build_audio_convert_args,
     _build_ffmpeg_args_from_stream_sources,
@@ -18,8 +19,8 @@ from ts2mp4.initial_converter import (
     InitiallyConvertedVideoFile,
     StreamSourcesForInitialConversion,
 )
-from ts2mp4.media_info import AudioStream, OtherStream, Stream, VideoStream
-from ts2mp4.video_file import ConversionT, StreamSource, StreamSources, VideoFile
+from ts2mp4.media_info import AudioStream, VideoStream
+from ts2mp4.video_file import StreamSource, StreamSources, VideoFile
 
 
 @pytest.fixture
@@ -370,17 +371,17 @@ def test_build_ffmpeg_args_from_stream_sources(
     dummy_encoded_file.touch()
     mock_encoded_file.path = dummy_encoded_file
 
-    ss1: StreamSource[VideoStream, ConversionT] = StreamSource(
+    ss1: StreamSource[VideoStream, Literal["copied"]] = StreamSource(
         source_video_path=mock_encoded_file.path,
         source_stream=VideoStream(codec_type="video", index=0),
         conversion_type="copied",
     )
-    ss2: StreamSource[AudioStream, ConversionT] = StreamSource(
+    ss2: StreamSource[AudioStream, Literal["copied"]] = StreamSource(
         source_video_path=mock_encoded_file.path,
         source_stream=AudioStream(codec_type="audio", index=1),
         conversion_type="copied",
     )
-    ss3: StreamSource[AudioStream, ConversionT] = StreamSource(
+    ss3: StreamSource[AudioStream, Literal["converted"]] = StreamSource(
         source_video_path=mock_original_file.path,
         source_stream=AudioStream(codec_type="audio", index=2),
         conversion_type="converted",
@@ -442,7 +443,7 @@ def test_stream_sources_for_audio_re_encoding_validation_success(
     dummy_encoded_file.touch()
     mock_encoded_file.path = dummy_encoded_file
 
-    valid_sources: list[StreamSource[Stream, ConversionT]] = [
+    valid_sources: list[StreamSourceForAudioReEncoding] = [
         StreamSource(
             source_video_path=mock_encoded_file.path,
             conversion_type="copied",
@@ -462,7 +463,6 @@ def test_stream_sources_for_audio_re_encoding_validation_success(
     "modifier, error_message",
     [
         ("no_video", "At least one video stream is required."),
-        ("video_not_copied", "All video streams must be copied."),
         (
             "video_from_original",
             "All copied streams must come from the same encoded file.",
@@ -476,21 +476,17 @@ def test_stream_sources_for_audio_re_encoding_validation_success(
             "converted_audio_from_encoded",
             "Original and encoded files cannot be the same when re-encoding.",
         ),
-        ("unsupported_stream", "Only video and audio streams are supported."),
-        (
-            "only_converted",
-            "At least one video stream is required.",
-        ),
+        ("only_converted", "At least one video stream is required."),
         (
             "converted_from_multiple",
             "All converted streams must come from the same original file.",
         ),
     ],
 )
-def test_stream_sources_for_audio_re_encoding_validation_failures(
+def test_stream_sources_for_audio_re_encoding_value_validation_failures(
     modifier: str, error_message: str, mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """Tests the validation rules in StreamSourcesForAudioReEncoding.__new__."""
+    """Tests the validation rules in StreamSourcesForAudioReEncoding."""
     mock_original_file = mocker.MagicMock(spec=VideoFile)
     dummy_original_file = tmp_path / "original.ts"
     dummy_original_file.touch()
@@ -506,7 +502,7 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
     dummy_another_original.touch()
     mock_another_original.path = dummy_another_original
 
-    sources: list[StreamSource[Stream, ConversionT]] = [
+    sources: list[StreamSourceForAudioReEncoding] = [
         StreamSource(
             source_video_path=mock_encoded_file.path,
             conversion_type="copied",
@@ -526,12 +522,6 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
 
     if modifier == "no_video":
         sources = [s for s in sources if s.source_stream.codec_type != "video"]
-    elif modifier == "video_not_copied":
-        sources[0] = StreamSource(
-            source_video_path=sources[0].source_video_path,
-            source_stream=sources[0].source_stream,
-            conversion_type="converted",
-        )
     elif modifier == "video_from_original":
         sources[0] = StreamSource(
             source_video_path=mock_original_file.path,
@@ -553,14 +543,6 @@ def test_stream_sources_for_audio_re_encoding_validation_failures(
             source_video_path=mock_encoded_file.path,
             source_stream=sources[2].source_stream,
             conversion_type=sources[2].conversion_type,
-        )
-    elif modifier == "unsupported_stream":
-        sources.append(
-            StreamSource(
-                source_video_path=mock_original_file.path,
-                conversion_type="converted",
-                source_stream=OtherStream(codec_type="subtitle", index=3),
-            )
         )
     elif modifier == "only_converted":
         sources = [sources[2]]
