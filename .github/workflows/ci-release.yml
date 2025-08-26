@@ -103,6 +103,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v5.0.0
+        with:
+          token: ${{ secrets.PAT_FOR_CREATING_PR }}
 
       - name: Install poetry
         run: pipx install poetry
