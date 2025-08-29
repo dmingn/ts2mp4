@@ -7,12 +7,7 @@ from pydantic import model_validator
 
 from .ffmpeg import execute_ffmpeg
 from .media_info import AudioStream, VideoStream
-from .video_file import (
-    ConvertedVideoFile,
-    StreamSource,
-    StreamSources,
-    VideoFile,
-)
+from .video_file import ConvertedVideoFile, StreamSource, StreamSources, VideoFile
 
 StreamSourceForInitialConversion = (
     StreamSource[VideoStream, Literal["converted"]]
@@ -51,10 +46,7 @@ class StreamSourcesForInitialConversion(StreamSources):
         return next(iter(self.source_video_files))
 
 
-class InitiallyConvertedVideoFile(ConvertedVideoFile):
-    """Represents a ConvertedVideoFile that has undergone the initial conversion."""
-
-    stream_sources: StreamSourcesForInitialConversion
+InitiallyConvertedVideoFile = ConvertedVideoFile[StreamSourcesForInitialConversion]
 
 
 def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForInitialConversion:
