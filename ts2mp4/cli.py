@@ -4,7 +4,7 @@ import datetime
 import platform
 from enum import Enum
 from pathlib import Path
-from typing import Annotated, Union
+from typing import Annotated
 
 import logzero
 import typer
@@ -46,7 +46,7 @@ def main(
         Path, typer.Argument(exists=True, file_okay=True, dir_okay=False, readable=True)
     ],
     log_file: Annotated[
-        Union[Path, None],
+        Path | None,
         typer.Option(
             help="Path to the log file. Defaults to <input_file>.log",
             file_okay=True,

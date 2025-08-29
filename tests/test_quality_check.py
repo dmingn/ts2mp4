@@ -1,7 +1,7 @@
 """Unit and integration tests for the quality_check module."""
 
 from pathlib import Path
-from typing import AsyncGenerator, Union
+from typing import AsyncGenerator
 from unittest.mock import MagicMock
 
 import pytest
@@ -52,8 +52,8 @@ from ts2mp4.video_file import (
 )
 async def test_parse_audio_quality_metrics(
     ffmpeg_output: str,
-    expected_apsnr: Union[float, None],
-    expected_asdr: Union[float, None],
+    expected_apsnr: float | None,
+    expected_asdr: float | None,
 ) -> None:
     """Test parsing of audio quality metrics from FFmpeg output."""
 

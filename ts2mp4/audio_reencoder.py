@@ -1,11 +1,10 @@
 """Re-encodes audio streams that have integrity issues."""
 
 from pathlib import Path
-from typing import Literal, Optional, Union
+from typing import Literal, Optional, Self
 
 from logzero import logger
 from pydantic import model_validator
-from typing_extensions import Self
 
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
 from .initial_converter import InitiallyConvertedVideoFile
@@ -20,10 +19,10 @@ from .video_file import (
     is_audio_stream_source,
 )
 
-StreamSourceForAudioReEncoding = Union[
-    StreamSource[VideoStream, Literal["copied"]],
-    StreamSource[AudioStream, Literal["copied", "converted"]],
-]
+StreamSourceForAudioReEncoding = (
+    StreamSource[VideoStream, Literal["copied"]]
+    | StreamSource[AudioStream, Literal["copied", "converted"]]
+)
 
 
 class StreamSourcesForAudioReEncoding(StreamSources):
