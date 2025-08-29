@@ -3,7 +3,7 @@
 import json
 from functools import cache
 from pathlib import Path
-from typing import Any, Literal, Optional, Union
+from typing import Any, Literal, Optional
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -40,7 +40,7 @@ class OtherStream(BaseStream):
     """A class to hold information about other stream types."""
 
 
-Stream = Union[VideoStream, AudioStream, OtherStream]
+Stream = VideoStream | AudioStream | OtherStream
 
 
 class Format(BaseModel):
@@ -61,7 +61,7 @@ class MediaInfo(BaseModel):
 
     @field_validator("streams", mode="before")
     @classmethod
-    def sort_streams(cls, v: Any) -> Union[list[Any], Any]:
+    def sort_streams(cls, v: Any) -> list[Any] | Any:
         """Sorts a list of streams by their index."""
         if v is not None and isinstance(v, list):
             return sorted(

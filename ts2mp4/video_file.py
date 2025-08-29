@@ -1,9 +1,14 @@
 """A module for the VideoFile class."""
 
-from typing import Generic, Iterator, Literal, TypeVar
+from typing import Generic, Iterator, Literal, TypeGuard, TypeVar
 
-from pydantic import BaseModel, ConfigDict, FilePath, RootModel, model_validator
-from typing_extensions import TypeGuard
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    FilePath,
+    RootModel,
+    model_validator,
+)
 
 from .media_info import AudioStream, MediaInfo, Stream, VideoStream, get_media_info
 

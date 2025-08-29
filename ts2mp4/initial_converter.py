@@ -1,10 +1,9 @@
 """Handles the initial conversion from TS to MP4."""
 
 from pathlib import Path
-from typing import Literal, Union
+from typing import Literal, Self
 
 from pydantic import model_validator
-from typing_extensions import Self
 
 from .ffmpeg import execute_ffmpeg
 from .media_info import AudioStream, VideoStream
@@ -15,10 +14,10 @@ from .video_file import (
     VideoFile,
 )
 
-StreamSourceForInitialConversion = Union[
-    StreamSource[VideoStream, Literal["converted"]],
-    StreamSource[AudioStream, Literal["copied"]],
-]
+StreamSourceForInitialConversion = (
+    StreamSource[VideoStream, Literal["converted"]]
+    | StreamSource[AudioStream, Literal["copied"]]
+)
 
 
 class StreamSourcesForInitialConversion(StreamSources):
