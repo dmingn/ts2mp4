@@ -210,7 +210,7 @@ def test_converted_video_file_instantiation(
     )
 
     stream_sources = StreamSources(root=(stream_source,))
-    converted_file = ConvertedVideoFile(
+    converted_file = ConvertedVideoFile[StreamSources](
         path=dummy_video_file.path,
         stream_sources=stream_sources,
     )
@@ -297,7 +297,7 @@ def test_converted_video_file_stream_with_sources_property(
     )
 
     stream_sources = StreamSources(root=(stream_source,))
-    converted_file = ConvertedVideoFile(
+    converted_file = ConvertedVideoFile[StreamSources](
         path=dummy_video_file.path,
         stream_sources=stream_sources,
     )

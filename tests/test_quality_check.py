@@ -218,7 +218,7 @@ async def test_get_audio_quality_metrics_integration(ts_file: Path) -> None:
             )
         )
 
-    converted_file = ConvertedVideoFile(
+    converted_file = ConvertedVideoFile[StreamSources](
         path=ts_file, stream_sources=StreamSources(root=tuple(stream_sources))
     )
 

@@ -1,14 +1,8 @@
 """A module for the VideoFile class."""
 
-from typing import Generic, Iterator, Literal, TypeGuard, TypeVar
+from typing import Generic, Iterator, Literal, Self, TypeGuard, TypeVar
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    FilePath,
-    RootModel,
-    model_validator,
-)
+from pydantic import BaseModel, ConfigDict, FilePath, RootModel, model_validator
 
 from .media_info import AudioStream, MediaInfo, Stream, VideoStream, get_media_info
 
@@ -130,7 +124,10 @@ class StreamSources(RootModel[tuple[StreamSource[Stream, ConversionType], ...]])
         )
 
 
-class ConvertedVideoFile(VideoFile):
+StreamSourcesT = TypeVar("StreamSourcesT", bound=StreamSources, covariant=True)
+
+
+class ConvertedVideoFile(VideoFile, Generic[StreamSourcesT]):
     """A class representing a converted video file.
 
     This class extends VideoFile to include information about how each stream
@@ -142,12 +139,12 @@ class ConvertedVideoFile(VideoFile):
     (copied or converted).
     """
 
-    stream_sources: StreamSources
+    stream_sources: StreamSourcesT
 
     model_config = ConfigDict(frozen=True)
 
     @model_validator(mode="after")
-    def validate_stream_counts(self) -> "ConvertedVideoFile":
+    def validate_stream_counts(self) -> Self:
         """Validate that the number of stream sources matches the number of streams."""
         if len(self.stream_sources) != len(self.media_info.streams):
             raise ValueError(
