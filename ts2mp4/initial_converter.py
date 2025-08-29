@@ -47,6 +47,7 @@ class StreamSourcesForInitialConversion(StreamSources):
 
 
 InitiallyConvertedVideoFile = ConvertedVideoFile[StreamSourcesForInitialConversion]
+"""Represents a ConvertedVideoFile that has undergone the initial conversion."""
 
 
 def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForInitialConversion:

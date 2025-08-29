@@ -72,6 +72,7 @@ class StreamSourcesForAudioReEncoding(StreamSources):
 
 
 AudioReEncodedVideoFile = ConvertedVideoFile[StreamSourcesForAudioReEncoding]
+"""Represents a ConvertedVideoFile that has undergone audio re-encoding."""
 
 
 def _build_stream_sources_for_audio_re_encoding(
