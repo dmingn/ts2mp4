@@ -14,7 +14,7 @@ description = ""
 authors = ["dmingn <dmingn@users.noreply.github.com>"]
 
 [tool.poetry.dependencies]
-python = "^3.9"
+python = "^3.12"
 logzero = "^1.7.0"
 pydantic = "^2.5.3"
 typer = "^0.16.0"
@@ -40,7 +40,7 @@ markers = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py39"
+target-version = "py312"
 
 [tool.ruff.format]
 quote-style = "double"
