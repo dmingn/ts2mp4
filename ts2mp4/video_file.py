@@ -2,13 +2,7 @@
 
 from typing import Generic, Iterator, Literal, TypeGuard, TypeVar
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    FilePath,
-    RootModel,
-    model_validator,
-)
+from pydantic import BaseModel, ConfigDict, FilePath, RootModel, model_validator
 
 from .media_info import AudioStream, MediaInfo, Stream, VideoStream, get_media_info
 
@@ -58,7 +52,7 @@ class VideoFile(BaseModel):
         )
 
     @property
-    def valid_streams(self) -> tuple[Stream, ...]:
+    def valid_streams(self) -> tuple[VideoStream | AudioStream, ...]:
         """Return a tuple of valid streams."""
         return self.valid_video_streams + self.valid_audio_streams
 

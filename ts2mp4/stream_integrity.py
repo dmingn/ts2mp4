@@ -3,15 +3,15 @@
 from logzero import logger
 
 from .hashing import get_stream_md5
-from .media_info import Stream
+from .media_info import AudioStream, VideoStream
 from .video_file import ConvertedVideoFile, VideoFile
 
 
 def compare_stream_hashes(
     input_video: VideoFile,
     output_video: VideoFile,
-    input_stream: "Stream",
-    output_stream: "Stream",
+    input_stream: VideoStream | AudioStream,
+    output_stream: VideoStream | AudioStream,
 ) -> bool:
     """Check the integrity of a single stream by comparing MD5 hashes.
 
@@ -61,6 +61,13 @@ def verify_copied_streams(converted_file: ConvertedVideoFile) -> None:
     for output_stream, stream_source in converted_file.stream_with_sources:
         if stream_source.conversion_type != "copied":
             continue
+
+        if not isinstance(output_stream, (AudioStream, VideoStream)) or not isinstance(
+            stream_source.source_stream, (AudioStream, VideoStream)
+        ):
+            raise NotImplementedError(
+                "Stream integrity check for non-audio/video streams is not implemented."
+            )
 
         if not compare_stream_hashes(
             input_video=VideoFile(path=stream_source.source_video_path),
