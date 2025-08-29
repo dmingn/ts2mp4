@@ -139,7 +139,7 @@ class ConvertedVideoFile(VideoFile):
 
     stream_sources: StreamSources
 
-    model_config = ConfigDict(arbitrary_types_allowed=True, frozen=True)
+    model_config = ConfigDict(frozen=True)
 
     @model_validator(mode="after")
     def validate_stream_counts(self) -> "ConvertedVideoFile":
