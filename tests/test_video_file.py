@@ -10,7 +10,7 @@ from pytest_mock import MockerFixture
 
 from ts2mp4.media_info import AudioStream, MediaInfo, OtherStream, VideoStream
 from ts2mp4.video_file import (
-    ConversionT,
+    ConversionType,
     ConvertedVideoFile,
     StreamSource,
     StreamSources,
@@ -48,7 +48,7 @@ def dummy_video_file(tmp_path: Path) -> VideoFile:
 @pytest.fixture
 def stream_source(
     dummy_video_file: VideoFile,
-) -> StreamSource[VideoStream, ConversionT]:
+) -> StreamSource[VideoStream, ConversionType]:
     """Create a dummy StreamSource instance."""
     return StreamSource(
         source_video_path=dummy_video_file.path,
@@ -186,7 +186,7 @@ def test_videofile_valid_streams_property(
 def test_stream_source_instantiation(dummy_video_file: VideoFile) -> None:
     """Test that StreamSource can be instantiated with valid data."""
     stream = VideoStream(codec_type="video", index=0)
-    stream_source: StreamSource[VideoStream, ConversionT] = StreamSource(
+    stream_source: StreamSource[VideoStream, ConversionType] = StreamSource(
         source_video_path=dummy_video_file.path,
         source_stream=stream,
         conversion_type="copied",
@@ -199,7 +199,7 @@ def test_stream_source_instantiation(dummy_video_file: VideoFile) -> None:
 @pytest.mark.unit
 def test_converted_video_file_instantiation(
     dummy_video_file: VideoFile,
-    stream_source: StreamSource[VideoStream, ConversionT],
+    stream_source: StreamSource[VideoStream, ConversionType],
     mocker: MockerFixture,
 ) -> None:
     """Test that ConvertedVideoFile can be instantiated with valid data."""
@@ -260,7 +260,7 @@ def test_stream_sources_properties_with_empty_sources() -> None:
 @pytest.mark.unit
 def test_converted_video_file_mismatched_stream_counts_raises_error(
     dummy_video_file: VideoFile,
-    stream_source: StreamSource[VideoStream, ConversionT],
+    stream_source: StreamSource[VideoStream, ConversionType],
     mocker: MockerFixture,
 ) -> None:
     """Test that ConvertedVideoFile raises ValueError for mismatched stream counts."""
@@ -286,7 +286,7 @@ def test_converted_video_file_mismatched_stream_counts_raises_error(
 @pytest.mark.unit
 def test_converted_video_file_stream_with_sources_property(
     dummy_video_file: VideoFile,
-    stream_source: StreamSource[VideoStream, ConversionT],
+    stream_source: StreamSource[VideoStream, ConversionType],
     mocker: MockerFixture,
 ) -> None:
     """Test the stream_with_sources property of ConvertedVideoFile."""
