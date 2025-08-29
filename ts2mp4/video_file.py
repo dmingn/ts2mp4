@@ -58,8 +58,8 @@ class VideoFile(BaseModel):
         return self.valid_video_streams + self.valid_audio_streams
 
 
-ConversionT = Literal["converted", "copied"]
-ConversionTypeT = TypeVar("ConversionTypeT", bound=ConversionT, covariant=True)
+ConversionType = Literal["converted", "copied"]
+ConversionTypeT = TypeVar("ConversionTypeT", bound=ConversionType, covariant=True)
 
 
 class StreamSource(BaseModel, Generic[StreamT, ConversionTypeT]):
@@ -86,16 +86,16 @@ def is_audio_stream_source(
     return isinstance(source.source_stream, AudioStream)
 
 
-class StreamSources(RootModel[tuple[StreamSource[Stream, ConversionT], ...]]):
+class StreamSources(RootModel[tuple[StreamSource[Stream, ConversionType], ...]]):
     """A tuple of StreamSource objects."""
 
     model_config = ConfigDict(frozen=True)
 
-    def __iter__(self) -> Iterator[StreamSource[Stream, ConversionT]]:  # type: ignore[override]
+    def __iter__(self) -> Iterator[StreamSource[Stream, ConversionType]]:  # type: ignore[override]
         """Return an iterator over the StreamSource objects."""
         return iter(self.root)
 
-    def __getitem__(self, item: int) -> StreamSource[Stream, ConversionT]:
+    def __getitem__(self, item: int) -> StreamSource[Stream, ConversionType]:
         """Return the StreamSource object at the given index."""
         return self.root[item]
 
@@ -106,14 +106,14 @@ class StreamSources(RootModel[tuple[StreamSource[Stream, ConversionT], ...]]):
     @property
     def video_stream_sources(
         self,
-    ) -> frozenset[StreamSource[VideoStream, ConversionT]]:
+    ) -> frozenset[StreamSource[VideoStream, ConversionType]]:
         """Return a set of video stream sources."""
         return frozenset(filter(is_video_stream_source, self.root))
 
     @property
     def audio_stream_sources(
         self,
-    ) -> frozenset[StreamSource[AudioStream, ConversionT]]:
+    ) -> frozenset[StreamSource[AudioStream, ConversionType]]:
         """Return a set of audio stream sources."""
         return frozenset(filter(is_audio_stream_source, self.root))
 
@@ -155,6 +155,6 @@ class ConvertedVideoFile(VideoFile):
     @property
     def stream_with_sources(
         self,
-    ) -> Iterator[tuple[Stream, StreamSource[Stream, ConversionT]]]:
+    ) -> Iterator[tuple[Stream, StreamSource[Stream, ConversionType]]]:
         """Return a zip object of output streams and their sources."""
         return zip(self.media_info.streams, self.stream_sources)

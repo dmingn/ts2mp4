@@ -12,7 +12,7 @@ from .initial_converter import InitiallyConvertedVideoFile
 from .media_info import AudioStream, VideoStream
 from .stream_integrity import compare_stream_hashes
 from .video_file import (
-    ConversionT,
+    ConversionType,
     ConvertedVideoFile,
     StreamSource,
     StreamSources,
@@ -137,7 +137,7 @@ def _build_stream_sources_for_audio_re_encoding(
 
 
 def _build_audio_convert_args(
-    stream_source: StreamSource[AudioStream, ConversionT], output_stream_index: int
+    stream_source: StreamSource[AudioStream, ConversionType], output_stream_index: int
 ) -> list[str]:
     """Build FFmpeg arguments for converting an audio stream."""
     original_audio_stream = stream_source.source_stream
