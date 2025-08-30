@@ -8,7 +8,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import FFmpegProcessError
-from ts2mp4.media_info import Stream
+from ts2mp4.media_info import AudioStream, Stream, VideoStream
 from ts2mp4.quality_check import (
     AudioQualityMetrics,
     check_audio_quality,
@@ -20,6 +20,7 @@ from ts2mp4.video_file import (
     ConvertedVideoFile,
     StreamSource,
     StreamSources,
+    StreamWithSource,
     VideoFile,
 )
 
@@ -68,7 +69,9 @@ async def test_parse_audio_quality_metrics(
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_get_audio_quality_metrics_unit(mocker: MockerFixture) -> None:
+async def test_get_audio_quality_metrics_unit(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
     """Test the audio quality metrics calculation unit."""
     mock_stream = mocker.patch("ts2mp4.quality_check.execute_ffmpeg_stderr_streamed")
 
@@ -81,26 +84,33 @@ async def test_get_audio_quality_metrics_unit(mocker: MockerFixture) -> None:
     mock_stream.side_effect = mock_generator
 
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
-    mock_stream1 = MagicMock(index=0, codec_type="audio")
-    mock_stream2 = MagicMock(index=1, codec_type="video")
-    mock_stream3 = MagicMock(index=2, codec_type="audio")
+    stream1: AudioStream = AudioStream(index=0, codec_type="audio")
+    stream2: VideoStream = VideoStream(index=1, codec_type="video")
+    stream3: AudioStream = AudioStream(index=2, codec_type="audio")
 
-    mock_source1 = MagicMock(
+    dummy_file = tmp_path / "original.ts"
+    dummy_file.touch()
+
+    source1: StreamSource[AudioStream, ConversionType] = StreamSource(
         conversion_type="converted",
-        source_stream=MagicMock(index=0),
-        source_video_path="original.ts",
+        source_stream=AudioStream(index=0, codec_type="audio"),
+        source_video_path=dummy_file,
     )
-    mock_source2 = MagicMock(conversion_type="copied")
-    mock_source3 = MagicMock(
+    source2: StreamSource[VideoStream, ConversionType] = StreamSource(
+        conversion_type="copied",
+        source_stream=VideoStream(index=1, codec_type="video"),
+        source_video_path=dummy_file,
+    )
+    source3: StreamSource[AudioStream, ConversionType] = StreamSource(
         conversion_type="converted",
-        source_stream=MagicMock(index=1),
-        source_video_path="original.ts",
+        source_stream=AudioStream(index=1, codec_type="audio"),
+        source_video_path=dummy_file,
     )
 
     mock_converted_file.stream_with_sources = [
-        (mock_stream1, mock_source1),
-        (mock_stream2, mock_source2),
-        (mock_stream3, mock_source3),
+        StreamWithSource(stream=stream1, source=source1),
+        StreamWithSource(stream=stream2, source=source2),
+        StreamWithSource(stream=stream3, source=source3),
     ]
     mock_converted_file.path = "converted.mp4"
 
@@ -117,7 +127,7 @@ async def test_get_audio_quality_metrics_unit(mocker: MockerFixture) -> None:
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_get_audio_quality_metrics_partial_failure(
-    mocker: MockerFixture,
+    mocker: MockerFixture, tmp_path: Path
 ) -> None:
     """Test quality metrics calculation with a partial FFmpeg failure."""
     mock_stream = mocker.patch("ts2mp4.quality_check.execute_ffmpeg_stderr_streamed")
@@ -132,23 +142,26 @@ async def test_get_audio_quality_metrics_partial_failure(
     ]
 
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
-    mock_stream1 = MagicMock(index=0, codec_type="audio")
-    mock_stream2 = MagicMock(index=2, codec_type="audio")
+    stream1: AudioStream = AudioStream(index=0, codec_type="audio")
+    stream2: AudioStream = AudioStream(index=2, codec_type="audio")
 
-    mock_source1 = MagicMock(
+    dummy_file = tmp_path / "original.ts"
+    dummy_file.touch()
+
+    source1: StreamSource[AudioStream, ConversionType] = StreamSource(
         conversion_type="converted",
-        source_stream=MagicMock(index=0),
-        source_video_path="original.ts",
+        source_stream=AudioStream(index=0, codec_type="audio"),
+        source_video_path=dummy_file,
     )
-    mock_source2 = MagicMock(
+    source2: StreamSource[AudioStream, ConversionType] = StreamSource(
         conversion_type="converted",
-        source_stream=MagicMock(index=1),
-        source_video_path="original.ts",
+        source_stream=AudioStream(index=1, codec_type="audio"),
+        source_video_path=dummy_file,
     )
 
     mock_converted_file.stream_with_sources = [
-        (mock_stream1, mock_source1),
-        (mock_stream2, mock_source2),
+        StreamWithSource(stream=stream1, source=source1),
+        StreamWithSource(stream=stream2, source=source2),
     ]
     mock_converted_file.path = "converted.mp4"
 
@@ -163,7 +176,7 @@ async def test_get_audio_quality_metrics_partial_failure(
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_get_audio_quality_metrics_no_metrics_parsed(
-    mocker: MockerFixture,
+    mocker: MockerFixture, tmp_path: Path
 ) -> None:
     """Test quality metrics calculation when no metrics are parsed from output."""
     mock_stream = mocker.patch("ts2mp4.quality_check.execute_ffmpeg_stderr_streamed")
@@ -176,13 +189,19 @@ async def test_get_audio_quality_metrics_no_metrics_parsed(
     mock_stream.side_effect = mock_generator
 
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
-    mock_stream1 = MagicMock(index=0, codec_type="audio")
-    mock_source1 = MagicMock(
+    stream1: AudioStream = AudioStream(index=0, codec_type="audio")
+
+    dummy_file = tmp_path / "original.ts"
+    dummy_file.touch()
+
+    source1: StreamSource[AudioStream, ConversionType] = StreamSource(
         conversion_type="converted",
-        source_stream=MagicMock(index=0),
-        source_video_path="original.ts",
+        source_stream=AudioStream(index=0, codec_type="audio"),
+        source_video_path=dummy_file,
     )
-    mock_converted_file.stream_with_sources = [(mock_stream1, mock_source1)]
+    mock_converted_file.stream_with_sources = [
+        StreamWithSource(stream=stream1, source=source1)
+    ]
     mock_converted_file.path = "converted.mp4"
 
     metrics = await get_audio_quality_metrics(mock_converted_file)

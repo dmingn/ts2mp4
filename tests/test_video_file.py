@@ -14,6 +14,7 @@ from ts2mp4.video_file import (
     ConvertedVideoFile,
     StreamSource,
     StreamSources,
+    StreamWithSource,
     VideoFile,
 )
 
@@ -302,8 +303,43 @@ def test_converted_video_file_stream_with_sources_property(
         stream_sources=stream_sources,
     )
 
-    pairs = list(converted_file.stream_with_sources)
-    assert len(pairs) == 1
-    output_stream, source = pairs[0]
-    assert output_stream == mock_stream
-    assert source == stream_source
+    items = list(converted_file.stream_with_sources)
+    assert len(items) == 1
+    item = items[0]
+    assert isinstance(item, StreamWithSource)
+    assert item.stream == mock_stream
+    assert item.source == stream_source
+
+
+@pytest.mark.unit
+def test_converted_video_file_stream_with_sources_mismatched_types_raises_error(
+    dummy_video_file: VideoFile,
+    mocker: MockerFixture,
+) -> None:
+    """Test stream_with_sources for mismatched types.
+
+    Ensures that a RuntimeError is raised when the stream type
+    and source stream type do not match.
+    """
+    # Arrange: Create a video stream and an audio stream source
+    mock_video_stream: VideoStream = VideoStream(codec_type="video", index=0)
+    mock_audio_stream_source: StreamSource[AudioStream, ConversionType] = StreamSource(
+        source_video_path=dummy_video_file.path,
+        source_stream=AudioStream(codec_type="audio", index=0),
+        conversion_type="copied",
+    )
+
+    mocker.patch(
+        "ts2mp4.video_file.get_media_info",
+        return_value=MediaInfo(streams=(mock_video_stream,)),
+    )
+
+    stream_sources = StreamSources(root=(mock_audio_stream_source,))
+    converted_file = ConvertedVideoFile[StreamSources](
+        path=dummy_video_file.path,
+        stream_sources=stream_sources,
+    )
+
+    # Act & Assert: Check that iterating over stream_with_sources raises a RuntimeError
+    with pytest.raises(RuntimeError, match="Stream type mismatch for stream index 0"):
+        list(converted_file.stream_with_sources)
