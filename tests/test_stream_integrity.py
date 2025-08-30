@@ -202,7 +202,7 @@ def test_verify_copied_streams_no_copied_streams(
 def test_verify_copied_streams_unknown_stream_type(
     mocker: MockerFixture, mock_converted_video_file: MagicMock
 ) -> None:
-    """Tests that a RuntimeError is raised with "Unknown" for a missing stream type."""
+    """Tests that a NotImplementedError is raised for an unsupported stream type."""
     mocker.patch("ts2mp4.stream_integrity.compare_stream_hashes", return_value=False)
     streams = list(mock_converted_video_file.media_info.streams)
     streams[1] = OtherStream(index=1, codec_type="unknown")
@@ -215,10 +215,10 @@ def test_verify_copied_streams_unknown_stream_type(
         )
     )
 
-    with pytest.raises(RuntimeError) as excinfo:
+    with pytest.raises(NotImplementedError) as excinfo:
         verify_copied_streams(mock_converted_video_file)
 
     assert (
-        "unknown stream integrity check failed for stream at index 1"
-        in str(excinfo.value).lower()
+        "Stream integrity check for non-audio/video streams is not implemented."
+        in str(excinfo.value)
     )

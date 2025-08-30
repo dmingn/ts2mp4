@@ -97,6 +97,13 @@ def _build_stream_sources_for_audio_re_encoding(
             )
 
         if original_stream.codec_type == "video":
+            if not isinstance(matching_stream, VideoStream):
+                raise RuntimeError(
+                    f"Mismatch in stream types for file {encoded_file.path.name}: "
+                    f"Stream at index {matching_stream.index} was expected to be 'video', "
+                    f"but was '{matching_stream.codec_type}'."
+                )
+
             # Video streams should be always copied from the encoded file
             stream_sources_list.append(
                 StreamSource(
@@ -106,6 +113,13 @@ def _build_stream_sources_for_audio_re_encoding(
                 )
             )
         elif original_stream.codec_type == "audio":
+            if not isinstance(matching_stream, AudioStream):
+                raise RuntimeError(
+                    f"Mismatch in stream types for file {encoded_file.path.name}: "
+                    f"Stream at index {matching_stream.index} was expected to be 'audio', "
+                    f"but was '{matching_stream.codec_type}'."
+                )
+
             if compare_stream_hashes(
                 input_video=original_file,
                 output_video=encoded_file,

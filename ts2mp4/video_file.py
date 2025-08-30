@@ -52,7 +52,7 @@ class VideoFile(BaseModel):
         )
 
     @property
-    def valid_streams(self) -> tuple[Stream, ...]:
+    def valid_streams(self) -> tuple[VideoStream | AudioStream, ...]:
         """Return a tuple of valid streams."""
         return self.valid_video_streams + self.valid_audio_streams
 

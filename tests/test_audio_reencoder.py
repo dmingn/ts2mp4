@@ -19,7 +19,7 @@ from ts2mp4.initial_converter import (
     InitiallyConvertedVideoFile,
     StreamSourcesForInitialConversion,
 )
-from ts2mp4.media_info import AudioStream, VideoStream
+from ts2mp4.media_info import AudioStream, MediaInfo, VideoStream
 from ts2mp4.video_file import StreamSource, StreamSources, VideoFile
 
 
@@ -557,3 +557,69 @@ def test_stream_sources_for_audio_re_encoding_value_validation_failures(
 
     with pytest.raises(ValueError, match=error_message):
         StreamSourcesForAudioReEncoding(root=tuple(sources))
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "stream_index_to_mismatch, mismatched_stream, expected_error_message_part",
+    [
+        (0, AudioStream(codec_type="audio", index=0), "expected to be 'video'"),
+        (1, VideoStream(codec_type="video", index=1), "expected to be 'audio'"),
+    ],
+)
+def test_build_stream_sources_for_audio_re_encoding_stream_type_mismatch_raises_error(
+    mocker: MockerFixture,
+    mock_original_video_file: VideoFile,
+    stream_index_to_mismatch: int,
+    mismatched_stream: VideoStream | AudioStream,
+    expected_error_message_part: str,
+    tmp_path: Path,
+) -> None:
+    """Tests that a stream type mismatch raises a RuntimeError."""
+    mock_encoded_video_file = mocker.MagicMock(spec=InitiallyConvertedVideoFile)
+
+    # Create a dummy file for encoded_file.path
+    encoded_file_path = tmp_path / "encoded.mp4"
+    encoded_file_path.touch()
+    mock_encoded_video_file.path = encoded_file_path
+
+    # Generate the initial streams for the mock
+    initial_streams = tuple(
+        (
+            VideoStream(codec_type="video", index=0),
+            AudioStream(codec_type="audio", index=1, codec_name="aac"),
+            AudioStream(codec_type="audio", index=2, codec_name="aac"),
+        )
+    )
+
+    # Create a mismatch for the stream
+    mismatched_streams = tuple(
+        s if i != stream_index_to_mismatch else mismatched_stream
+        for i, s in enumerate(initial_streams)
+    )
+
+    mock_encoded_video_file.media_info = MediaInfo(streams=mismatched_streams)
+
+    # Mock stream_sources for the encoded file
+    mock_encoded_video_file.stream_sources = StreamSources(
+        root=tuple(
+            StreamSource(
+                source_video_path=mock_original_video_file.path,  # Assuming original file as source
+                source_stream=initial_streams[
+                    i
+                ],  # Use original stream from initial_streams
+                conversion_type="copied",  # Or "converted" depending on the test scenario
+            )
+            for i in range(len(initial_streams))
+        )
+    )
+
+    mocker.patch("ts2mp4.audio_reencoder.compare_stream_hashes", return_value=True)
+
+    with pytest.raises(RuntimeError) as excinfo:
+        _build_stream_sources_for_audio_re_encoding(
+            mock_original_video_file, mock_encoded_video_file
+        )
+
+    assert "Mismatch in stream types" in str(excinfo.value)
+    assert expected_error_message_part in str(excinfo.value)
