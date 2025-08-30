@@ -4,7 +4,7 @@ from logzero import logger
 
 from .hashing import get_stream_md5
 from .media_info import AudioStream, VideoStream
-from .video_file import ConvertedVideoFile, VideoFile
+from .video_file import ConvertedVideoFile, StreamSources, VideoFile
 
 
 def compare_stream_hashes(
@@ -45,7 +45,7 @@ def compare_stream_hashes(
     return True
 
 
-def verify_copied_streams(converted_file: ConvertedVideoFile) -> None:
+def verify_copied_streams(converted_file: ConvertedVideoFile[StreamSources]) -> None:
     """Verify the integrity of copied streams by comparing their MD5 hashes.
 
     Args:
