@@ -58,27 +58,29 @@ def verify_copied_streams(converted_file: ConvertedVideoFile[StreamSources]) -> 
     """
     logger.info(f"Verifying copied stream integrity for {converted_file.path.name}")
 
-    for output_stream, stream_source in converted_file.stream_with_sources:
-        if stream_source.conversion_type != "copied":
+    for stream_with_source in converted_file.stream_with_sources:
+        if stream_with_source.source.conversion_type != "copied":
             continue
 
-        if not isinstance(output_stream, (AudioStream, VideoStream)) or not isinstance(
-            stream_source.source_stream, (AudioStream, VideoStream)
+        if not isinstance(
+            stream_with_source.stream, (AudioStream, VideoStream)
+        ) or not isinstance(
+            stream_with_source.source.source_stream, (AudioStream, VideoStream)
         ):
             raise NotImplementedError(
                 "Stream integrity check for non-audio/video streams is not implemented."
             )
 
         if not compare_stream_hashes(
-            input_video=VideoFile(path=stream_source.source_video_path),
+            input_video=VideoFile(path=stream_with_source.source.source_video_path),
             output_video=converted_file,
-            input_stream=stream_source.source_stream,
-            output_stream=output_stream,
+            input_stream=stream_with_source.source.source_stream,
+            output_stream=stream_with_source.stream,
         ):
-            stream_type = output_stream.codec_type or "Unknown"
+            stream_type = stream_with_source.stream.codec_type or "Unknown"
             raise RuntimeError(
                 f"{stream_type.capitalize()} stream integrity check "
-                f"failed for stream at index {stream_source.source_stream.index}"
+                f"failed for stream at index {stream_with_source.source.source_stream.index}"
             )
 
     logger.info("Copied stream integrity verified successfully. All MD5 hashes match.")

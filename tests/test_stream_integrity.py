@@ -13,6 +13,7 @@ from ts2mp4.video_file import (
     ConvertedVideoFile,
     StreamSource,
     StreamSources,
+    StreamWithSource,
     VideoFile,
 )
 
@@ -138,9 +139,13 @@ def mock_converted_video_file(
 
     # MagicMock doesn't automatically handle properties that are generators
     type(mock_converted_file).stream_with_sources = mocker.PropertyMock(
-        return_value=zip(
-            mock_converted_file.media_info.streams, mock_converted_file.stream_sources
-        )
+        return_value=[
+            StreamWithSource(stream=stream, source=source)
+            for stream, source in zip(
+                mock_converted_file.media_info.streams,
+                mock_converted_file.stream_sources,
+            )
+        ]
     )
 
     return mock_converted_file
@@ -187,10 +192,13 @@ def test_verify_copied_streams_no_copied_streams(
     mock_converted_video_file.stream_sources = StreamSources(root=tuple(stream_sources))
 
     type(mock_converted_video_file).stream_with_sources = mocker.PropertyMock(
-        return_value=zip(
-            mock_converted_video_file.media_info.streams,
-            mock_converted_video_file.stream_sources,
-        )
+        return_value=[
+            StreamWithSource(stream=stream, source=source)
+            for stream, source in zip(
+                mock_converted_video_file.media_info.streams,
+                mock_converted_video_file.stream_sources,
+            )
+        ]
     )
 
     verify_copied_streams(mock_converted_video_file)
@@ -209,10 +217,13 @@ def test_verify_copied_streams_unknown_stream_type(
     mock_converted_video_file.media_info = MediaInfo(streams=tuple(streams))
 
     type(mock_converted_video_file).stream_with_sources = mocker.PropertyMock(
-        return_value=zip(
-            mock_converted_video_file.media_info.streams,
-            mock_converted_video_file.stream_sources,
-        )
+        return_value=[
+            StreamWithSource(stream=stream, source=source)
+            for stream, source in zip(
+                mock_converted_video_file.media_info.streams,
+                mock_converted_video_file.stream_sources,
+            )
+        ]
     )
 
     with pytest.raises(NotImplementedError) as excinfo:

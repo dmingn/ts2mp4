@@ -1,10 +1,17 @@
 """A module for the VideoFile class."""
 
-from typing import Generic, Iterator, Literal, Self, TypeGuard, TypeVar
+from typing import Generic, Iterator, Literal, Self, TypeGuard, TypeVar, assert_never
 
 from pydantic import BaseModel, ConfigDict, FilePath, RootModel, model_validator
 
-from .media_info import AudioStream, MediaInfo, Stream, VideoStream, get_media_info
+from .media_info import (
+    AudioStream,
+    MediaInfo,
+    OtherStream,
+    Stream,
+    VideoStream,
+    get_media_info,
+)
 
 StreamT = TypeVar("StreamT", bound=Stream, covariant=True)
 
@@ -71,6 +78,15 @@ class StreamSource(BaseModel, Generic[StreamT, ConversionTypeT]):
     model_config = ConfigDict(frozen=True)
 
 
+class StreamWithSource(BaseModel, Generic[StreamT]):
+    """A class representing a stream with its source."""
+
+    stream: StreamT
+    source: StreamSource[StreamT, ConversionType]
+
+    model_config = ConfigDict(frozen=True)
+
+
 def is_video_stream_source(
     source: StreamSource[Stream, ConversionTypeT],
 ) -> TypeGuard[StreamSource[VideoStream, ConversionTypeT]]:
@@ -83,6 +99,13 @@ def is_audio_stream_source(
 ) -> TypeGuard[StreamSource[AudioStream, ConversionTypeT]]:
     """Return True if the source is an audio stream source."""
     return isinstance(source.source_stream, AudioStream)
+
+
+def is_other_stream_source(
+    source: StreamSource[Stream, ConversionTypeT],
+) -> TypeGuard[StreamSource[OtherStream, ConversionTypeT]]:
+    """Return True if the source is an other stream source."""
+    return isinstance(source.source_stream, OtherStream)
 
 
 class StreamSources(RootModel[tuple[StreamSource[Stream, ConversionType], ...]]):
@@ -157,6 +180,31 @@ class ConvertedVideoFile(VideoFile, Generic[StreamSourcesT]):
     @property
     def stream_with_sources(
         self,
-    ) -> Iterator[tuple[Stream, StreamSource[Stream, ConversionType]]]:
+    ) -> Iterator[
+        StreamWithSource[VideoStream]
+        | StreamWithSource[AudioStream]
+        | StreamWithSource[OtherStream]
+    ]:
         """Return a zip object of output streams and their sources."""
-        return zip(self.media_info.streams, self.stream_sources)
+        for stream, source in zip(self.media_info.streams, self.stream_sources):
+            match stream:
+                case VideoStream():
+                    if not is_video_stream_source(source):
+                        raise RuntimeError(
+                            f"Stream type mismatch for stream index {stream.index}"
+                        )
+                    yield StreamWithSource(stream=stream, source=source)
+                case AudioStream():
+                    if not is_audio_stream_source(source):
+                        raise RuntimeError(
+                            f"Stream type mismatch for stream index {stream.index}"
+                        )
+                    yield StreamWithSource(stream=stream, source=source)
+                case OtherStream():
+                    if not is_other_stream_source(source):
+                        raise RuntimeError(
+                            f"Stream type mismatch for stream index {stream.index}"
+                        )
+                    yield StreamWithSource(stream=stream, source=source)
+                case _:
+                    assert_never(stream)
