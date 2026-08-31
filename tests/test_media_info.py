@@ -344,7 +344,6 @@ def test_get_media_info_integration(ts_file: Path) -> None:
     result = get_media_info(ts_file)
 
     # Assert
-    # Assuming a real ts file has at least one video and one audio stream at indices 0 and 1
     expected = MediaInfo(
         streams=(
             VideoStream(
@@ -358,7 +357,6 @@ def test_get_media_info_integration(ts_file: Path) -> None:
                 profile="LC",
                 channels=1,
                 sample_rate=44100,
-                bit_rate=5267,
             ),
             AudioStream(
                 codec_type="audio",
@@ -367,12 +365,19 @@ def test_get_media_info_integration(ts_file: Path) -> None:
                 profile="LC",
                 channels=1,
                 sample_rate=44100,
-                bit_rate=71510,
             ),
         ),
         format=Format(format_name="mpegts"),
     )
-    # The real ffprobe output has more fields than what is defined in the MediaInfo model.
-    # Pydantic ignores these extra fields during validation, so a direct object comparison
-    # is sufficient and more concise.
-    assert result == expected
+    # AAC bit_rate for the generated fixture varies across ffmpeg versions.
+    bitrate_exclude = {"streams": {"__all__": {"bit_rate"}}}
+    assert result.model_dump(exclude=bitrate_exclude) == expected.model_dump(
+        exclude=bitrate_exclude
+    )
+    assert all(
+        isinstance(stream, AudioStream)
+        and stream.bit_rate is not None
+        and stream.bit_rate > 0
+        for stream in result.streams
+        if stream.codec_type == "audio"
+    )
