@@ -15,7 +15,7 @@
     *   `stream_integrity.py`: Audio and video stream integrity checks.
     *   `ts2mp4.py`: Core conversion logic.
 *   `tests/`: Project tests.
-*   `pyproject.toml`: Poetry project configuration and dependencies.
+*   `pyproject.toml`: Project configuration and dependencies.
 *   `Makefile`: Shortcuts for common development tasks.
 
 ## Development Workflow
@@ -25,7 +25,7 @@
 To install project dependencies:
 
 ```bash
-poetry install
+uv sync --all-groups
 ```
 
 ### Running Tests and Code Quality Checks

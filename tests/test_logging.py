@@ -17,7 +17,7 @@ def test_log_file_creation_and_content(tmp_path: Path, project_root: Path) -> No
     temp_ts_file.write_bytes(b"This is a dummy ts file content.")
 
     command = [
-        "poetry",
+        "uv",
         "run",
         "ts2mp4",
         str(temp_ts_file),
