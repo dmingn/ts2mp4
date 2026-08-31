@@ -6,24 +6,24 @@ all: check
 
 .PHONY: sync
 sync:
-	poetry sync
+	uv sync --all-groups
 
 .PHONY: check
 check: sync $(TEST_ASSETS_DIR)/test_video.ts
-	poetry run ruff check .
-	poetry run ruff format --check .
-	poetry run mypy .
+	uv run ruff check .
+	uv run ruff format --check .
+	uv run mypy .
 	@echo "Running unit tests..."
-	poetry run pytest --cov=ts2mp4 --cov-fail-under=60 -m unit
+	uv run pytest --cov=ts2mp4 --cov-fail-under=60 -m unit
 	@echo "Running integration tests..."
-	poetry run pytest --cov=ts2mp4 --cov-fail-under=69 -m integration
+	uv run pytest --cov=ts2mp4 --cov-fail-under=69 -m integration
 	@echo "Running E2E tests..."
-	poetry run pytest --cov=ts2mp4 -m e2e
+	uv run pytest --cov=ts2mp4 -m e2e
 
 .PHONY: format
 format: sync
-	poetry run ruff check . --fix
-	poetry run ruff format .
+	uv run ruff check . --fix
+	uv run ruff format .
 
 .PHONY: format-and-check
 format-and-check:
@@ -47,4 +47,3 @@ $(TEST_ASSETS_DIR)/test_video.ts: Makefile
 		-shortest \
 		$@
 	@echo "Dummy video '$@' generated successfully."
-

@@ -12,8 +12,8 @@ from pytest_mock import MockerFixture
 @pytest.mark.parametrize(
     "command",
     [
-        ["poetry", "run", "ts2mp4", "--help"],
-        ["poetry", "run", "python", "-m", "ts2mp4", "--help"],
+        ["uv", "run", "ts2mp4", "--help"],
+        ["uv", "run", "python", "-m", "ts2mp4", "--help"],
     ],
 )
 def test_cli_entry_points_start_correctly(command: list[str]) -> None:
@@ -66,7 +66,7 @@ def test_cli_invalid_crf_value(tmp_path: Path) -> None:
     dummy_ts_path = tmp_path / "dummy.ts"
     dummy_ts_path.write_text("dummy")
     command = [
-        "poetry",
+        "uv",
         "run",
         "ts2mp4",
         str(dummy_ts_path),
