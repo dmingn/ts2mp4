@@ -1,6 +1,6 @@
 [project]
 name = "ts2mp4"
-version = "2026.08.31.0"
+version = "2026.08.31.1"
 description = ""
 authors = [{ name = "dmingn", email = "dmingn@users.noreply.github.com" }]
 requires-python = ">=3.12"
