@@ -55,3 +55,7 @@ To format the code using `ruff`:
 ```bash
 make format
 ```
+
+### Releasing
+
+Package versions come from SemVer git tags (`vMAJOR.MINOR.PATCH`) via hatch-vcs. To publish a GitHub Release, push a matching tag (for example `v1.0.0`). CI creates the release from that tag after checks pass.
