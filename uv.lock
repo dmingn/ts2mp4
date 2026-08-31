@@ -590,7 +590,6 @@ wheels = [
 
 [[package]]
 name = "ts2mp4"
-version = "2026.8.31.0"
 source = { editable = "." }
 dependencies = [
     { name = "logzero" },
