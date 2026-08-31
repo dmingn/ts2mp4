@@ -97,8 +97,8 @@ def _build_ffmpeg_args_from_stream_sources(
         + [
             "-f",
             "mp4",
-            "-vsync",
-            "1",
+            "-fps_mode",
+            "cfr",
             "-vf",
             "bwdif",
             "-codec:v",
