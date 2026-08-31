@@ -1,6 +1,6 @@
 [project]
 name = "ts2mp4"
-version = "2026.08.31.0"
+dynamic = ["version"]
 description = ""
 authors = [{ name = "dmingn", email = "dmingn@users.noreply.github.com" }]
 requires-python = ">=3.12"
@@ -23,6 +23,10 @@ dev = [
     "pytest-mock>=3.14.1",
     "ruff>=0.12.9",
 ]
+
+[tool.hatch.version]
+source = "vcs"
+fallback-version = "0.0.0"
 
 [tool.mypy]
 strict = true
@@ -61,5 +65,5 @@ ignore = ["E501"]
 convention = "numpy"
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
