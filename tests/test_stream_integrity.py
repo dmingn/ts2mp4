@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
+from ts2mp4.ffmpeg import FFmpegProcessError
 from ts2mp4.media_info import AudioStream, MediaInfo, OtherStream, VideoStream
 from ts2mp4.stream_integrity import compare_stream_hashes, verify_copied_streams
 from ts2mp4.video_file import (
@@ -92,15 +93,23 @@ def test_compare_stream_hashes_mismatching_hashes(
 
 
 @pytest.mark.unit
+@pytest.mark.parametrize(
+    "error",
+    [
+        RuntimeError("Mock error"),
+        FFmpegProcessError("ffmpeg failed with exit code 69"),
+    ],
+)
 def test_compare_stream_hashes_hash_generation_fails(
     mocker: MockerFixture,
     mock_input_video_file: MagicMock,
     mock_output_video_file: MagicMock,
+    error: Exception,
 ) -> None:
     """Tests that compare_stream_hashes returns False when hash generation fails."""
     mocker.patch(
         "ts2mp4.stream_integrity.get_stream_md5",
-        side_effect=RuntimeError("Mock error"),
+        side_effect=error,
     )
     stream = AudioStream(codec_type="audio", index=1)
 

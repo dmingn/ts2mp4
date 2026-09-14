@@ -85,7 +85,7 @@ def get_stream_md5(file_path: Path, stream: VideoStream | AudioStream) -> str:
     Raises
     ------
         ValueError: If the stream type is unsupported.
-        RuntimeError: If ffmpeg fails to extract the stream.
+        FFmpegProcessError: If ffmpeg fails to extract the stream.
 
     """
     resolved_path = file_path.resolve(strict=True)
