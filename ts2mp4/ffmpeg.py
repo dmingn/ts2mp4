@@ -8,7 +8,7 @@ from typing import AsyncGenerator, Literal, NamedTuple
 from logzero import logger
 
 
-class FFmpegProcessError(Exception):
+class FFmpegProcessError(RuntimeError):
     """Custom exception for FFmpeg process errors."""
 
 
