@@ -17,12 +17,15 @@ class BaseStream(BaseModel):
 
     index: int
     codec_type: str
+    duration: Optional[float] = None
 
 
 class VideoStream(BaseStream):
     """A class to hold information about a video stream."""
 
     codec_type: Literal["video"]
+    width: Optional[int] = None
+    height: Optional[int] = None
 
 
 class AudioStream(BaseStream):
@@ -49,6 +52,7 @@ class Format(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     format_name: Optional[str] = None
+    duration: Optional[float] = None
 
 
 class MediaInfo(BaseModel):

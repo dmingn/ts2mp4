@@ -349,6 +349,8 @@ def test_get_media_info_integration(ts_file: Path) -> None:
             VideoStream(
                 codec_type="video",
                 index=0,
+                width=1280,
+                height=720,
             ),
             AudioStream(
                 codec_type="audio",
@@ -369,10 +371,21 @@ def test_get_media_info_integration(ts_file: Path) -> None:
         ),
         format=Format(format_name="mpegts"),
     )
-    # AAC bit_rate for the generated fixture varies across ffmpeg versions.
-    bitrate_exclude = {"streams": {"__all__": {"bit_rate"}}}
-    assert result.model_dump(exclude=bitrate_exclude) == expected.model_dump(
-        exclude=bitrate_exclude
+    # AAC bit_rate and stream/format durations vary across ffmpeg versions.
+    variable_fields_exclude = {
+        "streams": {"__all__": {"bit_rate", "duration"}},
+        "format": {"duration"},
+    }
+    assert result.model_dump(
+        exclude=variable_fields_exclude  # type: ignore[arg-type]
+    ) == expected.model_dump(
+        exclude=variable_fields_exclude  # type: ignore[arg-type]
+    )
+    assert result.format is not None
+    assert result.format.duration is not None
+    assert result.format.duration > 0
+    assert all(
+        stream.duration is not None and stream.duration > 0 for stream in result.streams
     )
     assert all(
         isinstance(stream, AudioStream)

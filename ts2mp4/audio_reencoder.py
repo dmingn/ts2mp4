@@ -9,6 +9,7 @@ from pydantic import model_validator
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
 from .initial_converter import InitiallyConvertedVideoFile
 from .media_info import AudioStream, VideoStream
+from .stream_disposition import build_disposition_args
 from .stream_integrity import compare_stream_hashes
 from .video_file import (
     ConversionType,
@@ -246,6 +247,8 @@ def _build_ffmpeg_args_from_stream_sources(
             raise ValueError(
                 f"Invalid conversion requested for stream type '{source.source_stream.codec_type}'."
             )
+
+    ffmpeg_args.extend(build_disposition_args(stream_sources))
 
     # Add final output arguments
     ffmpeg_args.extend(["-f", "mp4", str(output_path)])

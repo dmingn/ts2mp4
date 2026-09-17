@@ -154,6 +154,7 @@ def test_build_ffmpeg_args_from_stream_sources(
     stream_sources_for_initial_conversion: StreamSourcesForInitialConversion,
 ) -> None:
     """Test that _build_ffmpeg_args_from_stream_sources generates correct arguments."""
+    # Arrange
     output_path = Path("output.mp4")
     crf = 23
     preset = "medium"
@@ -171,6 +172,12 @@ def test_build_ffmpeg_args_from_stream_sources(
         "0:1",
         "-map",
         "0:2",
+        "-disposition:0",
+        "default",
+        "-disposition:1",
+        "default",
+        "-disposition:2",
+        "0",
         "-f",
         "mp4",
         "-fps_mode",
@@ -190,6 +197,7 @@ def test_build_ffmpeg_args_from_stream_sources(
         str(output_path),
     ]
 
+    # Act
     args = _build_ffmpeg_args_from_stream_sources(
         stream_sources=stream_sources_for_initial_conversion,
         output_path=output_path,
@@ -197,6 +205,7 @@ def test_build_ffmpeg_args_from_stream_sources(
         preset=preset,
     )
 
+    # Assert
     assert args == expected_args
 
 
