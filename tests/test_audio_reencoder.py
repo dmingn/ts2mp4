@@ -361,6 +361,7 @@ def test_build_ffmpeg_args_from_stream_sources(
     mocker: MockerFixture, tmp_path: Path
 ) -> None:
     """Tests that FFmpeg arguments are correctly built from a StreamSources object."""
+    # Arrange
     mock_original_file = mocker.MagicMock(spec=VideoFile)
     dummy_original_file = tmp_path / "original.ts"
     dummy_original_file.touch()
@@ -393,10 +394,19 @@ def test_build_ffmpeg_args_from_stream_sources(
         "ts2mp4.audio_reencoder._build_audio_convert_args",
         return_value=["-codec:2", "libfdk_aac"],
     )
+    mocker.patch(
+        "ts2mp4.audio_reencoder.build_disposition_args",
+        return_value=[
+            "-disposition:0",
+            "default",
+            "-disposition:1",
+            "default",
+            "-disposition:2",
+            "0",
+        ],
+    )
 
     output_path = Path("output.mp4")
-    args = _build_ffmpeg_args_from_stream_sources(stream_sources, output_path)
-
     expected_args = [
         "-hide_banner",
         "-nostats",
@@ -419,11 +429,21 @@ def test_build_ffmpeg_args_from_stream_sources(
         "1:2",
         "-codec:2",
         "libfdk_aac",
+        "-disposition:0",
+        "default",
+        "-disposition:1",
+        "default",
+        "-disposition:2",
+        "0",
         "-f",
         "mp4",
         str(output_path),
     ]
 
+    # Act
+    args = _build_ffmpeg_args_from_stream_sources(stream_sources, output_path)
+
+    # Assert
     assert args == expected_args
     mock_build_audio_convert_args.assert_called_once_with(ss3, 2)
 

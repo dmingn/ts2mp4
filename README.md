@@ -12,6 +12,7 @@
     *   `hashing.py`: File hashing utilities.
     *   `media_info.py`: Media file information retrieval.
     *   `quality_check.py`: Post-conversion quality checks.
+    *   `stream_disposition.py`: Selection of primary streams for MP4 `default` disposition.
     *   `stream_integrity.py`: Audio and video stream integrity checks.
     *   `ts2mp4.py`: Core conversion logic.
 *   `tests/`: Project tests.

@@ -7,6 +7,7 @@ from pydantic import model_validator
 
 from .ffmpeg import execute_ffmpeg
 from .media_info import AudioStream, VideoStream
+from .stream_disposition import build_disposition_args
 from .video_file import ConvertedVideoFile, StreamSource, StreamSources, VideoFile
 
 StreamSourceForInitialConversion = (
@@ -94,6 +95,7 @@ def _build_ffmpeg_args_from_stream_sources(
             for source in stream_sources
             for arg in ("-map", f"0:{source.source_stream.index}")
         ]
+        + build_disposition_args(stream_sources)
         + [
             "-f",
             "mp4",
