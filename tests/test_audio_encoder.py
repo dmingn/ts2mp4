@@ -1,4 +1,4 @@
-"""Unit and integration tests for the audio_reencoder module."""
+"""Unit and integration tests for the audio_encoder module."""
 
 from pathlib import Path
 from typing import Callable, Literal, cast
@@ -6,20 +6,20 @@ from typing import Callable, Literal, cast
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.audio_reencoder import (
-    StreamSourceForAudioReEncoding,
-    StreamSourcesForAudioReEncoding,
-    _build_audio_convert_args,
+from ts2mp4.audio_encoder import (
+    StreamSourceForAudioEncoding,
+    StreamSourcesForAudioEncoding,
+    _build_audio_encode_args,
     _build_ffmpeg_args_from_stream_sources,
-    _build_stream_sources_for_audio_re_encoding,
-    re_encode_mismatched_audio_streams,
+    _build_stream_sources_for_audio_encoding,
+    encode_mismatched_audio_streams,
 )
 from ts2mp4.ffmpeg import execute_ffmpeg
-from ts2mp4.initial_converter import (
-    InitiallyConvertedVideoFile,
-    StreamSourcesForInitialConversion,
-)
 from ts2mp4.media_info import AudioStream, MediaInfo, VideoStream
+from ts2mp4.video_encoder import (
+    StreamSourcesForVideoEncoding,
+    VideoEncodedFile,
+)
 from ts2mp4.video_file import StreamSource, StreamSources, VideoFile
 
 
@@ -49,17 +49,17 @@ def mock_original_video_file(mocker: MockerFixture, tmp_path: Path) -> VideoFile
 
 
 @pytest.fixture
-def mock_initially_converted_video_file_factory(
+def mock_video_encoded_file_factory(
     mocker: MockerFixture, tmp_path: Path
-) -> Callable[..., InitiallyConvertedVideoFile]:
-    """Create a factory for mock InitiallyConvertedVideoFile objects."""
+) -> Callable[..., VideoEncodedFile]:
+    """Create a factory for mock VideoEncodedFile objects."""
 
     def _factory(
         original_file: VideoFile,
         encoded_streams_indices: list[int],
         file_name: str = "encoded.mp4",
-    ) -> InitiallyConvertedVideoFile:
-        mock_encoded_file = mocker.MagicMock(spec=InitiallyConvertedVideoFile)
+    ) -> VideoEncodedFile:
+        mock_encoded_file = mocker.MagicMock(spec=VideoEncodedFile)
         dummy_file = tmp_path / file_name
         dummy_file.touch()
         mock_encoded_file.path = dummy_file
@@ -91,7 +91,7 @@ def mock_initially_converted_video_file_factory(
                     source_video_path=original_file.path,
                     source_stream=original_streams[i],
                     conversion_type=(
-                        "converted"
+                        "encoded"
                         if original_streams[i].codec_type == "video"
                         else "copied"
                     ),
@@ -103,26 +103,24 @@ def mock_initially_converted_video_file_factory(
             return_value=stream_sources
         )
 
-        return cast(InitiallyConvertedVideoFile, mock_encoded_file)
+        return cast(VideoEncodedFile, mock_encoded_file)
 
     return _factory
 
 
 @pytest.mark.unit
-def test_build_stream_sources_for_audio_re_encoding_no_mismatch(
+def test_build_stream_sources_for_audio_encoding_no_mismatch(
     mocker: MockerFixture,
     mock_original_video_file: VideoFile,
-    mock_initially_converted_video_file_factory: Callable[
-        ..., InitiallyConvertedVideoFile
-    ],
+    mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
     """Tests that all streams are marked as COPIED when hashes match."""
-    mock_encoded_video_file = mock_initially_converted_video_file_factory(
+    mock_encoded_video_file = mock_video_encoded_file_factory(
         mock_original_video_file, [0, 1, 2]
     )
-    mocker.patch("ts2mp4.audio_reencoder.compare_stream_hashes", return_value=True)
+    mocker.patch("ts2mp4.audio_encoder.compare_stream_hashes", return_value=True)
 
-    stream_sources = _build_stream_sources_for_audio_re_encoding(
+    stream_sources = _build_stream_sources_for_audio_encoding(
         mock_original_video_file, mock_encoded_video_file
     )
 
@@ -134,56 +132,52 @@ def test_build_stream_sources_for_audio_re_encoding_no_mismatch(
 
 
 @pytest.mark.unit
-def test_build_stream_sources_for_audio_re_encoding_with_mismatch(
+def test_build_stream_sources_for_audio_encoding_with_mismatch(
     mocker: MockerFixture,
     mock_original_video_file: VideoFile,
-    mock_initially_converted_video_file_factory: Callable[
-        ..., InitiallyConvertedVideoFile
-    ],
+    mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
     """Tests that mismatched audio streams are marked as CONVERTED."""
-    mock_encoded_video_file = mock_initially_converted_video_file_factory(
+    mock_encoded_video_file = mock_video_encoded_file_factory(
         mock_original_video_file, [0, 1, 2]
     )
     mocker.patch(
-        "ts2mp4.audio_reencoder.compare_stream_hashes", side_effect=[True, False]
+        "ts2mp4.audio_encoder.compare_stream_hashes", side_effect=[True, False]
     )
 
-    stream_sources = _build_stream_sources_for_audio_re_encoding(
+    stream_sources = _build_stream_sources_for_audio_encoding(
         mock_original_video_file, mock_encoded_video_file
     )
 
     source_map = {s.source_stream.index: s for s in stream_sources}
     assert source_map[0].conversion_type == "copied"
     assert source_map[1].conversion_type == "copied"
-    assert source_map[2].conversion_type == "converted"
+    assert source_map[2].conversion_type == "encoded"
     assert source_map[2].source_video_path == mock_original_video_file.path
 
 
 @pytest.mark.unit
-def test_build_stream_sources_for_audio_re_encoding_missing_stream_raises_error(
+def test_build_stream_sources_for_audio_encoding_missing_stream_raises_error(
     mocker: MockerFixture,
     mock_original_video_file: VideoFile,
-    mock_initially_converted_video_file_factory: Callable[
-        ..., InitiallyConvertedVideoFile
-    ],
+    mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
     """Tests that a missing stream raises a RuntimeError."""
-    mock_encoded_video_file = mock_initially_converted_video_file_factory(
+    mock_encoded_video_file = mock_video_encoded_file_factory(
         mock_original_video_file, [0, 1]
     )
-    mocker.patch("ts2mp4.audio_reencoder.compare_stream_hashes", return_value=True)
+    mocker.patch("ts2mp4.audio_encoder.compare_stream_hashes", return_value=True)
 
     with pytest.raises(RuntimeError, match="is missing a required stream"):
-        _build_stream_sources_for_audio_re_encoding(
+        _build_stream_sources_for_audio_encoding(
             mock_original_video_file, mock_encoded_video_file
         )
 
 
 @pytest.mark.unit
-def test_build_audio_convert_args(mocker: MockerFixture) -> None:
+def test_build_audio_encode_args(mocker: MockerFixture) -> None:
     """Test that audio convert arguments are built correctly."""
-    mocker.patch("ts2mp4.audio_reencoder.is_libfdk_aac_available", return_value=False)
+    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     mock_stream_source = mocker.MagicMock(spec=StreamSource)
     mock_stream_source.source_stream = AudioStream(
         index=1,
@@ -194,7 +188,7 @@ def test_build_audio_convert_args(mocker: MockerFixture) -> None:
         profile="LC",
         bit_rate=192000,
     )
-    args = _build_audio_convert_args(mock_stream_source, 1)
+    args = _build_audio_encode_args(mock_stream_source, 1)
     assert args == [
         "-codec:1",
         "aac",
@@ -212,31 +206,31 @@ def test_build_audio_convert_args(mocker: MockerFixture) -> None:
 
 
 @pytest.mark.unit
-def test_build_audio_convert_args_with_libfdk_aac(mocker: MockerFixture) -> None:
+def test_build_audio_encode_args_with_libfdk_aac(mocker: MockerFixture) -> None:
     """Test that libfdk_aac is used when available for audio conversion."""
-    mocker.patch("ts2mp4.audio_reencoder.is_libfdk_aac_available", return_value=True)
+    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=True)
     mock_stream_source = mocker.MagicMock(spec=StreamSource)
     mock_stream_source.source_stream = AudioStream(
         index=1,
         codec_name="aac",
         codec_type="audio",
     )
-    args = _build_audio_convert_args(mock_stream_source, 1)
+    args = _build_audio_encode_args(mock_stream_source, 1)
     assert "libfdk_aac" in args
 
 
 @pytest.mark.unit
-def test_build_audio_convert_args_without_libfdk_aac(mocker: MockerFixture) -> None:
+def test_build_audio_encode_args_without_libfdk_aac(mocker: MockerFixture) -> None:
     """Test that a warning is logged when libfdk_aac is not available for audio conversion."""
-    mocker.patch("ts2mp4.audio_reencoder.is_libfdk_aac_available", return_value=False)
-    mock_logger_warning = mocker.patch("ts2mp4.audio_reencoder.logger.warning")
+    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
+    mock_logger_warning = mocker.patch("ts2mp4.audio_encoder.logger.warning")
     mock_stream_source = mocker.MagicMock(spec=StreamSource)
     mock_stream_source.source_stream = AudioStream(
         index=1,
         codec_name="aac",
         codec_type="audio",
     )
-    args = _build_audio_convert_args(mock_stream_source, 1)
+    args = _build_audio_encode_args(mock_stream_source, 1)
     assert "aac" in args
     mock_logger_warning.assert_called_once_with(
         "libfdk_aac is not available. Falling back to the default AAC encoder."
@@ -244,19 +238,19 @@ def test_build_audio_convert_args_without_libfdk_aac(mocker: MockerFixture) -> N
 
 
 @pytest.mark.unit
-def test_build_audio_convert_args_with_none_values(mocker: MockerFixture) -> None:
+def test_build_audio_encode_args_with_none_values(mocker: MockerFixture) -> None:
     """Test that audio convert arguments are built correctly with minimal stream info."""
-    mocker.patch("ts2mp4.audio_reencoder.is_libfdk_aac_available", return_value=False)
+    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     mock_stream_source = mocker.MagicMock(spec=StreamSource)
     mock_stream_source.source_stream = AudioStream(
         index=1, codec_name="aac", codec_type="audio"
     )
-    args = _build_audio_convert_args(mock_stream_source, 1)
+    args = _build_audio_encode_args(mock_stream_source, 1)
     assert args == ["-codec:1", "aac", "-bsf:1", "aac_adtstoasc"]
 
 
 @pytest.mark.unit
-def test_build_audio_convert_args_raises_for_unsupported_codec(
+def test_build_audio_encode_args_raises_for_unsupported_codec(
     mocker: MockerFixture,
 ) -> None:
     """Test that an error is raised for unsupported audio codecs."""
@@ -268,16 +262,16 @@ def test_build_audio_convert_args_raises_for_unsupported_codec(
     )
     with pytest.raises(
         NotImplementedError,
-        match="Re-encoding is currently only supported for aac audio codec.",
+        match="Encoding is currently only supported for aac audio codec.",
     ):
-        _build_audio_convert_args(mock_stream_source, 1)
+        _build_audio_encode_args(mock_stream_source, 1)
 
 
 @pytest.mark.integration
-def test_re_encode_mismatched_audio_streams_integration(
+def test_encode_mismatched_audio_streams_integration(
     tmp_path: Path, ts_file: Path
 ) -> None:
-    """Test the re-encoding function with a real video file."""
+    """Test the audio encoding function with a real video file."""
     original_video_file = VideoFile(path=ts_file)
     original_streams = original_video_file.media_info.streams
 
@@ -296,14 +290,14 @@ def test_re_encode_mismatched_audio_streams_integration(
         ]
     )
 
-    encoded_video_file = InitiallyConvertedVideoFile(
+    encoded_video_file = VideoEncodedFile(
         path=encoded_file_path,
-        stream_sources=StreamSourcesForInitialConversion(
+        stream_sources=StreamSourcesForVideoEncoding(
             root=(
                 StreamSource(
                     source_video_path=original_video_file.path,
                     source_stream=original_streams[0],
-                    conversion_type="converted",
+                    conversion_type="encoded",
                 ),
                 StreamSource(
                     source_video_path=original_video_file.path,
@@ -316,7 +310,7 @@ def test_re_encode_mismatched_audio_streams_integration(
 
     output_file = tmp_path / "output.mp4"
     with pytest.raises(RuntimeError, match="is missing a required stream"):
-        re_encode_mismatched_audio_streams(
+        encode_mismatched_audio_streams(
             original_file=original_video_file,
             encoded_file=encoded_video_file,
             output_file=output_file,
@@ -324,29 +318,29 @@ def test_re_encode_mismatched_audio_streams_integration(
 
 
 @pytest.mark.integration
-def test_re_encode_mismatched_audio_streams_no_re_encoding_needed(
+def test_encode_mismatched_audio_streams_no_encoding_needed(
     tmp_path: Path, ts_file: Path
 ) -> None:
-    """Test that the function returns None when no re-encoding is needed."""
+    """Test that the function returns None when no encoding is needed."""
     original_video_file = VideoFile(path=ts_file)
     original_streams = original_video_file.media_info.streams
 
-    encoded_stream_sources = StreamSourcesForInitialConversion(
+    encoded_stream_sources = StreamSourcesForVideoEncoding(
         root=tuple(
             StreamSource(
                 source_video_path=original_video_file.path,
                 source_stream=s,
-                conversion_type=("converted" if s.codec_type == "video" else "copied"),
+                conversion_type=("encoded" if s.codec_type == "video" else "copied"),
             )
             for s in original_streams
         )
     )
-    encoded_video_file = InitiallyConvertedVideoFile(
+    encoded_video_file = VideoEncodedFile(
         path=ts_file, stream_sources=encoded_stream_sources
     )
 
     output_file = tmp_path / "output.mp4"
-    result_video = re_encode_mismatched_audio_streams(
+    result_video = encode_mismatched_audio_streams(
         original_file=original_video_file,
         encoded_file=encoded_video_file,
         output_file=output_file,
@@ -382,20 +376,20 @@ def test_build_ffmpeg_args_from_stream_sources(
         source_stream=AudioStream(codec_type="audio", index=1),
         conversion_type="copied",
     )
-    ss3: StreamSource[AudioStream, Literal["converted"]] = StreamSource(
+    ss3: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
         source_video_path=mock_original_file.path,
         source_stream=AudioStream(codec_type="audio", index=2),
-        conversion_type="converted",
+        conversion_type="encoded",
     )
 
-    stream_sources = StreamSourcesForAudioReEncoding(root=(ss1, ss2, ss3))
+    stream_sources = StreamSourcesForAudioEncoding(root=(ss1, ss2, ss3))
 
-    mock_build_audio_convert_args = mocker.patch(
-        "ts2mp4.audio_reencoder._build_audio_convert_args",
+    mock_build_audio_encode_args = mocker.patch(
+        "ts2mp4.audio_encoder._build_audio_encode_args",
         return_value=["-codec:2", "libfdk_aac"],
     )
     mocker.patch(
-        "ts2mp4.audio_reencoder.build_disposition_args",
+        "ts2mp4.audio_encoder.build_disposition_args",
         return_value=[
             "-disposition:0",
             "default",
@@ -445,14 +439,14 @@ def test_build_ffmpeg_args_from_stream_sources(
 
     # Assert
     assert args == expected_args
-    mock_build_audio_convert_args.assert_called_once_with(ss3, 2)
+    mock_build_audio_encode_args.assert_called_once_with(ss3, 2)
 
 
 @pytest.mark.unit
-def test_stream_sources_for_audio_re_encoding_validation_success(
+def test_stream_sources_for_audio_encoding_validation_success(
     mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """Tests that StreamSourcesForAudioReEncoding can be created with valid data."""
+    """Tests that StreamSourcesForAudioEncoding can be created with valid data."""
     mock_original_file = mocker.MagicMock(spec=VideoFile)
     dummy_original_file = tmp_path / "original.ts"
     dummy_original_file.touch()
@@ -463,7 +457,7 @@ def test_stream_sources_for_audio_re_encoding_validation_success(
     dummy_encoded_file.touch()
     mock_encoded_file.path = dummy_encoded_file
 
-    valid_sources: list[StreamSourceForAudioReEncoding] = [
+    valid_sources: list[StreamSourceForAudioEncoding] = [
         StreamSource(
             source_video_path=mock_encoded_file.path,
             conversion_type="copied",
@@ -471,11 +465,11 @@ def test_stream_sources_for_audio_re_encoding_validation_success(
         ),
         StreamSource(
             source_video_path=mock_original_file.path,
-            conversion_type="converted",
+            conversion_type="encoded",
             source_stream=AudioStream(codec_type="audio", index=1),
         ),
     ]
-    StreamSourcesForAudioReEncoding(root=tuple(valid_sources))
+    StreamSourcesForAudioEncoding(root=tuple(valid_sources))
 
 
 @pytest.mark.unit
@@ -493,20 +487,20 @@ def test_stream_sources_for_audio_re_encoding_validation_success(
             "All copied streams must come from the same encoded file.",
         ),
         (
-            "converted_audio_from_encoded",
-            "Original and encoded files cannot be the same when re-encoding.",
+            "encoded_audio_from_encoded",
+            "Original and encoded files cannot be the same when encoding audio.",
         ),
-        ("only_converted", "At least one video stream is required."),
+        ("only_encoded", "At least one video stream is required."),
         (
-            "converted_from_multiple",
-            "All converted streams must come from the same original file.",
+            "encoded_from_multiple",
+            "All streams to encode must come from the same original file.",
         ),
     ],
 )
-def test_stream_sources_for_audio_re_encoding_value_validation_failures(
+def test_stream_sources_for_audio_encoding_value_validation_failures(
     modifier: str, error_message: str, mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """Tests the validation rules in StreamSourcesForAudioReEncoding."""
+    """Tests the validation rules in StreamSourcesForAudioEncoding."""
     mock_original_file = mocker.MagicMock(spec=VideoFile)
     dummy_original_file = tmp_path / "original.ts"
     dummy_original_file.touch()
@@ -522,7 +516,7 @@ def test_stream_sources_for_audio_re_encoding_value_validation_failures(
     dummy_another_original.touch()
     mock_another_original.path = dummy_another_original
 
-    sources: list[StreamSourceForAudioReEncoding] = [
+    sources: list[StreamSourceForAudioEncoding] = [
         StreamSource(
             source_video_path=mock_encoded_file.path,
             conversion_type="copied",
@@ -535,7 +529,7 @@ def test_stream_sources_for_audio_re_encoding_value_validation_failures(
         ),
         StreamSource(
             source_video_path=mock_original_file.path,
-            conversion_type="converted",
+            conversion_type="encoded",
             source_stream=AudioStream(codec_type="audio", index=2),
         ),
     ]
@@ -558,25 +552,25 @@ def test_stream_sources_for_audio_re_encoding_value_validation_failures(
                 source_stream=AudioStream(codec_type="audio", index=3),
             )
         )
-    elif modifier == "converted_audio_from_encoded":
+    elif modifier == "encoded_audio_from_encoded":
         sources[2] = StreamSource(
             source_video_path=mock_encoded_file.path,
             source_stream=sources[2].source_stream,
             conversion_type=sources[2].conversion_type,
         )
-    elif modifier == "only_converted":
+    elif modifier == "only_encoded":
         sources = [sources[2]]
-    elif modifier == "converted_from_multiple":
+    elif modifier == "encoded_from_multiple":
         sources.append(
             StreamSource(
                 source_video_path=mock_another_original.path,
-                conversion_type="converted",
+                conversion_type="encoded",
                 source_stream=AudioStream(codec_type="audio", index=3),
             )
         )
 
     with pytest.raises(ValueError, match=error_message):
-        StreamSourcesForAudioReEncoding(root=tuple(sources))
+        StreamSourcesForAudioEncoding(root=tuple(sources))
 
 
 @pytest.mark.unit
@@ -587,7 +581,7 @@ def test_stream_sources_for_audio_re_encoding_value_validation_failures(
         (1, VideoStream(codec_type="video", index=1), "expected to be 'audio'"),
     ],
 )
-def test_build_stream_sources_for_audio_re_encoding_stream_type_mismatch_raises_error(
+def test_build_stream_sources_for_audio_encoding_stream_type_mismatch_raises_error(
     mocker: MockerFixture,
     mock_original_video_file: VideoFile,
     stream_index_to_mismatch: int,
@@ -596,7 +590,7 @@ def test_build_stream_sources_for_audio_re_encoding_stream_type_mismatch_raises_
     tmp_path: Path,
 ) -> None:
     """Tests that a stream type mismatch raises a RuntimeError."""
-    mock_encoded_video_file = mocker.MagicMock(spec=InitiallyConvertedVideoFile)
+    mock_encoded_video_file = mocker.MagicMock(spec=VideoEncodedFile)
 
     # Create a dummy file for encoded_file.path
     encoded_file_path = tmp_path / "encoded.mp4"
@@ -628,16 +622,16 @@ def test_build_stream_sources_for_audio_re_encoding_stream_type_mismatch_raises_
                 source_stream=initial_streams[
                     i
                 ],  # Use original stream from initial_streams
-                conversion_type="copied",  # Or "converted" depending on the test scenario
+                conversion_type="copied",  # Or "encoded" depending on the test scenario
             )
             for i in range(len(initial_streams))
         )
     )
 
-    mocker.patch("ts2mp4.audio_reencoder.compare_stream_hashes", return_value=True)
+    mocker.patch("ts2mp4.audio_encoder.compare_stream_hashes", return_value=True)
 
     with pytest.raises(RuntimeError) as excinfo:
-        _build_stream_sources_for_audio_re_encoding(
+        _build_stream_sources_for_audio_encoding(
             mock_original_video_file, mock_encoded_video_file
         )
 

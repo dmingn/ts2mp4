@@ -64,7 +64,7 @@ class VideoFile(BaseModel):
         return self.valid_video_streams + self.valid_audio_streams
 
 
-ConversionType = Literal["converted", "copied"]
+ConversionType = Literal["encoded", "copied"]
 ConversionTypeT = TypeVar("ConversionTypeT", bound=ConversionType, covariant=True)
 
 
@@ -159,7 +159,7 @@ class ConvertedVideoFile(VideoFile, Generic[StreamSourcesT]):
     the stream's index in the converted video file. Each `StreamSource` object
     describes which original stream (from which source file) was used to
     generate that stream in the converted file, and how it was created
-    (copied or converted).
+    (copied or encoded).
     """
 
     stream_sources: StreamSourcesT
