@@ -78,7 +78,7 @@ async def get_audio_quality_metrics(
     for stream_with_source in converted_file.stream_with_sources:
         if (
             stream_with_source.stream.codec_type != "audio"
-            or stream_with_source.source.conversion_type != "converted"
+            or stream_with_source.source.conversion_type != "encoded"
         ):
             continue
 

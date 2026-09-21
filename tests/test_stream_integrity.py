@@ -136,7 +136,7 @@ def mock_converted_video_file(
             StreamSource(
                 source_video_path=mock_input_video_file.path,
                 source_stream=mock_input_video_file.media_info.streams[0],
-                conversion_type="converted",
+                conversion_type="encoded",
             ),
             StreamSource(
                 source_video_path=mock_input_video_file.path,
@@ -196,7 +196,7 @@ def test_verify_copied_streams_no_copied_streams(
     stream_sources[1] = StreamSource(
         source_video_path=stream_sources[1].source_video_path,
         source_stream=stream_sources[1].source_stream,
-        conversion_type="converted",
+        conversion_type="encoded",
     )
     mock_converted_video_file.stream_sources = StreamSources(root=tuple(stream_sources))
 

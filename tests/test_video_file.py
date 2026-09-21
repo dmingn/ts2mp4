@@ -97,7 +97,7 @@ def stream_sources(
             StreamSource(
                 source_video_path=video_file_1.path,
                 source_stream=media_info_1.streams[0],
-                conversion_type="converted",
+                conversion_type="encoded",
             ),
             StreamSource(
                 source_video_path=video_file_1.path,

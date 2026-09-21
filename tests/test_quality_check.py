@@ -92,7 +92,7 @@ async def test_get_audio_quality_metrics_unit(
     dummy_file.touch()
 
     source1: StreamSource[AudioStream, ConversionType] = StreamSource(
-        conversion_type="converted",
+        conversion_type="encoded",
         source_stream=AudioStream(index=0, codec_type="audio"),
         source_video_path=dummy_file,
     )
@@ -102,7 +102,7 @@ async def test_get_audio_quality_metrics_unit(
         source_video_path=dummy_file,
     )
     source3: StreamSource[AudioStream, ConversionType] = StreamSource(
-        conversion_type="converted",
+        conversion_type="encoded",
         source_stream=AudioStream(index=1, codec_type="audio"),
         source_video_path=dummy_file,
     )
@@ -149,12 +149,12 @@ async def test_get_audio_quality_metrics_partial_failure(
     dummy_file.touch()
 
     source1: StreamSource[AudioStream, ConversionType] = StreamSource(
-        conversion_type="converted",
+        conversion_type="encoded",
         source_stream=AudioStream(index=0, codec_type="audio"),
         source_video_path=dummy_file,
     )
     source2: StreamSource[AudioStream, ConversionType] = StreamSource(
-        conversion_type="converted",
+        conversion_type="encoded",
         source_stream=AudioStream(index=1, codec_type="audio"),
         source_video_path=dummy_file,
     )
@@ -195,7 +195,7 @@ async def test_get_audio_quality_metrics_no_metrics_parsed(
     dummy_file.touch()
 
     source1: StreamSource[AudioStream, ConversionType] = StreamSource(
-        conversion_type="converted",
+        conversion_type="encoded",
         source_stream=AudioStream(index=0, codec_type="audio"),
         source_video_path=dummy_file,
     )
@@ -232,7 +232,7 @@ async def test_get_audio_quality_metrics_integration(ts_file: Path) -> None:
                 source_video_path=video_file.path,
                 source_stream=stream,
                 conversion_type=(
-                    "converted" if stream.codec_type == "audio" else "copied"
+                    "encoded" if stream.codec_type == "audio" else "copied"
                 ),
             )
         )

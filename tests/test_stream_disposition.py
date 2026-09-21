@@ -34,7 +34,7 @@ def _patch_media_info(
 def _conversion_type_for_stream(stream: Stream) -> ConversionType:
     """Return a conversion_type suitable for StreamSource construction in tests."""
     if isinstance(stream, VideoStream):
-        return "converted"
+        return "encoded"
     return "copied"
 
 
@@ -249,7 +249,7 @@ def test_get_default_stream_indices_uses_each_source_video_file_for_container_du
             StreamSource(
                 source_video_path=path_b,
                 source_stream=high_res_video,
-                conversion_type="converted",
+                conversion_type="encoded",
             ),
             StreamSource(
                 source_video_path=path_a,

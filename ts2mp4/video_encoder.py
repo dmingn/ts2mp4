@@ -1,4 +1,7 @@
-"""Handles the initial conversion from TS to MP4."""
+"""Encodes video streams from TS to MP4 (pipeline stage 1).
+
+Output is consumed by audio_encoder when copied audio fails integrity checks.
+"""
 
 from pathlib import Path
 from typing import Literal, Self
@@ -10,16 +13,16 @@ from .media_info import AudioStream, VideoStream
 from .stream_disposition import build_disposition_args
 from .video_file import ConvertedVideoFile, StreamSource, StreamSources, VideoFile
 
-StreamSourceForInitialConversion = (
-    StreamSource[VideoStream, Literal["converted"]]
+StreamSourceForVideoEncoding = (
+    StreamSource[VideoStream, Literal["encoded"]]
     | StreamSource[AudioStream, Literal["copied"]]
 )
 
 
-class StreamSourcesForInitialConversion(StreamSources):
-    """Represents the stream sources for the initial conversion."""
+class StreamSourcesForVideoEncoding(StreamSources):
+    """Represents the stream sources for video encoding."""
 
-    root: tuple[StreamSourceForInitialConversion, ...]
+    root: tuple[StreamSourceForVideoEncoding, ...]
 
     @model_validator(mode="after")
     def validate_stream_presence(self) -> Self:
@@ -47,21 +50,21 @@ class StreamSourcesForInitialConversion(StreamSources):
         return next(iter(self.source_video_files))
 
 
-InitiallyConvertedVideoFile = ConvertedVideoFile[StreamSourcesForInitialConversion]
-"""Represents a ConvertedVideoFile that has undergone the initial conversion."""
+VideoEncodedFile = ConvertedVideoFile[StreamSourcesForVideoEncoding]
+"""Represents a ConvertedVideoFile after video stream encoding."""
 
 
-def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForInitialConversion:
-    """Build the stream sources for the initial conversion."""
-    video_sources: list[StreamSourceForInitialConversion] = [
+def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForVideoEncoding:
+    """Build the stream sources for video encoding."""
+    video_sources: list[StreamSourceForVideoEncoding] = [
         StreamSource(
             source_video_path=input_file.path,
             source_stream=stream,
-            conversion_type="converted",
+            conversion_type="encoded",
         )
         for stream in input_file.valid_video_streams
     ]
-    audio_sources: list[StreamSourceForInitialConversion] = [
+    audio_sources: list[StreamSourceForVideoEncoding] = [
         StreamSource(
             source_video_path=input_file.path,
             source_stream=stream,
@@ -70,16 +73,16 @@ def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForInitialConve
         for stream in input_file.valid_audio_streams
     ]
 
-    return StreamSourcesForInitialConversion(root=tuple(video_sources + audio_sources))
+    return StreamSourcesForVideoEncoding(root=tuple(video_sources + audio_sources))
 
 
 def _build_ffmpeg_args_from_stream_sources(
-    stream_sources: StreamSourcesForInitialConversion,
+    stream_sources: StreamSourcesForVideoEncoding,
     output_path: Path,
     crf: int,
     preset: str,
 ) -> list[str]:
-    """Build FFmpeg arguments for the initial TS to MP4 conversion."""
+    """Build FFmpeg arguments for video encoding (TS to MP4)."""
     return (
         [
             "-hide_banner",
@@ -118,10 +121,10 @@ def _build_ffmpeg_args_from_stream_sources(
     )
 
 
-def perform_initial_conversion(
+def encode_video_streams(
     input_file: VideoFile, output_path: Path, crf: int, preset: str
-) -> InitiallyConvertedVideoFile:
-    """Perform the initial FFmpeg conversion from TS to MP4."""
+) -> VideoEncodedFile:
+    """Encode video streams from TS to MP4 (audio streams are copied)."""
     stream_sources = _build_stream_sources(input_file)
     ffmpeg_args = _build_ffmpeg_args_from_stream_sources(
         stream_sources=stream_sources, output_path=output_path, crf=crf, preset=preset
@@ -129,4 +132,4 @@ def perform_initial_conversion(
     result = execute_ffmpeg(ffmpeg_args)
     if result.returncode != 0:
         raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
-    return InitiallyConvertedVideoFile(path=output_path, stream_sources=stream_sources)
+    return VideoEncodedFile(path=output_path, stream_sources=stream_sources)

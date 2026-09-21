@@ -6,7 +6,7 @@
 
 *   `ts2mp4/`: Main source code.
     *   `__main__.py`: CLI entry point.
-    *   `audio_reencoder.py`: Audio re-encoding logic.
+    *   `audio_encoder.py`: Audio encoding logic for mismatched streams.
     *   `cli.py`: Command-line interface definition.
     *   `ffmpeg.py`: Wrapper for `ffmpeg` and `ffprobe` commands.
     *   `hashing.py`: File hashing utilities.
@@ -15,6 +15,7 @@
     *   `stream_disposition.py`: Selection of primary streams for MP4 `default` disposition.
     *   `stream_integrity.py`: Audio and video stream integrity checks.
     *   `ts2mp4.py`: Core conversion logic.
+    *   `video_encoder.py`: Video encoding logic (pipeline stage 1).
 *   `tests/`: Project tests.
 *   `pyproject.toml`: Project configuration and dependencies.
 *   `Makefile`: Shortcuts for common development tasks.

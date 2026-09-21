@@ -7,14 +7,14 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import FFmpegResult
-from ts2mp4.initial_converter import (
-    StreamSourceForInitialConversion,
-    StreamSourcesForInitialConversion,
+from ts2mp4.media_info import AudioStream, MediaInfo, Stream, VideoStream
+from ts2mp4.video_encoder import (
+    StreamSourceForVideoEncoding,
+    StreamSourcesForVideoEncoding,
     _build_ffmpeg_args_from_stream_sources,
     _build_stream_sources,
-    perform_initial_conversion,
+    encode_video_streams,
 )
-from ts2mp4.media_info import AudioStream, MediaInfo, Stream, VideoStream
 from ts2mp4.video_file import StreamSource, VideoFile
 
 
@@ -58,11 +58,11 @@ def test_build_stream_sources(
     stream_sources = _build_stream_sources(input_file)
 
     # Assert
-    assert isinstance(stream_sources, StreamSourcesForInitialConversion)
+    assert isinstance(stream_sources, StreamSourcesForVideoEncoding)
     assert len(stream_sources) == 3
     # Video stream should be CONVERTED
     assert stream_sources[0].source_stream.codec_type == "video"
-    assert stream_sources[0].conversion_type == "converted"
+    assert stream_sources[0].conversion_type == "encoded"
     # Audio streams should be COPIED
     assert stream_sources[1].source_stream.codec_type == "audio"
     assert stream_sources[1].conversion_type == "copied"
@@ -83,18 +83,18 @@ def test_build_stream_sources(
         ("duplicate_streams", "Source streams must be unique."),
     ],
 )
-def test_stream_sources_for_initial_conversion_failures(
+def test_stream_sources_for_video_encoding_failures(
     mock_video_file_factory: Callable[..., VideoFile],
     modifier: str,
     error_message: str,
 ) -> None:
-    """Test the validation rules in StreamSourcesForInitialConversion."""
+    """Test the validation rules in StreamSourcesForVideoEncoding."""
     video_file = mock_video_file_factory()
-    sources: list[StreamSourceForInitialConversion] = [
+    sources: list[StreamSourceForVideoEncoding] = [
         StreamSource(
             source_video_path=video_file.path,
             source_stream=video_file.media_info.streams[0],
-            conversion_type="converted",
+            conversion_type="encoded",
         ),
         StreamSource(
             source_video_path=video_file.path,
@@ -113,27 +113,27 @@ def test_stream_sources_for_initial_conversion_failures(
             StreamSource(
                 source_video_path=other_video_file.path,
                 source_stream=other_video_file.media_info.streams[0],
-                conversion_type="converted",
+                conversion_type="encoded",
             )
         )
     elif modifier == "duplicate_streams":
         sources.append(sources[0])
 
     with pytest.raises(ValueError, match=error_message):
-        StreamSourcesForInitialConversion(root=tuple(sources))
+        StreamSourcesForVideoEncoding(root=tuple(sources))
 
 
 @pytest.fixture
-def stream_sources_for_initial_conversion(
+def stream_sources_for_video_encoding(
     mock_video_file_factory: Callable[..., VideoFile],
-) -> StreamSourcesForInitialConversion:
-    """Create a StreamSourcesForInitialConversion instance for testing."""
+) -> StreamSourcesForVideoEncoding:
+    """Create a StreamSourcesForVideoEncoding instance for testing."""
     mock_video_file = mock_video_file_factory(video_streams=1, audio_streams=2)
-    sources: list[StreamSourceForInitialConversion] = [
+    sources: list[StreamSourceForVideoEncoding] = [
         StreamSource(
             source_video_path=mock_video_file.path,
             source_stream=mock_video_file.media_info.streams[0],
-            conversion_type="converted",
+            conversion_type="encoded",
         ),
         StreamSource(
             source_video_path=mock_video_file.path,
@@ -146,12 +146,12 @@ def stream_sources_for_initial_conversion(
             conversion_type="copied",
         ),
     ]
-    return StreamSourcesForInitialConversion(root=tuple(sources))
+    return StreamSourcesForVideoEncoding(root=tuple(sources))
 
 
 @pytest.mark.unit
 def test_build_ffmpeg_args_from_stream_sources(
-    stream_sources_for_initial_conversion: StreamSourcesForInitialConversion,
+    stream_sources_for_video_encoding: StreamSourcesForVideoEncoding,
 ) -> None:
     """Test that _build_ffmpeg_args_from_stream_sources generates correct arguments."""
     # Arrange
@@ -165,7 +165,7 @@ def test_build_ffmpeg_args_from_stream_sources(
         "+discardcorrupt",
         "-y",
         "-i",
-        str(stream_sources_for_initial_conversion.source_video_file.path),
+        str(stream_sources_for_video_encoding.source_video_file.path),
         "-map",
         "0:0",
         "-map",
@@ -199,7 +199,7 @@ def test_build_ffmpeg_args_from_stream_sources(
 
     # Act
     args = _build_ffmpeg_args_from_stream_sources(
-        stream_sources=stream_sources_for_initial_conversion,
+        stream_sources=stream_sources_for_video_encoding,
         output_path=output_path,
         crf=crf,
         preset=preset,
@@ -210,30 +210,30 @@ def test_build_ffmpeg_args_from_stream_sources(
 
 
 @pytest.mark.unit
-def test_perform_initial_conversion_success(
+def test_encode_video_streams_success(
     mock_video_file_factory: Callable[..., VideoFile], mocker: MockerFixture
 ) -> None:
-    """Test that perform_initial_conversion executes FFmpeg successfully."""
+    """Test that encode_video_streams executes FFmpeg successfully."""
     mock_video_file = mock_video_file_factory()
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
 
     mock_build_args = mocker.patch(
-        "ts2mp4.initial_converter._build_ffmpeg_args_from_stream_sources",
+        "ts2mp4.video_encoder._build_ffmpeg_args_from_stream_sources",
         return_value=["mock_arg"],
     )
-    mock_execute_ffmpeg = mocker.patch("ts2mp4.initial_converter.execute_ffmpeg")
+    mock_execute_ffmpeg = mocker.patch("ts2mp4.video_encoder.execute_ffmpeg")
     mock_execute_ffmpeg.return_value = FFmpegResult(stdout=b"", stderr="", returncode=0)
     mock_build_stream_sources = mocker.patch(
-        "ts2mp4.initial_converter._build_stream_sources"
+        "ts2mp4.video_encoder._build_stream_sources"
     )
 
     mocker.patch(
-        "ts2mp4.initial_converter.InitiallyConvertedVideoFile",
+        "ts2mp4.video_encoder.VideoEncodedFile",
         return_value=mocker.MagicMock(spec=VideoFile, path=output_file),
     )
-    perform_initial_conversion(mock_video_file, output_file, crf, preset)
+    encode_video_streams(mock_video_file, output_file, crf, preset)
 
     mock_build_stream_sources.assert_called_once_with(mock_video_file)
     mock_build_args.assert_called_once_with(
@@ -246,23 +246,23 @@ def test_perform_initial_conversion_success(
 
 
 @pytest.mark.unit
-def test_perform_initial_conversion_ffmpeg_failure(
+def test_encode_video_streams_ffmpeg_failure(
     mock_video_file_factory: Callable[..., VideoFile], mocker: MockerFixture
 ) -> None:
-    """Test that perform_initial_conversion raises RuntimeError on FFmpeg failure."""
+    """Test that encode_video_streams raises RuntimeError on FFmpeg failure."""
     mock_video_file = mock_video_file_factory()
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
 
     mocker.patch(
-        "ts2mp4.initial_converter._build_ffmpeg_args_from_stream_sources",
+        "ts2mp4.video_encoder._build_ffmpeg_args_from_stream_sources",
         return_value=["mock_arg"],
     )
-    mock_execute_ffmpeg = mocker.patch("ts2mp4.initial_converter.execute_ffmpeg")
+    mock_execute_ffmpeg = mocker.patch("ts2mp4.video_encoder.execute_ffmpeg")
     mock_execute_ffmpeg.return_value = FFmpegResult(
         stdout=b"", stderr="ffmpeg error", returncode=1
     )
 
     with pytest.raises(RuntimeError, match="ffmpeg failed with return code 1"):
-        perform_initial_conversion(mock_video_file, output_file, crf, preset)
+        encode_video_streams(mock_video_file, output_file, crf, preset)

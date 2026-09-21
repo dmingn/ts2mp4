@@ -43,8 +43,8 @@ def test_ts2mp4_orchestrates_calls(
     mock_output_video_file_instance.path = output_file
     mock_output_video_file_instance.media_info = MagicMock()
 
-    mock_perform_initial_conversion = mocker.patch(
-        "ts2mp4.ts2mp4.perform_initial_conversion",
+    mock_encode_video_streams = mocker.patch(
+        "ts2mp4.ts2mp4.encode_video_streams",
         return_value=mock_output_video_file_instance,
     )
     mock_verify_copied_streams = mocker.patch("ts2mp4.ts2mp4.verify_copied_streams")
@@ -53,7 +53,7 @@ def test_ts2mp4_orchestrates_calls(
     ts2mp4(mock_video_file, output_file, crf, preset)
 
     # Assert
-    mock_perform_initial_conversion.assert_called_once_with(
+    mock_encode_video_streams.assert_called_once_with(
         mock_video_file, output_file, crf, preset
     )
     mock_verify_copied_streams.assert_called_once_with(
@@ -75,8 +75,8 @@ def test_calls_verify_streams_on_success(
     mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
     mock_output_video_file_instance.path = output_file
     mock_output_video_file_instance.media_info = MagicMock()
-    mock_perform_initial_conversion = mocker.patch(
-        "ts2mp4.ts2mp4.perform_initial_conversion",
+    mock_encode_video_streams = mocker.patch(
+        "ts2mp4.ts2mp4.encode_video_streams",
         return_value=mock_output_video_file_instance,
     )
     mock_verify_copied_streams = mocker.patch("ts2mp4.ts2mp4.verify_copied_streams")
@@ -85,7 +85,7 @@ def test_calls_verify_streams_on_success(
     ts2mp4(mock_video_file, output_file, crf, preset)
 
     # Assert
-    mock_perform_initial_conversion.assert_called_once_with(
+    mock_encode_video_streams.assert_called_once_with(
         mock_video_file, output_file, crf, preset
     )
     mock_verify_copied_streams.assert_called_once_with(
@@ -104,7 +104,7 @@ def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(
     preset = "medium"
 
     mocker.patch(
-        "ts2mp4.ts2mp4.perform_initial_conversion",
+        "ts2mp4.ts2mp4.encode_video_streams",
         side_effect=RuntimeError("ffmpeg failed with return code 1"),
     )
 
@@ -124,7 +124,7 @@ def test_does_not_call_verify_streams_on_ffmpeg_failure(
     preset = "medium"
 
     mocker.patch(
-        "ts2mp4.ts2mp4.perform_initial_conversion",
+        "ts2mp4.ts2mp4.encode_video_streams",
         side_effect=RuntimeError("ffmpeg failed with return code 1"),
     )
     mock_verify_copied_streams = mocker.patch("ts2mp4.ts2mp4.verify_copied_streams")
@@ -137,10 +137,10 @@ def test_does_not_call_verify_streams_on_ffmpeg_failure(
 
 
 @pytest.mark.unit
-def test_ts2mp4_re_encodes_on_stream_integrity_failure(
+def test_ts2mp4_encodes_audio_on_stream_integrity_failure(
     mock_video_file: MagicMock, mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """Test that re-encoding is triggered on stream integrity failure."""
+    """Test that audio encoding is triggered on stream integrity failure."""
     # Arrange
     output_file = tmp_path / "output.mp4"
     output_file.touch()
@@ -151,15 +151,15 @@ def test_ts2mp4_re_encodes_on_stream_integrity_failure(
     mock_output_video_file_instance.path = output_file
     mock_output_video_file_instance.media_info = MagicMock()
     mocker.patch(
-        "ts2mp4.ts2mp4.perform_initial_conversion",
+        "ts2mp4.ts2mp4.encode_video_streams",
         return_value=mock_output_video_file_instance,
     )
     mock_verify_copied_streams = mocker.patch(
         "ts2mp4.ts2mp4.verify_copied_streams",
         side_effect=[RuntimeError("Audio stream integrity check failed"), None],
     )
-    mock_re_encode = mocker.patch(
-        "ts2mp4.ts2mp4.re_encode_mismatched_audio_streams",
+    mock_encode_audio = mocker.patch(
+        "ts2mp4.ts2mp4.encode_mismatched_audio_streams",
         return_value=mocker.MagicMock(spec=VideoFile),
     )
     mock_check_audio_quality = mocker.patch(
@@ -172,7 +172,7 @@ def test_ts2mp4_re_encodes_on_stream_integrity_failure(
 
     # Assert
     assert mock_verify_copied_streams.call_count == 2
-    mock_re_encode.assert_called_once_with(
+    mock_encode_audio.assert_called_once_with(
         original_file=mock_video_file,
         encoded_file=mock_output_video_file_instance,
         output_file=output_file.with_suffix(output_file.suffix + ".temp"),
@@ -182,10 +182,10 @@ def test_ts2mp4_re_encodes_on_stream_integrity_failure(
 
 
 @pytest.mark.unit
-def test_ts2mp4_re_encode_failure_raises_error(
+def test_ts2mp4_audio_encode_failure_raises_error(
     mock_video_file: MagicMock, mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """Test that a RuntimeError is raised on re-encode failure."""
+    """Test that a RuntimeError is raised on audio encode failure."""
     # Arrange
     output_file = tmp_path / "output.mp4"
     output_file.touch()
@@ -196,7 +196,7 @@ def test_ts2mp4_re_encode_failure_raises_error(
     mock_output_video_file_instance.path = output_file
     mock_output_video_file_instance.media_info = MagicMock()
     mocker.patch(
-        "ts2mp4.ts2mp4.perform_initial_conversion",
+        "ts2mp4.ts2mp4.encode_video_streams",
         return_value=mock_output_video_file_instance,
     )
     mocker.patch(
@@ -204,10 +204,10 @@ def test_ts2mp4_re_encode_failure_raises_error(
         side_effect=RuntimeError("Audio stream integrity check failed"),
     )
     mocker.patch(
-        "ts2mp4.ts2mp4.re_encode_mismatched_audio_streams",
-        side_effect=RuntimeError("Re-encode failed"),
+        "ts2mp4.ts2mp4.encode_mismatched_audio_streams",
+        side_effect=RuntimeError("Encode failed"),
     )
 
     # Act & Assert
-    with pytest.raises(RuntimeError, match="Re-encode failed"):
+    with pytest.raises(RuntimeError, match="Encode failed"):
         ts2mp4(mock_video_file, output_file, crf, preset)
