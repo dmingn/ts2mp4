@@ -2,24 +2,6 @@
 
 `ts2mp4` is a tool designed to convert Transport Stream (`.ts`) files into MP4 format.
 
-## Project Structure
-
-*   `ts2mp4/`: Main source code.
-    *   `__main__.py`: CLI entry point.
-    *   `audio_encoder.py`: Audio encoding logic for mismatched streams.
-    *   `cli.py`: Command-line interface definition.
-    *   `ffmpeg.py`: Wrapper for `ffmpeg` and `ffprobe` commands.
-    *   `hashing.py`: File hashing utilities.
-    *   `media_info.py`: Media file information retrieval.
-    *   `quality_check.py`: Post-conversion quality checks.
-    *   `stream_disposition.py`: Selection of primary streams for MP4 `default` disposition.
-    *   `stream_integrity.py`: Audio and video stream integrity checks.
-    *   `ts2mp4.py`: Core conversion logic.
-    *   `video_encoder.py`: Video encoding logic (pipeline stage 1).
-*   `tests/`: Project tests.
-*   `pyproject.toml`: Project configuration and dependencies.
-*   `Makefile`: Shortcuts for common development tasks.
-
 ## Development Workflow
 
 ### Setup
