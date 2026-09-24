@@ -1,5 +1,6 @@
 """Unit and integration tests for the hashing module."""
 
+import os
 from pathlib import Path
 from typing import AsyncGenerator
 
@@ -8,7 +9,7 @@ from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import FFmpegProcessError
 from ts2mp4.hashing import _get_stream_md5_cached, get_stream_md5
-from ts2mp4.media_info import AudioStream, Stream, VideoStream
+from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
 
 async def mock_ffmpeg_stream_success() -> AsyncGenerator[bytes, None]:
@@ -29,99 +30,93 @@ def _clear_hashing_cache() -> None:
 
 
 @pytest.mark.unit
-def test_get_stream_md5_caching(mocker: MockerFixture) -> None:
-    """Test that get_stream_md5 caches results."""
-    file_path = Path("test.ts")
-    stream = VideoStream(index=0, codec_type="video")
-
-    mock_resolve = mocker.patch.object(Path, "resolve", return_value=file_path)
-    mocker.patch.object(Path, "stat", return_value=mocker.Mock(st_mtime=1, st_size=1))
-
+def test_get_stream_md5_caches_repeated_calls(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    """get_stream_md5 calls ffmpeg only once for an unchanged file."""
+    # Arrange
+    file_path = tmp_path / "test.ts"
+    file_path.touch()
+    stream = VideoStream(file=VideoFile(path=file_path), index=0)
     mock_execute_ffmpeg = mocker.patch(
         "ts2mp4.hashing.execute_ffmpeg_streamed",
         return_value=mock_ffmpeg_stream_success(),
     )
 
-    # Call twice
-    get_stream_md5(file_path, stream)
-    get_stream_md5(file_path, stream)
+    # Act
+    get_stream_md5(stream)
+    get_stream_md5(stream)
 
-    # Assert that execute_ffmpeg was only called once
+    # Assert
     mock_execute_ffmpeg.assert_called_once()
-    mock_resolve.assert_called_with(strict=True)
 
 
 @pytest.mark.unit
-def test_get_stream_md5_cache_invalidation(mocker: MockerFixture) -> None:
-    """Test that the cache is invalidated when the file is modified."""
-    file_path = Path("test.ts")
-    stream = VideoStream(index=0, codec_type="video")
-
-    mock_resolve = mocker.patch.object(Path, "resolve", return_value=file_path)
-    mock_stat = mocker.patch(
-        "pathlib.Path.stat", return_value=mocker.Mock(st_mtime=1, st_size=1)
-    )
-
+def test_get_stream_md5_rehashes_when_file_stat_changes(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    """get_stream_md5 calls ffmpeg again when mtime or size changes."""
+    # Arrange
+    file_path = tmp_path / "test.ts"
+    file_path.touch()
+    stream = VideoStream(file=VideoFile(path=file_path), index=0)
     mock_execute_ffmpeg = mocker.patch(
         "ts2mp4.hashing.execute_ffmpeg_streamed",
         side_effect=[mock_ffmpeg_stream_success(), mock_ffmpeg_stream_success()],
     )
 
-    # First call
-    get_stream_md5(file_path, stream)
+    # Act
+    get_stream_md5(stream)
+    # Prefer an explicit mtime over Path.touch(): on filesystems with 1s
+    # mtime resolution, touch() in a fast test may leave mtime unchanged and
+    # fail to bust the cache.
+    os.utime(file_path, (1_700_000_000, 1_700_000_000))
+    get_stream_md5(stream)
 
-    # Simulate file modification
-    mock_stat.return_value = mocker.Mock(st_mtime=2, st_size=2)
-
-    # Second call
-    get_stream_md5(file_path, stream)
-
-    # Assert that execute_ffmpeg was called twice
+    # Assert
     assert mock_execute_ffmpeg.call_count == 2
-    mock_resolve.assert_called_with(strict=True)
 
 
 @pytest.mark.integration
 @pytest.mark.parametrize(
-    "stream_index, codec_type",
+    ("stream_index", "stream_factory"),
     [
-        (0, "video"),  # Video stream
-        (1, "audio"),  # Audio stream
+        pytest.param(0, VideoStream, id="video"),
+        pytest.param(1, AudioStream, id="audio"),
     ],
 )
-def test_get_stream_md5(ts_file: Path, stream_index: int, codec_type: str) -> None:
-    """Test the get_stream_md5 function for different stream types."""
-    stream: Stream
-    if codec_type == "video":
-        stream = VideoStream(index=stream_index, codec_type=codec_type)
-    else:
-        stream = AudioStream(index=stream_index, codec_type=codec_type)
-    actual_md5 = get_stream_md5(ts_file, stream)
-    # Check if the returned MD5 hash is a valid 32-character hexadecimal string
+def test_get_stream_md5_returns_hex_digest(
+    ts_file: Path,
+    stream_index: int,
+    stream_factory: type[VideoStream | AudioStream],
+) -> None:
+    """get_stream_md5 returns a 32-character hex digest for a real stream."""
+    # Arrange
+    stream = stream_factory(file=VideoFile(path=ts_file), index=stream_index)
+
+    # Act
+    actual_md5 = get_stream_md5(stream)
+
+    # Assert
     assert len(actual_md5) == 32
     assert all(c in "0123456789abcdef" for c in actual_md5)
 
 
 @pytest.mark.unit
-@pytest.mark.parametrize(
-    "stream_index, codec_type",
-    [
-        (0, "video"),  # Video stream
-        (1, "audio"),  # Audio stream
-    ],
-)
-def test_get_stream_md5_failure(
-    mocker: MockerFixture, ts_file: Path, stream_index: int, codec_type: str
+def test_get_stream_md5_raises_on_ffmpeg_failure(
+    mocker: MockerFixture,
+    tmp_path: Path,
 ) -> None:
-    """Test get_stream_md5 with a non-zero return code for different stream types."""
+    """get_stream_md5 raises FFmpegProcessError when ffmpeg streaming fails."""
+    # Arrange
+    file_path = tmp_path / "test.ts"
+    file_path.touch()
     mocker.patch(
         "ts2mp4.hashing.execute_ffmpeg_streamed",
         return_value=mock_ffmpeg_stream_failure(),
     )
-    stream: Stream
-    if codec_type == "video":
-        stream = VideoStream(index=stream_index, codec_type=codec_type)
-    else:
-        stream = AudioStream(index=stream_index, codec_type=codec_type)
+    stream = VideoStream(file=VideoFile(path=file_path), index=0)
+
+    # Act & Assert
     with pytest.raises(FFmpegProcessError, match="ffmpeg failed"):
-        get_stream_md5(ts_file, stream)
+        get_stream_md5(stream)

@@ -7,18 +7,18 @@ from logzero import logger
 from pydantic import model_validator
 
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
-from .media_info import AudioStream, VideoStream
 from .stream_disposition import build_disposition_args
 from .stream_integrity import compare_stream_hashes
-from .video_encoder import VideoEncodedFile
-from .video_file import (
+from .stream_source import (
     ConversionType,
     ConvertedVideoFile,
     StreamSource,
     StreamSources,
-    VideoFile,
     is_audio_stream_source,
+    streams_by_unique_index,
 )
+from .video_encoder import VideoEncodedFile
+from .video_file import AudioStream, VideoFile, VideoStream
 
 StreamSourceForAudioEncoding = (
     StreamSource[VideoStream, Literal["copied"]]
@@ -49,14 +49,12 @@ class StreamSourcesForAudioEncoding(StreamSources):
         if not copied_sources:
             raise ValueError("At least one stream must be copied.")
 
-        encoded_files = {VideoFile(path=s.source_video_path) for s in copied_sources}
+        encoded_files = {s.source_stream.file for s in copied_sources}
         if len(encoded_files) != 1:
             raise ValueError("All copied streams must come from the same encoded file.")
 
         if sources_to_encode:
-            original_files = {
-                VideoFile(path=s.source_video_path) for s in sources_to_encode
-            }
+            original_files = {s.source_stream.file for s in sources_to_encode}
             if len(original_files) != 1:
                 raise ValueError(
                     "All streams to encode must come from the same original file."
@@ -64,7 +62,7 @@ class StreamSourcesForAudioEncoding(StreamSources):
 
             encoded_file = encoded_files.pop()
             original_file = original_files.pop()
-            if original_file == encoded_file:
+            if original_file.path == encoded_file.path:
                 raise ValueError(
                     "Original and encoded files cannot be the same when encoding audio."
                 )
@@ -80,16 +78,18 @@ def _build_stream_sources_for_audio_encoding(
     original_file: VideoFile, encoded_file: VideoEncodedFile
 ) -> StreamSourcesForAudioEncoding:
     """Build the stream sources for audio encoding."""
-    # Source streams are guaranteed to be unique for a video-encoded file
+    # Source streams are guaranteed to be unique for a video-encoded file.
+    # stream_sources position i corresponds to output stream index i.
+    streams_by_index = streams_by_unique_index(encoded_file.streams)
     original_encoded_stream_mapping = {
-        stream_source.source_stream: encoded_file.media_info.streams[i]
+        stream_source.source_stream.index: streams_by_index[i]
         for i, stream_source in enumerate(encoded_file.stream_sources)
     }
 
     stream_sources_list: list[StreamSourceForAudioEncoding] = []
 
-    for original_stream in sorted(original_file.valid_streams, key=lambda s: s.index):
-        matching_stream = original_encoded_stream_mapping.get(original_stream)
+    for original_stream in sorted(original_file.valid_streams):
+        matching_stream = original_encoded_stream_mapping.get(original_stream.index)
 
         if not matching_stream:
             raise RuntimeError(
@@ -97,40 +97,33 @@ def _build_stream_sources_for_audio_encoding(
                 f"from the original {original_file.path.name}."
             )
 
-        if original_stream.codec_type == "video":
+        if isinstance(original_stream, VideoStream):
             if not isinstance(matching_stream, VideoStream):
                 raise RuntimeError(
                     f"Mismatch in stream types for file {encoded_file.path.name}: "
-                    f"Stream at index {matching_stream.index} was expected to be 'video', "
-                    f"but was '{matching_stream.codec_type}'."
+                    f"Stream at index {matching_stream.index} was expected to be "
+                    f"'video', but was '{type(matching_stream).__name__}'."
                 )
 
             # Video streams should be always copied from the encoded file
             stream_sources_list.append(
                 StreamSource(
-                    source_video_path=encoded_file.path,
                     source_stream=matching_stream,
                     conversion_type="copied",
                 )
             )
-        elif original_stream.codec_type == "audio":
+        elif isinstance(original_stream, AudioStream):
             if not isinstance(matching_stream, AudioStream):
                 raise RuntimeError(
                     f"Mismatch in stream types for file {encoded_file.path.name}: "
-                    f"Stream at index {matching_stream.index} was expected to be 'audio', "
-                    f"but was '{matching_stream.codec_type}'."
+                    f"Stream at index {matching_stream.index} was expected to be "
+                    f"'audio', but was '{type(matching_stream).__name__}'."
                 )
 
-            if compare_stream_hashes(
-                input_video=original_file,
-                output_video=encoded_file,
-                input_stream=original_stream,
-                output_stream=matching_stream,
-            ):
+            if compare_stream_hashes(original_stream, matching_stream):
                 # If the hashes match, the stream can be copied from the encoded file
                 stream_sources_list.append(
                     StreamSource(
-                        source_video_path=encoded_file.path,
                         source_stream=matching_stream,
                         conversion_type="copied",
                     )
@@ -139,7 +132,6 @@ def _build_stream_sources_for_audio_encoding(
                 # If the hashes do not match, the stream must be encoded from the original file
                 stream_sources_list.append(
                     StreamSource(
-                        source_video_path=original_file.path,
                         source_stream=original_stream,
                         conversion_type="encoded",
                     )
@@ -213,9 +205,7 @@ def _build_ffmpeg_args_from_stream_sources(
 ) -> list[str]:
     """Build FFmpeg arguments from a StreamSources object."""
     # Create a unique, ordered list of input files and a mapping to their index
-    input_files = list(
-        dict.fromkeys(VideoFile(path=s.source_video_path) for s in stream_sources)
-    )
+    input_files = list(dict.fromkeys(s.source_stream.file for s in stream_sources))
     input_file_map = {file: i for i, file in enumerate(input_files)}
 
     ffmpeg_args = [
@@ -232,7 +222,7 @@ def _build_ffmpeg_args_from_stream_sources(
 
     # Add -map and codec arguments for each stream
     for i, source in enumerate(stream_sources):
-        input_index = input_file_map[VideoFile(path=source.source_video_path)]
+        input_index = input_file_map[source.source_stream.file]
 
         # Add map argument using the original stream index from the source file
         ffmpeg_args.extend(["-map", f"{input_index}:{source.source_stream.index}"])
@@ -245,7 +235,8 @@ def _build_ffmpeg_args_from_stream_sources(
         else:
             # This path should be unreachable due to validation in StreamSourcesForAudioEncoding
             raise ValueError(
-                f"Invalid conversion requested for stream type '{source.source_stream.codec_type}'."
+                f"Invalid conversion requested for stream type "
+                f"'{type(source.source_stream).__name__}'."
             )
 
     ffmpeg_args.extend(build_disposition_args(stream_sources))

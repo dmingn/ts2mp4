@@ -1,12 +1,11 @@
 """Unit tests for the ts2mp4 module."""
 
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.media_info import AudioStream, MediaInfo, VideoStream
+from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.ts2mp4 import ts2mp4
 from ts2mp4.video_file import VideoFile
 
@@ -17,23 +16,26 @@ def mock_video_file(mocker: MockerFixture, tmp_path: Path) -> VideoFile:
     dummy_file = tmp_path / "test.ts"
     dummy_file.touch()
 
-    video_stream = VideoStream(codec_type="video", index=0)
-    audio_streams = (
-        AudioStream(codec_type="audio", index=1, channels=2),
-        AudioStream(codec_type="audio", index=2, channels=6),
+    mocker.patch(
+        "ts2mp4.video_file.probe_file",
+        return_value=FFprobeOutput(
+            streams=(
+                FFprobeStream(codec_type="video", index=0),
+                FFprobeStream(codec_type="audio", index=1, channels=2),
+                FFprobeStream(codec_type="audio", index=2, channels=6),
+            )
+        ),
     )
-    media_info = MediaInfo(streams=(video_stream,) + audio_streams)
-    mocker.patch("ts2mp4.video_file.get_media_info", return_value=media_info)
 
     return VideoFile(path=dummy_file)
 
 
 @pytest.mark.unit
-def test_ts2mp4_orchestrates_calls(
-    mock_video_file: MagicMock,
+def test_ts2mp4_calls_encode_then_verify_copied_streams(
+    mock_video_file: VideoFile,
     mocker: MockerFixture,
 ) -> None:
-    """Test that ts2mp4 calls its dependencies correctly."""
+    """Call encode_video_streams then verify_copied_streams on success."""
     # Arrange
     output_file = Path("output.mp4")
     crf = 23
@@ -41,7 +43,6 @@ def test_ts2mp4_orchestrates_calls(
 
     mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
     mock_output_video_file_instance.path = output_file
-    mock_output_video_file_instance.media_info = MagicMock()
 
     mock_encode_video_streams = mocker.patch(
         "ts2mp4.ts2mp4.encode_video_streams",
@@ -62,10 +63,10 @@ def test_ts2mp4_orchestrates_calls(
 
 
 @pytest.mark.unit
-def test_calls_verify_streams_on_success(
-    mock_video_file: MagicMock, mocker: MockerFixture, tmp_path: Path
+def test_ts2mp4_calls_verify_copied_streams_on_success(
+    mock_video_file: VideoFile, mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """Test that verify_streams is called on successful conversion."""
+    """Call verify_copied_streams when conversion succeeds with an existing output."""
     # Arrange
     output_file = tmp_path / "output.mp4"
     output_file.touch()
@@ -74,7 +75,6 @@ def test_calls_verify_streams_on_success(
 
     mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
     mock_output_video_file_instance.path = output_file
-    mock_output_video_file_instance.media_info = MagicMock()
     mock_encode_video_streams = mocker.patch(
         "ts2mp4.ts2mp4.encode_video_streams",
         return_value=mock_output_video_file_instance,
@@ -95,9 +95,9 @@ def test_calls_verify_streams_on_success(
 
 @pytest.mark.unit
 def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(
-    mock_video_file: MagicMock, mocker: MockerFixture
+    mock_video_file: VideoFile, mocker: MockerFixture
 ) -> None:
-    """Test that a RuntimeError is raised on ffmpeg failure."""
+    """Propagate RuntimeError when encode_video_streams fails."""
     # Arrange
     output_file = Path("output.mp4")
     crf = 23
@@ -114,10 +114,10 @@ def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(
 
 
 @pytest.mark.unit
-def test_does_not_call_verify_streams_on_ffmpeg_failure(
-    mock_video_file: MagicMock, mocker: MockerFixture
+def test_ts2mp4_does_not_call_verify_copied_streams_on_ffmpeg_failure(
+    mock_video_file: VideoFile, mocker: MockerFixture
 ) -> None:
-    """Test that ts2mp4 does not call verify_streams on failure."""
+    """Skip verify_copied_streams when encode_video_streams raises."""
     # Arrange
     output_file = Path("output.mp4")
     crf = 23
@@ -133,14 +133,14 @@ def test_does_not_call_verify_streams_on_ffmpeg_failure(
     with pytest.raises(RuntimeError):
         ts2mp4(mock_video_file, output_file, crf, preset)
 
-    mock_verify_copied_streams.assert_not_called()
+    assert mock_verify_copied_streams.call_count == 0
 
 
 @pytest.mark.unit
 def test_ts2mp4_encodes_audio_on_stream_integrity_failure(
-    mock_video_file: MagicMock, mocker: MockerFixture, tmp_path: Path
+    mock_video_file: VideoFile, mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """Test that audio encoding is triggered on stream integrity failure."""
+    """Encode mismatched audio and re-verify when stream integrity check fails."""
     # Arrange
     output_file = tmp_path / "output.mp4"
     output_file.touch()
@@ -149,7 +149,6 @@ def test_ts2mp4_encodes_audio_on_stream_integrity_failure(
 
     mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
     mock_output_video_file_instance.path = output_file
-    mock_output_video_file_instance.media_info = MagicMock()
     mocker.patch(
         "ts2mp4.ts2mp4.encode_video_streams",
         return_value=mock_output_video_file_instance,
@@ -182,10 +181,10 @@ def test_ts2mp4_encodes_audio_on_stream_integrity_failure(
 
 
 @pytest.mark.unit
-def test_ts2mp4_audio_encode_failure_raises_error(
-    mock_video_file: MagicMock, mocker: MockerFixture, tmp_path: Path
+def test_ts2mp4_raises_on_audio_encode_failure(
+    mock_video_file: VideoFile, mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """Test that a RuntimeError is raised on audio encode failure."""
+    """Propagate RuntimeError when encode_mismatched_audio_streams fails."""
     # Arrange
     output_file = tmp_path / "output.mp4"
     output_file.touch()
@@ -194,7 +193,6 @@ def test_ts2mp4_audio_encode_failure_raises_error(
 
     mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
     mock_output_video_file_instance.path = output_file
-    mock_output_video_file_instance.media_info = MagicMock()
     mocker.patch(
         "ts2mp4.ts2mp4.encode_video_streams",
         return_value=mock_output_video_file_instance,

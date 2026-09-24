@@ -1,38 +1,27 @@
 """Unit tests for the VideoFile module."""
 
 from pathlib import Path
-from typing import Optional
-from unittest.mock import MagicMock
 
 import pytest
-from pydantic import ValidationError
 from pytest_mock import MockerFixture
 
-from ts2mp4.media_info import AudioStream, MediaInfo, OtherStream, VideoStream
-from ts2mp4.video_file import (
-    ConversionType,
-    ConvertedVideoFile,
-    StreamSource,
-    StreamSources,
-    StreamWithSource,
-    VideoFile,
-)
+from tests.helpers import stream_at
+from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
+from ts2mp4.video_file import AudioStream, OtherStream, VideoFile, VideoStream
 
 
 @pytest.fixture
-def mock_get_media_info_func(mocker: MockerFixture) -> MagicMock:
-    """Mock the get_media_info function."""
-    return mocker.patch(
-        "ts2mp4.video_file.get_media_info",
-        return_value=MediaInfo(
+def mixed_probe(mocker: MockerFixture) -> None:
+    """Stub probe_file with mixed video, audio, and other streams."""
+    mocker.patch(
+        "ts2mp4.video_file.probe_file",
+        return_value=FFprobeOutput(
             streams=(
-                VideoStream(codec_type="video", index=0),
-                AudioStream(codec_type="audio", index=1, channels=2),
-                AudioStream(
-                    codec_type="audio", index=2, channels=0
-                ),  # Invalid audio stream
-                AudioStream(codec_type="audio", index=3, channels=6),
-                OtherStream(codec_type="subtitle", index=4),
+                FFprobeStream(codec_type="video", index=0),
+                FFprobeStream(codec_type="audio", index=1, channels=2),
+                FFprobeStream(codec_type="audio", index=2, channels=0),
+                FFprobeStream(codec_type="audio", index=3, channels=6),
+                FFprobeStream(codec_type="subtitle", index=4),
             )
         ),
     )
@@ -46,300 +35,132 @@ def dummy_video_file(tmp_path: Path) -> VideoFile:
     return VideoFile(path=dummy_file)
 
 
-@pytest.fixture
-def stream_source(
-    dummy_video_file: VideoFile,
-) -> StreamSource[VideoStream, ConversionType]:
-    """Create a dummy StreamSource instance."""
-    return StreamSource(
-        source_video_path=dummy_video_file.path,
-        source_stream=VideoStream(codec_type="video", index=0),
-        conversion_type="copied",
-    )
-
-
-@pytest.fixture
-def stream_sources(
-    dummy_video_file: VideoFile, mocker: MockerFixture, tmp_path: Path
-) -> StreamSources:
-    """Create a StreamSources instance with mixed stream types."""
-    video_file_1 = dummy_video_file
-    (tmp_path / "test2.ts").touch()
-    video_file_2 = VideoFile(path=(tmp_path / "test2.ts"))
-
-    media_info_1 = MediaInfo(
-        streams=(
-            VideoStream(codec_type="video", index=0),
-            AudioStream(codec_type="audio", index=1, channels=2),
-        )
-    )
-    media_info_2 = MediaInfo(
-        streams=(
-            VideoStream(codec_type="video", index=0),
-            AudioStream(codec_type="audio", index=1, channels=1),
-        )
-    )
-
-    path_to_media_info = {
-        video_file_1.path: media_info_1,
-        video_file_2.path: media_info_2,
-    }
-
-    def _get_media_info_side_effect(path: Path) -> Optional[MediaInfo]:
-        return path_to_media_info.get(path)
-
+@pytest.mark.unit
+def test_audiostream_channels_derives_from_probe(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    """AudioStream.channels is read from the probed stream at this index."""
+    # Arrange
+    path = tmp_path / "test.ts"
+    path.touch()
+    video_file = VideoFile(path=path)
     mocker.patch(
-        "ts2mp4.video_file.get_media_info", side_effect=_get_media_info_side_effect
-    )
-
-    return StreamSources(
-        root=(
-            StreamSource(
-                source_video_path=video_file_1.path,
-                source_stream=media_info_1.streams[0],
-                conversion_type="encoded",
-            ),
-            StreamSource(
-                source_video_path=video_file_1.path,
-                source_stream=media_info_1.streams[1],
-                conversion_type="copied",
-            ),
-            StreamSource(
-                source_video_path=video_file_2.path,
-                source_stream=media_info_2.streams[1],
-                conversion_type="copied",
-            ),
-        )
-    )
-
-
-@pytest.mark.unit
-def test_videofile_instantiation_success(tmp_path: Path) -> None:
-    """Test that VideoFile can be instantiated with a valid path."""
-    dummy_file = tmp_path / "test.ts"
-    dummy_file.touch()
-    video_file = VideoFile(path=dummy_file)
-    assert video_file.path == dummy_file
-
-
-@pytest.mark.unit
-def test_videofile_instantiation_non_existent_file_raises_error(tmp_path: Path) -> None:
-    """Test that instantiating VideoFile with a non-existent file raises ValidationError."""
-    non_existent_file = tmp_path / "non_existent.ts"
-    with pytest.raises(ValidationError):
-        VideoFile(path=non_existent_file)
-
-
-@pytest.mark.unit
-def test_videofile_media_info_property(
-    mock_get_media_info_func: MagicMock, dummy_video_file: VideoFile
-) -> None:
-    """Test that the media_info property calls get_media_info and returns the correct object."""
-    media_info = dummy_video_file.media_info
-
-    mock_get_media_info_func.assert_called_once_with(dummy_video_file.path)
-    assert isinstance(media_info, MediaInfo)
-    assert len(media_info.streams) == 5
-
-
-@pytest.mark.unit
-def test_videofile_valid_audio_streams_property(
-    mock_get_media_info_func: MagicMock, dummy_video_file: VideoFile
-) -> None:
-    """Test that the valid_audio_streams property returns only valid audio streams."""
-    valid_audio_streams = dummy_video_file.valid_audio_streams
-
-    assert len(valid_audio_streams) == 2  # Only streams with channels > 0
-    for stream in valid_audio_streams:
-        assert stream.codec_type == "audio"
-        assert stream.channels is not None and stream.channels > 0
-
-
-@pytest.mark.unit
-def test_videofile_valid_video_streams_property(
-    mock_get_media_info_func: MagicMock, dummy_video_file: VideoFile
-) -> None:
-    """Test that the valid_video_streams property returns only valid video streams."""
-    valid_video_streams = dummy_video_file.valid_video_streams
-
-    assert len(valid_video_streams) == 1
-    for stream in valid_video_streams:
-        assert stream.codec_type == "video"
-
-
-@pytest.mark.unit
-def test_videofile_valid_streams_property(
-    mock_get_media_info_func: MagicMock, dummy_video_file: VideoFile
-) -> None:
-    """Test that the valid_streams property returns all valid streams."""
-    valid_streams = dummy_video_file.valid_streams
-
-    assert len(valid_streams) == 3  # 1 valid video + 2 valid audio
-
-    video_stream_count = sum(1 for s in valid_streams if isinstance(s, VideoStream))
-    audio_stream_count = sum(1 for s in valid_streams if isinstance(s, AudioStream))
-
-    assert video_stream_count == 1
-    assert audio_stream_count == 2
-
-
-@pytest.mark.unit
-def test_stream_source_instantiation(dummy_video_file: VideoFile) -> None:
-    """Test that StreamSource can be instantiated with valid data."""
-    stream = VideoStream(codec_type="video", index=0)
-    stream_source: StreamSource[VideoStream, ConversionType] = StreamSource(
-        source_video_path=dummy_video_file.path,
-        source_stream=stream,
-        conversion_type="copied",
-    )
-    assert stream_source.source_video_path == dummy_video_file.path
-    assert stream_source.source_stream == stream
-    assert stream_source.conversion_type == "copied"
-
-
-@pytest.mark.unit
-def test_converted_video_file_instantiation(
-    dummy_video_file: VideoFile,
-    stream_source: StreamSource[VideoStream, ConversionType],
-    mocker: MockerFixture,
-) -> None:
-    """Test that ConvertedVideoFile can be instantiated with valid data."""
-    # Mock get_media_info to return a single stream to match the single stream source
-    mocker.patch(
-        "ts2mp4.video_file.get_media_info",
-        return_value=MediaInfo(streams=(stream_source.source_stream,)),
-    )
-
-    stream_sources = StreamSources(root=(stream_source,))
-    converted_file = ConvertedVideoFile[StreamSources](
-        path=dummy_video_file.path,
-        stream_sources=stream_sources,
-    )
-    assert converted_file.path == dummy_video_file.path
-    assert converted_file.stream_sources == stream_sources
-
-
-@pytest.mark.unit
-def test_stream_sources_video_stream_sources_property(
-    stream_sources: StreamSources,
-) -> None:
-    """Test that the video_stream_sources property returns only video streams."""
-    video_sources = stream_sources.video_stream_sources
-    assert len(video_sources) == 1
-    assert all(s.source_stream.codec_type == "video" for s in video_sources)
-
-
-@pytest.mark.unit
-def test_stream_sources_audio_stream_sources_property(
-    stream_sources: StreamSources,
-) -> None:
-    """Test that the audio_stream_sources property returns only audio streams."""
-    audio_sources = stream_sources.audio_stream_sources
-    assert len(audio_sources) == 2
-    assert all(s.source_stream.codec_type == "audio" for s in audio_sources)
-
-
-@pytest.mark.unit
-def test_stream_sources_source_video_files_property(
-    stream_sources: StreamSources,
-) -> None:
-    """Test that the source_video_files property returns a set of unique source files."""
-    source_files = stream_sources.source_video_files
-    assert len(source_files) == 2
-    assert all(isinstance(f, VideoFile) for f in source_files)
-
-
-@pytest.mark.unit
-def test_stream_sources_properties_with_empty_sources() -> None:
-    """Test that StreamSources properties work correctly with no sources."""
-    empty_stream_sources = StreamSources(root=())
-    assert len(empty_stream_sources.video_stream_sources) == 0
-    assert len(empty_stream_sources.audio_stream_sources) == 0
-    assert len(empty_stream_sources.source_video_files) == 0
-
-
-@pytest.mark.unit
-def test_converted_video_file_mismatched_stream_counts_raises_error(
-    dummy_video_file: VideoFile,
-    stream_source: StreamSource[VideoStream, ConversionType],
-    mocker: MockerFixture,
-) -> None:
-    """Test that ConvertedVideoFile raises ValueError for mismatched stream counts."""
-    # Mock get_media_info to return a different number of streams
-    mocker.patch(
-        "ts2mp4.video_file.get_media_info",
-        return_value=MediaInfo(
+        "ts2mp4.video_file.probe_file",
+        return_value=FFprobeOutput(
             streams=(
-                VideoStream(codec_type="video", index=0),
-                AudioStream(codec_type="audio", index=1, channels=2),
+                FFprobeStream(index=0, codec_type="video"),
+                FFprobeStream(index=1, codec_type="audio", channels=6),
             )
         ),
     )
+    stream = AudioStream(file=video_file, index=1)
 
-    stream_sources = StreamSources(root=(stream_source,))  # Only one stream source
-    with pytest.raises(ValueError, match="Mismatch in stream counts"):
-        ConvertedVideoFile(
-            path=dummy_video_file.path,
-            stream_sources=stream_sources,
-        )
+    # Act & Assert
+    assert stream.channels == 6
 
 
 @pytest.mark.unit
-def test_converted_video_file_stream_with_sources_property(
-    dummy_video_file: VideoFile,
-    stream_source: StreamSource[VideoStream, ConversionType],
-    mocker: MockerFixture,
+def test_videofile_streams_maps_probe_output_to_domain_types(
+    mixed_probe: None, dummy_video_file: VideoFile
 ) -> None:
-    """Test the stream_with_sources property of ConvertedVideoFile."""
-    mock_stream = stream_source.source_stream
-    mocker.patch(
-        "ts2mp4.video_file.get_media_info",
-        return_value=MediaInfo(streams=(mock_stream,)),
-    )
+    """VideoFile.streams maps probed entries to Video/Audio/OtherStream."""
+    # Act
+    streams = dummy_video_file.streams
 
-    stream_sources = StreamSources(root=(stream_source,))
-    converted_file = ConvertedVideoFile[StreamSources](
-        path=dummy_video_file.path,
-        stream_sources=stream_sources,
-    )
-
-    items = list(converted_file.stream_with_sources)
-    assert len(items) == 1
-    item = items[0]
-    assert isinstance(item, StreamWithSource)
-    assert item.stream == mock_stream
-    assert item.source == stream_source
+    # Assert
+    assert isinstance(stream_at(streams, 0), VideoStream)
+    assert isinstance(stream_at(streams, 1), AudioStream)
+    assert stream_at(streams, 0).codec_type == "video"
+    assert stream_at(streams, 1).codec_type == "audio"
+    other = stream_at(streams, 4)
+    assert isinstance(other, OtherStream)
+    assert other.codec_type == "subtitle"
 
 
 @pytest.mark.unit
-def test_converted_video_file_stream_with_sources_mismatched_types_raises_error(
-    dummy_video_file: VideoFile,
-    mocker: MockerFixture,
+def test_videofile_streams_binds_each_stream_to_the_file(
+    mixed_probe: None, dummy_video_file: VideoFile
 ) -> None:
-    """Test stream_with_sources for mismatched types.
+    """VideoFile.streams binds every domain stream to the owning file."""
+    # Act
+    streams = dummy_video_file.streams
 
-    Ensures that a RuntimeError is raised when the stream type
-    and source stream type do not match.
-    """
-    # Arrange: Create a video stream and an audio stream source
-    mock_video_stream: VideoStream = VideoStream(codec_type="video", index=0)
-    mock_audio_stream_source: StreamSource[AudioStream, ConversionType] = StreamSource(
-        source_video_path=dummy_video_file.path,
-        source_stream=AudioStream(codec_type="audio", index=0),
-        conversion_type="copied",
-    )
+    # Assert
+    assert all(stream.file == dummy_video_file for stream in streams)
 
+
+@pytest.mark.unit
+def test_basestream_sorts_by_file_path_then_index(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    """BaseStream total order is file.path, then index."""
+    # Arrange
+    path_a = tmp_path / "a.ts"
+    path_b = tmp_path / "b.ts"
+    path_a.touch()
+    path_b.touch()
     mocker.patch(
-        "ts2mp4.video_file.get_media_info",
-        return_value=MediaInfo(streams=(mock_video_stream,)),
+        "ts2mp4.video_file.probe_file",
+        return_value=FFprobeOutput(
+            streams=(
+                FFprobeStream(codec_type="video", index=0),
+                FFprobeStream(codec_type="audio", index=1, channels=2),
+            )
+        ),
+    )
+    file_a = VideoFile(path=path_a)
+    file_b = VideoFile(path=path_b)
+    unordered = frozenset(
+        {
+            AudioStream(file=file_b, index=1),
+            VideoStream(file=file_a, index=0),
+            AudioStream(file=file_a, index=1),
+            VideoStream(file=file_b, index=0),
+        }
     )
 
-    stream_sources = StreamSources(root=(mock_audio_stream_source,))
-    converted_file = ConvertedVideoFile[StreamSources](
-        path=dummy_video_file.path,
-        stream_sources=stream_sources,
+    # Act
+    ordered = sorted(unordered)
+
+    # Assert
+    assert [(stream.file.path, stream.index) for stream in ordered] == [
+        (path_a, 0),
+        (path_a, 1),
+        (path_b, 0),
+        (path_b, 1),
+    ]
+
+
+@pytest.mark.unit
+def test_videofile_valid_audio_streams_excludes_zero_channels(
+    mixed_probe: None, dummy_video_file: VideoFile
+) -> None:
+    """VideoFile.valid_audio_streams excludes audio streams with channels <= 0."""
+    # Act
+    valid_audio_streams = dummy_video_file.valid_audio_streams
+
+    # Assert
+    assert len(valid_audio_streams) == 2
+    assert all(
+        stream.channels is not None and stream.channels > 0
+        for stream in valid_audio_streams
     )
 
-    # Act & Assert: Check that iterating over stream_with_sources raises a RuntimeError
-    with pytest.raises(RuntimeError, match="Stream type mismatch for stream index 0"):
-        list(converted_file.stream_with_sources)
+
+@pytest.mark.integration
+def test_videofile_streams_maps_real_ts_file(ts_file: Path) -> None:
+    """VideoFile.streams maps a real TS fixture to domain video and audio streams."""
+    # Arrange
+    video_file = VideoFile(path=ts_file)
+
+    # Act
+    streams = video_file.streams
+    video_stream = stream_at(streams, 0)
+
+    # Assert
+    assert isinstance(video_stream, VideoStream)
+    assert video_stream.width == 1280
+    assert video_stream.height == 720
+    assert isinstance(stream_at(streams, 1), AudioStream)
+    assert isinstance(stream_at(streams, 2), AudioStream)
+    assert all(stream.file == video_file for stream in streams)
