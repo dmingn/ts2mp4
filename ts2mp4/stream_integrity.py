@@ -1,10 +1,28 @@
 """A module for verifying stream integrity."""
 
 from logzero import logger
+from pydantic import BaseModel, ConfigDict
 
 from .hashing import get_stream_md5
-from .stream_source import ConvertedVideoFile, StreamSources
-from .video_file import AudioStream, VideoStream
+from .stream_source import ConvertedVideoFile, StreamSources, StreamWithSource
+from .video_file import AudioStream, Stream, VideoStream
+
+
+class StreamIntegrityError(RuntimeError):
+    """Raised when copied streams do not match their sources."""
+
+
+class IntegrityReport(BaseModel):
+    """The result of comparing copied output streams against their sources."""
+
+    mismatched_output_indices: frozenset[int]
+
+    model_config = ConfigDict(frozen=True)
+
+    @property
+    def is_ok(self) -> bool:
+        """Return True if every copied stream matches its source."""
+        return not self.mismatched_output_indices
 
 
 def compare_stream_hashes(
@@ -46,6 +64,46 @@ def compare_stream_hashes(
     return True
 
 
+def _stream_matches_source(stream_with_source: StreamWithSource[Stream]) -> bool:
+    """Return True if an output stream matches its source stream."""
+    stream = stream_with_source.stream
+    source_stream = stream_with_source.source.source_stream
+
+    if not isinstance(stream, (AudioStream, VideoStream)) or not isinstance(
+        source_stream, (AudioStream, VideoStream)
+    ):
+        raise NotImplementedError(
+            "Stream integrity check for non-audio/video streams is not implemented."
+        )
+
+    return compare_stream_hashes(source_stream, stream)
+
+
+def check_integrity(
+    converted_file: ConvertedVideoFile[StreamSources],
+) -> IntegrityReport:
+    """Compare every copied stream in a converted file against its source.
+
+    Args:
+    ----
+        converted_file: The ConvertedVideoFile object.
+
+    Returns
+    -------
+        An IntegrityReport listing the output indices of mismatched streams.
+    """
+    logger.info(f"Verifying copied stream integrity for {converted_file.path.name}")
+
+    return IntegrityReport(
+        mismatched_output_indices=frozenset(
+            stream_with_source.stream.index
+            for stream_with_source in converted_file.stream_with_sources
+            if stream_with_source.source.conversion_type == "copied"
+            and not _stream_matches_source(stream_with_source)
+        )
+    )
+
+
 def verify_copied_streams(converted_file: ConvertedVideoFile[StreamSources]) -> None:
     """Verify the integrity of copied streams by comparing their MD5 hashes.
 
@@ -55,32 +113,15 @@ def verify_copied_streams(converted_file: ConvertedVideoFile[StreamSources]) -> 
 
     Raises
     ------
-        RuntimeError: If any copied stream's MD5 hash does not match.
+        StreamIntegrityError: If any copied stream's MD5 hash does not match.
     """
-    logger.info(f"Verifying copied stream integrity for {converted_file.path.name}")
+    report = check_integrity(converted_file)
 
-    for stream_with_source in converted_file.stream_with_sources:
-        if stream_with_source.source.conversion_type != "copied":
-            continue
-
-        if not isinstance(
-            stream_with_source.stream, (AudioStream, VideoStream)
-        ) or not isinstance(
-            stream_with_source.source.source_stream, (AudioStream, VideoStream)
-        ):
-            raise NotImplementedError(
-                "Stream integrity check for non-audio/video streams is not implemented."
-            )
-
-        if not compare_stream_hashes(
-            stream_with_source.source.source_stream,
-            stream_with_source.stream,
-        ):
-            stream_type = stream_with_source.stream.codec_type
-            raise RuntimeError(
-                f"{stream_type.capitalize()} stream integrity check "
-                f"failed for stream at index "
-                f"{stream_with_source.source.source_stream.index}"
-            )
+    if not report.is_ok:
+        raise StreamIntegrityError(
+            f"Stream integrity check failed for output streams at indices "
+            f"{sorted(report.mismatched_output_indices)} "
+            f"in {converted_file.path.name}"
+        )
 
     logger.info("Copied stream integrity verified successfully. All MD5 hashes match.")
