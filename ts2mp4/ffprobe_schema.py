@@ -58,11 +58,6 @@ def _probe_file_cached(file_path: Path, _mtime: float, _size: int) -> FFprobeOut
         str(file_path),
     ]
     result = execute_ffprobe(ffprobe_args)
-    if result.returncode != 0:
-        raise RuntimeError(
-            f"ffprobe failed to get media information for {file_path}. "
-            f"Return code: {result.returncode}"
-        )
     data = json.loads(result.stdout.decode("utf-8"))
     return FFprobeOutput.model_validate(data)
 
@@ -80,7 +75,7 @@ def probe_file(file_path: Path) -> FFprobeOutput:
 
     Raises
     ------
-        RuntimeError: If ffprobe fails to get media information.
+        FFmpegProcessError: If ffprobe fails to get media information.
     """
     resolved_path = file_path.resolve(strict=True)
     stat = resolved_path.stat()

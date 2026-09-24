@@ -22,9 +22,8 @@ def _clear_cache() -> None:
     _probe_file_cached.cache_clear()
 
 
-def _ffprobe_result(stdout: bytes, returncode: int = 0) -> MagicMock:
+def _ffprobe_result(stdout: bytes) -> MagicMock:
     mock_result = MagicMock()
-    mock_result.returncode = returncode
     mock_result.stdout = stdout
     return mock_result
 
@@ -36,24 +35,6 @@ def _minimal_ffprobe_stdout() -> bytes:
             "format": {"format_name": "mpegts"},
         }
     ).encode("utf-8")
-
-
-@pytest.mark.unit
-def test_probe_file_raises_on_ffprobe_failure(
-    mocker: MockerFixture, tmp_path: Path
-) -> None:
-    """probe_file raises RuntimeError when ffprobe exits non-zero."""
-    # Arrange
-    probe_target = tmp_path / "input.ts"
-    probe_target.touch()
-    mocker.patch(
-        "ts2mp4.ffprobe_schema.execute_ffprobe",
-        return_value=_ffprobe_result(b"", returncode=1),
-    )
-
-    # Act & Assert
-    with pytest.raises(RuntimeError):
-        probe_file(probe_target)
 
 
 @pytest.mark.unit

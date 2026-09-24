@@ -286,10 +286,7 @@ def encode_mismatched_audio_streams(
         output_path=output_file,
     )
 
-    # Execute the FFmpeg command
-    result = execute_ffmpeg(ffmpeg_args)
-    if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
+    execute_ffmpeg(ffmpeg_args)
 
     audio_encoded_file = AudioEncodedFile(
         path=output_file, stream_sources=stream_sources

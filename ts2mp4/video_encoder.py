@@ -127,7 +127,5 @@ def encode_video_streams(
     ffmpeg_args = _build_ffmpeg_args_from_stream_sources(
         stream_sources=stream_sources, output_path=output_path, crf=crf, preset=preset
     )
-    result = execute_ffmpeg(ffmpeg_args)
-    if result.returncode != 0:
-        raise RuntimeError(f"ffmpeg failed with return code {result.returncode}")
+    execute_ffmpeg(ffmpeg_args)
     return VideoEncodedFile(path=output_path, stream_sources=stream_sources)
