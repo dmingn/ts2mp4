@@ -3,21 +3,17 @@
 import asyncio
 import hashlib
 from functools import cache
-from pathlib import Path
 from typing import assert_never
 
-from ts2mp4.media_info import AudioStream, VideoStream
-
 from .ffmpeg import execute_ffmpeg_streamed
+from .video_file import AudioStream, VideoStream
 
 
-async def _get_stream_md5_async(
-    file_path: Path, stream: VideoStream | AudioStream
-) -> str:
-    match stream.codec_type:
-        case "audio":
+async def _get_stream_md5_async(stream: VideoStream | AudioStream) -> str:
+    match stream:
+        case AudioStream():
             output_format = "s16le"
-        case "video":
+        case VideoStream():
             output_format = "rawvideo"
         case _ as unreachable:
             assert_never(unreachable)
@@ -26,7 +22,7 @@ async def _get_stream_md5_async(
         "-hide_banner",
         "-nostats",
         "-i",
-        str(file_path),
+        str(stream.file.path.resolve(strict=True)),
         "-map",
         f"0:{stream.index}",
         "-f",
@@ -44,12 +40,14 @@ async def _get_stream_md5_async(
 
 @cache
 def _get_stream_md5_cached(
-    file_path: Path, _mtime: float, _size: int, stream: VideoStream | AudioStream
+    stream: VideoStream | AudioStream,
+    _mtime: float,
+    _size: int,
 ) -> str:
     """Calculate the MD5 hash of a decoded stream, with caching.
 
-    This function uses the `@cache` decorator to store the results of stream
-    hashing. The `_mtime` and `_size` parameters, while not used directly in
+    This function uses the ``@cache`` decorator to store the results of stream
+    hashing. The ``_mtime`` and ``_size`` parameters, while not used directly in
     the function body, are crucial for the caching mechanism. They act as
     cache invalidation keys. If the file's modification time or size changes,
     the arguments to this function will be different, resulting in a cache
@@ -57,26 +55,23 @@ def _get_stream_md5_cached(
 
     Args:
     ----
-        file_path: The path to the input file.
+        stream: The domain stream to hash.
         _mtime: The modification time of the file, used for cache invalidation.
         _size: The size of the file, used for cache invalidation.
-        stream: The stream object to process.
 
     Returns
     -------
         The MD5 hash of the decoded stream as a hexadecimal string.
-
     """
-    return asyncio.run(_get_stream_md5_async(file_path, stream))
+    return asyncio.run(_get_stream_md5_async(stream))
 
 
-def get_stream_md5(file_path: Path, stream: VideoStream | AudioStream) -> str:
-    """Calculate the MD5 hash of a decoded stream of a given file.
+def get_stream_md5(stream: VideoStream | AudioStream) -> str:
+    """Calculate the MD5 hash of a decoded stream.
 
     Args:
     ----
-        file_path: The path to the input file.
-        stream: The stream object to process.
+        stream: The domain stream to hash.
 
     Returns
     -------
@@ -84,10 +79,8 @@ def get_stream_md5(file_path: Path, stream: VideoStream | AudioStream) -> str:
 
     Raises
     ------
-        ValueError: If the stream type is unsupported.
         FFmpegProcessError: If ffmpeg fails to extract the stream.
-
     """
-    resolved_path = file_path.resolve(strict=True)
+    resolved_path = stream.file.path.resolve(strict=True)
     stat = resolved_path.stat()
-    return _get_stream_md5_cached(resolved_path, stat.st_mtime, stat.st_size, stream)
+    return _get_stream_md5_cached(stream, stat.st_mtime, stat.st_size)

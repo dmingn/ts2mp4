@@ -1,19 +1,10 @@
-"""A module for the VideoFile class."""
+"""VideoFile and domain stream models."""
 
-from typing import Generic, Iterator, Literal, Self, TypeGuard, TypeVar, assert_never
+from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, FilePath, RootModel, model_validator
+from pydantic import BaseModel, ConfigDict, FilePath
 
-from .media_info import (
-    AudioStream,
-    MediaInfo,
-    OtherStream,
-    Stream,
-    VideoStream,
-    get_media_info,
-)
-
-StreamT = TypeVar("StreamT", bound=Stream, covariant=True)
+from .ffprobe_schema import FFprobeOutput, FFprobeStream, probe_file
 
 
 class VideoFile(BaseModel):
@@ -24,9 +15,23 @@ class VideoFile(BaseModel):
     model_config = ConfigDict(frozen=True)
 
     @property
-    def media_info(self) -> MediaInfo:
-        """Return media information for the file."""
-        return get_media_info(self.path)
+    def probe(self) -> FFprobeOutput:
+        """Return the ffprobe output for this file."""
+        return probe_file(self.path)
+
+    @property
+    def streams(self) -> frozenset[Stream]:
+        """Return domain streams belonging to this file."""
+        return frozenset(
+            _to_domain_stream(self, stream) for stream in self.probe.streams
+        )
+
+    @property
+    def duration(self) -> float | None:
+        """Return the container duration in seconds, if known."""
+        if self.probe.format is None:
+            return None
+        return self.probe.format.duration
 
     @staticmethod
     def _is_valid_audio_stream(stream: AudioStream) -> bool:
@@ -39,172 +44,129 @@ class VideoFile(BaseModel):
         return True
 
     @property
-    def valid_audio_streams(self) -> tuple[AudioStream, ...]:
-        """Return a tuple of valid audio streams."""
-        return tuple(
+    def valid_audio_streams(self) -> frozenset[AudioStream]:
+        """Return valid audio streams."""
+        return frozenset(
             stream
-            for stream in self.media_info.streams
+            for stream in self.streams
             if isinstance(stream, AudioStream)
             and VideoFile._is_valid_audio_stream(stream)
         )
 
     @property
-    def valid_video_streams(self) -> tuple[VideoStream, ...]:
-        """Return a tuple of valid video streams."""
-        return tuple(
+    def valid_video_streams(self) -> frozenset[VideoStream]:
+        """Return valid video streams."""
+        return frozenset(
             stream
-            for stream in self.media_info.streams
+            for stream in self.streams
             if isinstance(stream, VideoStream)
             and VideoFile._is_valid_video_stream(stream)
         )
 
     @property
-    def valid_streams(self) -> tuple[VideoStream | AudioStream, ...]:
-        """Return a tuple of valid streams."""
-        return self.valid_video_streams + self.valid_audio_streams
+    def valid_streams(self) -> frozenset[VideoStream | AudioStream]:
+        """Return valid video and audio streams."""
+        return self.valid_video_streams | self.valid_audio_streams
 
 
-ConversionType = Literal["encoded", "copied"]
-ConversionTypeT = TypeVar("ConversionTypeT", bound=ConversionType, covariant=True)
+class BaseStream(BaseModel):
+    """A stream slot in a VideoFile, identified by index.
 
-
-class StreamSource(BaseModel, Generic[StreamT, ConversionTypeT]):
-    """A class representing the source of a stream."""
-
-    source_video_path: FilePath
-    source_stream: StreamT
-    conversion_type: ConversionTypeT
-
-    model_config = ConfigDict(frozen=True)
-
-
-class StreamWithSource(BaseModel, Generic[StreamT]):
-    """A class representing a stream with its source."""
-
-    stream: StreamT
-    source: StreamSource[StreamT, ConversionType]
-
-    model_config = ConfigDict(frozen=True)
-
-
-def is_video_stream_source(
-    source: StreamSource[Stream, ConversionTypeT],
-) -> TypeGuard[StreamSource[VideoStream, ConversionTypeT]]:
-    """Return True if the source is a video stream source."""
-    return isinstance(source.source_stream, VideoStream)
-
-
-def is_audio_stream_source(
-    source: StreamSource[Stream, ConversionTypeT],
-) -> TypeGuard[StreamSource[AudioStream, ConversionTypeT]]:
-    """Return True if the source is an audio stream source."""
-    return isinstance(source.source_stream, AudioStream)
-
-
-def is_other_stream_source(
-    source: StreamSource[Stream, ConversionTypeT],
-) -> TypeGuard[StreamSource[OtherStream, ConversionTypeT]]:
-    """Return True if the source is an other stream source."""
-    return isinstance(source.source_stream, OtherStream)
-
-
-class StreamSources(RootModel[tuple[StreamSource[Stream, ConversionType], ...]]):
-    """A tuple of StreamSource objects."""
-
-    model_config = ConfigDict(frozen=True)
-
-    def __iter__(self) -> Iterator[StreamSource[Stream, ConversionType]]:  # type: ignore[override]
-        """Return an iterator over the StreamSource objects."""
-        return iter(self.root)
-
-    def __getitem__(self, item: int) -> StreamSource[Stream, ConversionType]:
-        """Return the StreamSource object at the given index."""
-        return self.root[item]
-
-    def __len__(self) -> int:
-        """Return the number of StreamSource objects."""
-        return len(self.root)
-
-    @property
-    def video_stream_sources(
-        self,
-    ) -> frozenset[StreamSource[VideoStream, ConversionType]]:
-        """Return a set of video stream sources."""
-        return frozenset(filter(is_video_stream_source, self.root))
-
-    @property
-    def audio_stream_sources(
-        self,
-    ) -> frozenset[StreamSource[AudioStream, ConversionType]]:
-        """Return a set of audio stream sources."""
-        return frozenset(filter(is_audio_stream_source, self.root))
-
-    @property
-    def source_video_files(self) -> frozenset[VideoFile]:
-        """Return a set of source video files for the stream sources."""
-        return frozenset(
-            VideoFile(path=stream.source_video_path) for stream in self.root
-        )
-
-
-StreamSourcesT = TypeVar("StreamSourcesT", bound=StreamSources, covariant=True)
-
-
-class ConvertedVideoFile(VideoFile, Generic[StreamSourcesT]):
-    """A class representing a converted video file.
-
-    This class extends VideoFile to include information about how each stream
-    in the converted file was created. The `stream_sources` tuple contains
-    `StreamSource` objects, where the position in the tuple corresponds to
-    the stream's index in the converted video file. Each `StreamSource` object
-    describes which original stream (from which source file) was used to
-    generate that stream in the converted file, and how it was created
-    (copied or encoded).
+    Codec metadata is derived from ``file.probe`` at ``index``.
     """
 
-    stream_sources: StreamSourcesT
-
     model_config = ConfigDict(frozen=True)
 
-    @model_validator(mode="after")
-    def validate_stream_counts(self) -> Self:
-        """Validate that the number of stream sources matches the number of streams."""
-        if len(self.stream_sources) != len(self.media_info.streams):
-            raise ValueError(
-                f"Mismatch in stream counts for {self.path.name}: "
-                f"{len(self.stream_sources)} sources, "
-                f"{len(self.media_info.streams)} output streams."
-            )
-        return self
+    file: VideoFile
+    index: int
+
+    def __lt__(self, other: object) -> bool:
+        """Order by ``file.path``, then ``index``."""
+        if not isinstance(other, BaseStream):
+            return NotImplemented
+        return (self.file.path, self.index) < (other.file.path, other.index)
 
     @property
-    def stream_with_sources(
-        self,
-    ) -> Iterator[
-        StreamWithSource[VideoStream]
-        | StreamWithSource[AudioStream]
-        | StreamWithSource[OtherStream]
-    ]:
-        """Return a zip object of output streams and their sources."""
-        for stream, source in zip(self.media_info.streams, self.stream_sources):
-            match stream:
-                case VideoStream():
-                    if not is_video_stream_source(source):
-                        raise RuntimeError(
-                            f"Stream type mismatch for stream index {stream.index}"
-                        )
-                    yield StreamWithSource(stream=stream, source=source)
-                case AudioStream():
-                    if not is_audio_stream_source(source):
-                        raise RuntimeError(
-                            f"Stream type mismatch for stream index {stream.index}"
-                        )
-                    yield StreamWithSource(stream=stream, source=source)
-                case OtherStream():
-                    if not is_other_stream_source(source):
-                        raise RuntimeError(
-                            f"Stream type mismatch for stream index {stream.index}"
-                        )
-                    yield StreamWithSource(stream=stream, source=source)
-                case _:
-                    assert_never(stream)
+    def _ffprobe_stream(self) -> FFprobeStream:
+        for stream in self.file.probe.streams:
+            if stream.index == self.index:
+                return stream
+        raise ValueError(f"Stream index {self.index} not found in {self.file.path}")
+
+    @property
+    def duration(self) -> float | None:
+        """Return the stream duration in seconds, if known."""
+        return self._ffprobe_stream.duration
+
+    @property
+    def codec_type(self) -> str:
+        """Return the ffprobe codec_type."""
+        return self._ffprobe_stream.codec_type
+
+
+class VideoStream(BaseStream):
+    """A video stream belonging to a VideoFile."""
+
+    @property
+    def width(self) -> int | None:
+        """Return the frame width in pixels, if known."""
+        return self._ffprobe_stream.width
+
+    @property
+    def height(self) -> int | None:
+        """Return the frame height in pixels, if known."""
+        return self._ffprobe_stream.height
+
+
+class AudioStream(BaseStream):
+    """An audio stream belonging to a VideoFile."""
+
+    @property
+    def codec_name(self) -> str | None:
+        """Return the audio codec name, if known."""
+        return self._ffprobe_stream.codec_name
+
+    @property
+    def profile(self) -> str | None:
+        """Return the audio codec profile, if known."""
+        return self._ffprobe_stream.profile
+
+    @property
+    def bit_rate(self) -> int | None:
+        """Return the audio bit rate, if known."""
+        return self._ffprobe_stream.bit_rate
+
+    @property
+    def channels(self) -> int | None:
+        """Return the channel count, if known."""
+        return self._ffprobe_stream.channels
+
+    @property
+    def sample_rate(self) -> int | None:
+        """Return the sample rate in Hz, if known."""
+        return self._ffprobe_stream.sample_rate
+
+
+class OtherStream(BaseStream):
+    """A non-video, non-audio stream belonging to a VideoFile."""
+
+
+Stream = VideoStream | AudioStream | OtherStream
+
+
+def _to_domain_stream(file: VideoFile, probe: FFprobeStream) -> Stream:
+    """Map an ffprobe stream entry to a domain stream bound to ``file``."""
+    match probe.codec_type:
+        case "video":
+            return VideoStream(file=file, index=probe.index)
+        case "audio":
+            return AudioStream(file=file, index=probe.index)
+        case _:
+            return OtherStream(file=file, index=probe.index)
+
+
+VideoFile.model_rebuild()
+BaseStream.model_rebuild()
+VideoStream.model_rebuild()
+AudioStream.model_rebuild()
+OtherStream.model_rebuild()

@@ -1,14 +1,13 @@
 """Selects which output streams receive the MP4 `default` disposition."""
 
-from .media_info import Stream, VideoStream
-from .video_file import (
+from .stream_source import (
     ConversionType,
     StreamSource,
     StreamSources,
-    VideoFile,
     is_audio_stream_source,
     is_video_stream_source,
 )
+from .video_file import Stream, VideoStream
 
 DEFAULT_STREAM_DURATION_RATIO = 0.9
 
@@ -24,10 +23,7 @@ def _spans_source_container(
     not treated as spanning — MPEG-TS remnants often lack end PTS and report
     no duration while the real program streams do.
     """
-    media_info = VideoFile(path=source.source_video_path).media_info
-    container_duration = (
-        media_info.format.duration if media_info.format is not None else None
-    )
+    container_duration = source.source_stream.file.duration
     stream_duration = source.source_stream.duration
 
     if container_duration is None or container_duration <= 0:
@@ -65,6 +61,7 @@ def get_default_stream_indices(stream_sources: StreamSources) -> frozenset[int]:
             key=lambda item: (
                 _spans_source_container(item[1]),
                 _video_pixel_count(item[1]),
+                -item[0],
             ),
         )
         default_stream_indices.add(best_video_index)
@@ -77,7 +74,7 @@ def get_default_stream_indices(stream_sources: StreamSources) -> frozenset[int]:
     if audio_candidates:
         best_audio_index, _ = max(
             audio_candidates,
-            key=lambda item: (_spans_source_container(item[1]),),
+            key=lambda item: (_spans_source_container(item[1]), -item[0]),
         )
         default_stream_indices.add(best_audio_index)
 

@@ -9,9 +9,9 @@ from typing import Literal, Self
 from pydantic import model_validator
 
 from .ffmpeg import execute_ffmpeg
-from .media_info import AudioStream, VideoStream
 from .stream_disposition import build_disposition_args
-from .video_file import ConvertedVideoFile, StreamSource, StreamSources, VideoFile
+from .stream_source import ConvertedVideoFile, StreamSource, StreamSources
+from .video_file import AudioStream, VideoFile, VideoStream
 
 StreamSourceForVideoEncoding = (
     StreamSource[VideoStream, Literal["encoded"]]
@@ -40,7 +40,7 @@ class StreamSourcesForVideoEncoding(StreamSources):
             raise ValueError(
                 "All stream sources must originate from the same VideoFile."
             )
-        if len(set(s.source_stream for s in self.root)) < len(self.root):
+        if len({s.source_stream.index for s in self.root}) < len(self.root):
             raise ValueError("Source streams must be unique.")
         return self
 
@@ -58,19 +58,17 @@ def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForVideoEncodin
     """Build the stream sources for video encoding."""
     video_sources: list[StreamSourceForVideoEncoding] = [
         StreamSource(
-            source_video_path=input_file.path,
             source_stream=stream,
             conversion_type="encoded",
         )
-        for stream in input_file.valid_video_streams
+        for stream in sorted(input_file.valid_video_streams)
     ]
     audio_sources: list[StreamSourceForVideoEncoding] = [
         StreamSource(
-            source_video_path=input_file.path,
             source_stream=stream,
             conversion_type="copied",
         )
-        for stream in input_file.valid_audio_streams
+        for stream in sorted(input_file.valid_audio_streams)
     ]
 
     return StreamSourcesForVideoEncoding(root=tuple(video_sources + audio_sources))

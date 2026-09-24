@@ -3,42 +3,43 @@
 from logzero import logger
 
 from .hashing import get_stream_md5
-from .media_info import AudioStream, VideoStream
-from .video_file import ConvertedVideoFile, StreamSources, VideoFile
+from .stream_source import ConvertedVideoFile, StreamSources
+from .video_file import AudioStream, VideoStream
 
 
 def compare_stream_hashes(
-    input_video: VideoFile,
-    output_video: VideoFile,
-    input_stream: VideoStream | AudioStream,
-    output_stream: VideoStream | AudioStream,
+    stream_a: VideoStream | AudioStream,
+    stream_b: VideoStream | AudioStream,
 ) -> bool:
-    """Check the integrity of a single stream by comparing MD5 hashes.
+    """Check the integrity of two streams by comparing MD5 hashes.
 
     Returns
     -------
-        True if the stream hashes match and hash generation is successful, False otherwise.
+        True if the stream hashes match and hash generation is successful,
+        False otherwise.
     """
     try:
-        input_md5 = get_stream_md5(input_video.path, input_stream)
+        md5_a = get_stream_md5(stream_a)
     except RuntimeError as e:
         logger.warning(
-            f"Failed to get MD5 for input stream at index {input_stream.index}: {e}"
+            f"Failed to get MD5 for stream at index {stream_a.index} "
+            f"in {stream_a.file.path}: {e}"
         )
         return False
 
     try:
-        output_md5 = get_stream_md5(output_video.path, output_stream)
+        md5_b = get_stream_md5(stream_b)
     except RuntimeError as e:
         logger.warning(
-            f"Failed to get MD5 for output stream at index {output_stream.index}: {e}"
+            f"Failed to get MD5 for stream at index {stream_b.index} "
+            f"in {stream_b.file.path}: {e}"
         )
         return False
 
-    if input_md5 != output_md5:
+    if md5_a != md5_b:
         logger.warning(
-            f"Mismatch in stream at index {input_stream.index}: "
-            f"Input MD5: {input_md5}, Output MD5: {output_md5}"
+            f"Mismatch in stream at index {stream_a.index}: "
+            f"MD5 A: {md5_a}, MD5 B: {md5_b}"
         )
         return False
 
@@ -72,15 +73,14 @@ def verify_copied_streams(converted_file: ConvertedVideoFile[StreamSources]) -> 
             )
 
         if not compare_stream_hashes(
-            input_video=VideoFile(path=stream_with_source.source.source_video_path),
-            output_video=converted_file,
-            input_stream=stream_with_source.source.source_stream,
-            output_stream=stream_with_source.stream,
+            stream_with_source.source.source_stream,
+            stream_with_source.stream,
         ):
-            stream_type = stream_with_source.stream.codec_type or "Unknown"
+            stream_type = stream_with_source.stream.codec_type
             raise RuntimeError(
                 f"{stream_type.capitalize()} stream integrity check "
-                f"failed for stream at index {stream_with_source.source.source_stream.index}"
+                f"failed for stream at index "
+                f"{stream_with_source.source.source_stream.index}"
             )
 
     logger.info("Copied stream integrity verified successfully. All MD5 hashes match.")

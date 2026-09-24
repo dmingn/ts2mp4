@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.media_info import AudioStream, MediaInfo, VideoStream
+from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.video_file import VideoFile
 
 ALLOWED_MARKERS = {"unit", "integration", "e2e"}
@@ -60,12 +60,15 @@ def mock_video_file(mocker: MockerFixture, tmp_path: Path) -> VideoFile:
     dummy_file = tmp_path / "test.ts"
     dummy_file.touch()
 
-    video_stream = VideoStream(codec_type="video", index=0)
-    audio_streams = (
-        AudioStream(codec_type="audio", index=1, channels=2),
-        AudioStream(codec_type="audio", index=2, channels=6),
+    mocker.patch(
+        "ts2mp4.video_file.probe_file",
+        return_value=FFprobeOutput(
+            streams=(
+                FFprobeStream(codec_type="video", index=0),
+                FFprobeStream(codec_type="audio", index=1, channels=2),
+                FFprobeStream(codec_type="audio", index=2, channels=6),
+            )
+        ),
     )
-    media_info = MediaInfo(streams=(video_stream,) + audio_streams)
-    mocker.patch("ts2mp4.video_file.get_media_info", return_value=media_info)
 
     return VideoFile(path=dummy_file)
