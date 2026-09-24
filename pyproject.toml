@@ -30,6 +30,7 @@ fallback-version = "0.0.0"
 
 [tool.mypy]
 strict = true
+explicit_package_bases = true
 exclude = [".venv", "build", "dist"]
 plugins = "pydantic.mypy"
 

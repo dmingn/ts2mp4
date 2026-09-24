@@ -6,6 +6,7 @@ from typing import Callable, Literal, cast
 import pytest
 from pytest_mock import MockerFixture
 
+from tests.helpers import stream_at
 from ts2mp4.audio_encoder import (
     StreamSourceForAudioEncoding,
     StreamSourcesForAudioEncoding,
@@ -21,9 +22,7 @@ from ts2mp4.video_encoder import (
     StreamSourcesForVideoEncoding,
     VideoEncodedFile,
 )
-from ts2mp4.video_file import AudioStream, Stream, VideoFile, VideoStream
-
-from tests.helpers import stream_at
+from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
 
 def _patch_audio_probe(

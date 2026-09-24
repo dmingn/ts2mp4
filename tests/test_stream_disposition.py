@@ -20,7 +20,7 @@ class _StreamSpec(NamedTuple):
     """Probe fields for one stream in disposition selection cases."""
 
     codec_type: str
-    index: int
+    stream_index: int
     width: int | None = None
     height: int | None = None
     duration: float | None = None
@@ -134,7 +134,7 @@ def test_get_default_stream_indices(
                 streams=tuple(
                     FFprobeStream(
                         codec_type=spec.codec_type,
-                        index=spec.index,
+                        index=spec.stream_index,
                         width=spec.width,
                         height=spec.height,
                         duration=spec.duration,
@@ -150,9 +150,9 @@ def test_get_default_stream_indices(
     streams: list[Stream] = []
     for spec in stream_specs:
         if spec.codec_type == "video":
-            streams.append(VideoStream(file=video_file, index=spec.index))
+            streams.append(VideoStream(file=video_file, index=spec.stream_index))
         else:
-            streams.append(AudioStream(file=video_file, index=spec.index))
+            streams.append(AudioStream(file=video_file, index=spec.stream_index))
 
     stream_sources = StreamSources(
         root=tuple(

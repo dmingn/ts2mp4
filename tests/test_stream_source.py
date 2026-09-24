@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
+from tests.helpers import stream_at
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_source import (
     ConversionType,
@@ -15,8 +16,6 @@ from ts2mp4.stream_source import (
     streams_by_unique_index,
 )
 from ts2mp4.video_file import AudioStream, Stream, VideoFile, VideoStream
-
-from tests.helpers import stream_at
 
 
 @pytest.fixture
@@ -187,7 +186,7 @@ def test_streams_by_unique_index_rejects_duplicate_indices(
 ) -> None:
     """streams_by_unique_index raises when two streams share an index."""
     # Arrange
-    streams = frozenset(
+    streams: frozenset[Stream] = frozenset(
         {
             VideoStream(file=dummy_video_file, index=0),
             AudioStream(file=dummy_video_file, index=0),

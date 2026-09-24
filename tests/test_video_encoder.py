@@ -6,6 +6,7 @@ from typing import Callable
 import pytest
 from pytest_mock import MockerFixture
 
+from tests.helpers import stream_at
 from ts2mp4.ffmpeg import FFmpegResult
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_source import StreamSource
@@ -16,9 +17,7 @@ from ts2mp4.video_encoder import (
     _build_stream_sources,
     encode_video_streams,
 )
-from ts2mp4.video_file import AudioStream, Stream, VideoFile, VideoStream
-
-from tests.helpers import stream_at
+from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
 
 @pytest.fixture
