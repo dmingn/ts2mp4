@@ -33,12 +33,15 @@ def _run_command(
     Returns
     -------
         FFmpegResult: An object containing the stdout, stderr, and return code of the process.
+
+    Raises
+    ------
+        FFmpegProcessError: If the process exits with a non-zero return code.
     """
     command = [executable] + args
     logger.info(f"Running command: {' '.join(command)}")
 
-    # Use check=False to prevent CalledProcessError on non-zero exit codes,
-    # allowing us to read stderr for detailed FFmpeg error messages.
+    # Use check=False so stderr can be logged before raising on failure.
     process = subprocess.run(command, capture_output=True, check=False)
 
     stdout = process.stdout
@@ -46,6 +49,12 @@ def _run_command(
 
     if stderr:
         logger.info(stderr)
+
+    if process.returncode != 0:
+        raise FFmpegProcessError(
+            f"{executable} failed with exit code {process.returncode}. "
+            "Check logs for details."
+        )
 
     return FFmpegResult(stdout=stdout, stderr=stderr, returncode=process.returncode)
 
@@ -163,6 +172,9 @@ def execute_ffmpeg(args: list[str]) -> FFmpegResult:
     -------
         An FFmpegResult object with the command's results.
 
+    Raises
+    ------
+        FFmpegProcessError: If ffmpeg exits with a non-zero return code.
     """
     return _run_command("ffmpeg", args)
 
@@ -210,6 +222,9 @@ def execute_ffprobe(args: list[str]) -> FFmpegResult:
     -------
         An FFmpegResult object with the command's results.
 
+    Raises
+    ------
+        FFmpegProcessError: If ffprobe exits with a non-zero return code.
     """
     return _run_command("ffprobe", args)
 

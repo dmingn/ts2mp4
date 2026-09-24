@@ -103,10 +103,11 @@ def test_execute_ffmpeg_success() -> None:
 
 
 @pytest.mark.integration
-def test_execute_ffmpeg_failure() -> None:
-    """Test that execute_ffmpeg returns a non-zero return code on failure."""
-    result = execute_ffmpeg(["-invalid_option"])
-    assert result.returncode != 0
+def test_execute_ffmpeg_raises_on_nonzero_exit() -> None:
+    """Test that execute_ffmpeg raises FFmpegProcessError when ffmpeg fails."""
+    # Act & Assert
+    with pytest.raises(FFmpegProcessError):
+        execute_ffmpeg(["-invalid_option"])
 
 
 @pytest.mark.integration
@@ -144,19 +145,41 @@ def test_handles_non_utf8_output_run_command(mocker: MockerFixture) -> None:
     assert "�" in result.stderr
 
 
+@pytest.mark.unit
+def test_run_command_raises_on_nonzero_returncode(mocker: MockerFixture) -> None:
+    """Test that _run_command raises FFmpegProcessError on non-zero return code."""
+    # Arrange
+    mock_subprocess_run = mocker.patch("subprocess.run")
+    mock_result = MagicMock()
+    mock_result.stdout = b""
+    mock_result.stderr = b""
+    mock_result.returncode = 1
+    mock_subprocess_run.return_value = mock_result
+
+    # Act & Assert
+    with pytest.raises(
+        FFmpegProcessError,
+        match="ffmpeg failed with exit code 1. Check logs for details.",
+    ):
+        _run_command("ffmpeg", [])
+
+
 @pytest.mark.integration
-def test_logs_stderr_as_info() -> None:
-    """Test that the execution logs stderr as info."""
+def test_execute_ffmpeg_logs_stderr_as_info() -> None:
+    """Test that execute_ffmpeg logs stderr as info even when ffmpeg fails."""
+    # Arrange
     log_stream = io.StringIO()
     handler = logging.StreamHandler(log_stream)
     logzero.logger.addHandler(handler)
     logzero.logger.setLevel(logging.INFO)
 
-    execute_ffmpeg(["-invalid_option"])
-
+    # Act
+    with pytest.raises(FFmpegProcessError):
+        execute_ffmpeg(["-invalid_option"])
     logzero.logger.removeHandler(handler)
-    log_contents = log_stream.getvalue()
-    assert "Unrecognized option" in log_contents
+
+    # Assert
+    assert "Unrecognized option" in log_stream.getvalue()
 
 
 @pytest.mark.unit

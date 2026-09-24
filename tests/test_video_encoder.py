@@ -292,28 +292,3 @@ def test_encode_video_streams_calls_ffmpeg_with_built_args(
         preset=preset,
     )
     mock_execute_ffmpeg.assert_called_once_with(["mock_arg"])
-
-
-@pytest.mark.unit
-def test_encode_video_streams_raises_on_ffmpeg_failure(
-    mock_video_file_factory: Callable[..., VideoFile], mocker: MockerFixture
-) -> None:
-    """Raise RuntimeError when FFmpeg returns a non-zero exit code."""
-    # Arrange
-    mock_video_file = mock_video_file_factory()
-    output_file = Path("output.mp4")
-    crf = 23
-    preset = "medium"
-
-    mocker.patch(
-        "ts2mp4.video_encoder._build_ffmpeg_args_from_stream_sources",
-        return_value=["mock_arg"],
-    )
-    mock_execute_ffmpeg = mocker.patch("ts2mp4.video_encoder.execute_ffmpeg")
-    mock_execute_ffmpeg.return_value = FFmpegResult(
-        stdout=b"", stderr="ffmpeg error", returncode=1
-    )
-
-    # Act & Assert
-    with pytest.raises(RuntimeError, match="ffmpeg failed with return code 1"):
-        encode_video_streams(mock_video_file, output_file, crf, preset)
