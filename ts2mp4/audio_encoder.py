@@ -8,7 +8,7 @@ from pydantic import model_validator
 
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
 from .stream_disposition import build_disposition_args
-from .stream_integrity import compare_stream_hashes
+from .stream_integrity import IntegrityReport
 from .stream_source import (
     ConversionType,
     ConvertedVideoFile,
@@ -75,7 +75,9 @@ AudioEncodedFile = ConvertedVideoFile[StreamSourcesForAudioEncoding]
 
 
 def _build_stream_sources_for_audio_encoding(
-    original_file: VideoFile, encoded_file: VideoEncodedFile
+    original_file: VideoFile,
+    encoded_file: VideoEncodedFile,
+    integrity_report: IntegrityReport,
 ) -> StreamSourcesForAudioEncoding:
     """Build the stream sources for audio encoding."""
     # Source streams are guaranteed to be unique for a video-encoded file.
@@ -120,8 +122,8 @@ def _build_stream_sources_for_audio_encoding(
                     f"'audio', but was '{type(matching_stream).__name__}'."
                 )
 
-            if compare_stream_hashes(original_stream, matching_stream):
-                # If the hashes match, the stream can be copied from the encoded file
+            if matching_stream.index not in integrity_report.mismatched_output_indices:
+                # If the stream matches, it can be copied from the encoded file
                 stream_sources_list.append(
                     StreamSource(
                         source_stream=matching_stream,
@@ -129,7 +131,7 @@ def _build_stream_sources_for_audio_encoding(
                     )
                 )
             else:
-                # If the hashes do not match, the stream must be encoded from the original file
+                # If the stream mismatches, it must be encoded from the original file
                 stream_sources_list.append(
                     StreamSource(
                         source_stream=original_stream,
@@ -250,12 +252,13 @@ def _build_ffmpeg_args_from_stream_sources(
 def encode_mismatched_audio_streams(
     original_file: VideoFile,
     encoded_file: VideoEncodedFile,
+    integrity_report: IntegrityReport,
     output_file: Path,
 ) -> Optional[AudioEncodedFile]:
     """Encode mismatched audio streams from an original file to a new output file.
 
-    This function identifies audio streams that are either missing in the encoded
-    file or have different content compared to the original file. It then
+    This function treats audio streams reported as mismatched in integrity_report
+    as having different content compared to the original file. It then
     generates a new video file by:
     - Copying the video stream from the already encoded file.
     - Copying matching audio streams from the encoded file.
@@ -266,6 +269,7 @@ def encode_mismatched_audio_streams(
         original_file: The VideoFile object for the original source file (e.g., .ts).
         encoded_file: The VideoEncodedFile object from encode_video_streams.
                       It contains the mapping between original and encoded streams.
+        integrity_report: The IntegrityReport from check_integrity on encoded_file.
         output_file: The path where the corrected output file will be saved.
 
     Returns
@@ -273,7 +277,9 @@ def encode_mismatched_audio_streams(
         An AudioEncodedFile object if encoding was performed, otherwise None.
     """
     stream_sources = _build_stream_sources_for_audio_encoding(
-        original_file=original_file, encoded_file=encoded_file
+        original_file=original_file,
+        encoded_file=encoded_file,
+        integrity_report=integrity_report,
     )
 
     # If all audio streams are to be copied, no encoding is needed.

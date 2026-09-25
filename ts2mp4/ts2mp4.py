@@ -45,6 +45,7 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
         audio_encoded_file = encode_mismatched_audio_streams(
             original_file=input_file,
             encoded_file=video_encoded_file,
+            integrity_report=video_encoded_integrity_report,
             output_file=temp_output_file,
         )
         if audio_encoded_file:

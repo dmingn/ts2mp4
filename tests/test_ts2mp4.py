@@ -224,6 +224,7 @@ def test_ts2mp4_encodes_mismatched_audio_on_integrity_failure(
     audio_fallback_mocks.encode_audio.assert_called_once_with(
         original_file=mock_video_file,
         encoded_file=audio_fallback_mocks.video_encoded_file,
+        integrity_report=_MISMATCH_REPORT,
         output_file=Path("output.mp4.temp"),
     )
 
