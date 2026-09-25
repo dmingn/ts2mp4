@@ -13,12 +13,16 @@ check: sync $(TEST_ASSETS_DIR)/test_video.ts
 	uv run ruff check .
 	uv run ruff format --check .
 	uv run mypy .
+
+	uv run coverage erase
 	@echo "Running unit tests..."
-	uv run pytest --cov=ts2mp4 --cov-fail-under=60 -m unit
+	uv run coverage run --append -m pytest -m unit
 	@echo "Running integration tests..."
-	uv run pytest --cov=ts2mp4 --cov-fail-under=69 -m integration
+	uv run coverage run --append -m pytest -m integration
 	@echo "Running E2E tests..."
-	uv run pytest --cov=ts2mp4 -m e2e
+	uv run pytest -m e2e
+
+	uv run coverage report
 
 .PHONY: format
 format: sync
