@@ -17,12 +17,15 @@ from ts2mp4.audio_encoder import (
 )
 from ts2mp4.ffmpeg import execute_ffmpeg
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
+from ts2mp4.stream_integrity import IntegrityReport
 from ts2mp4.stream_source import StreamSource, StreamSources
 from ts2mp4.video_encoder import (
     StreamSourcesForVideoEncoding,
     VideoEncodedFile,
 )
 from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
+
+_NO_MISMATCH_REPORT = IntegrityReport(mismatched_output_indices=frozenset())
 
 
 def _patch_audio_probe(
@@ -135,20 +138,18 @@ def mock_video_encoded_file_factory(
 
 @pytest.mark.unit
 def test_build_stream_sources_for_audio_encoding_no_mismatch(
-    mocker: MockerFixture,
     mock_original_video_file: VideoFile,
     mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
-    """Tests that all streams are marked as COPIED when hashes match."""
+    """Tests that all streams are marked as COPIED when the report has no mismatch."""
     # Arrange
     mock_encoded_video_file = mock_video_encoded_file_factory(
         mock_original_video_file, [0, 1, 2]
     )
-    mocker.patch("ts2mp4.audio_encoder.compare_stream_hashes", return_value=True)
 
     # Act
     stream_sources = _build_stream_sources_for_audio_encoding(
-        mock_original_video_file, mock_encoded_video_file
+        mock_original_video_file, mock_encoded_video_file, _NO_MISMATCH_REPORT
     )
 
     # Assert
@@ -162,35 +163,31 @@ def test_build_stream_sources_for_audio_encoding_no_mismatch(
 
 @pytest.mark.unit
 def test_build_stream_sources_for_audio_encoding_with_mismatch(
-    mocker: MockerFixture,
     mock_original_video_file: VideoFile,
     mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
-    """Tests that mismatched audio streams are marked as CONVERTED."""
+    """Tests that the source of a mismatched output stream is encoded from the original."""
     # Arrange
+    # Output stream 1 comes from original stream 2, and output 2 from original 1.
     mock_encoded_video_file = mock_video_encoded_file_factory(
-        mock_original_video_file, [0, 1, 2]
+        mock_original_video_file, [0, 2, 1]
     )
-    mocker.patch(
-        "ts2mp4.audio_encoder.compare_stream_hashes", side_effect=[True, False]
-    )
+    integrity_report = IntegrityReport(mismatched_output_indices=frozenset({2}))
 
     # Act
     stream_sources = _build_stream_sources_for_audio_encoding(
-        mock_original_video_file, mock_encoded_video_file
+        mock_original_video_file, mock_encoded_video_file, integrity_report
     )
 
     # Assert
-    source_map = {s.source_stream.index: s for s in stream_sources}
-    assert source_map[0].conversion_type == "copied"
-    assert source_map[1].conversion_type == "copied"
-    assert source_map[2].conversion_type == "encoded"
-    assert source_map[2].source_stream.file.path == mock_original_video_file.path
+    encoded_source_streams = [
+        s.source_stream for s in stream_sources if s.conversion_type == "encoded"
+    ]
+    assert encoded_source_streams == [stream_at(mock_original_video_file.streams, 1)]
 
 
 @pytest.mark.unit
 def test_build_stream_sources_for_audio_encoding_missing_stream_raises_error(
-    mocker: MockerFixture,
     mock_original_video_file: VideoFile,
     mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
@@ -199,12 +196,11 @@ def test_build_stream_sources_for_audio_encoding_missing_stream_raises_error(
     mock_encoded_video_file = mock_video_encoded_file_factory(
         mock_original_video_file, [0, 1]
     )
-    mocker.patch("ts2mp4.audio_encoder.compare_stream_hashes", return_value=True)
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="is missing a required stream"):
         _build_stream_sources_for_audio_encoding(
-            mock_original_video_file, mock_encoded_video_file
+            mock_original_video_file, mock_encoded_video_file, _NO_MISMATCH_REPORT
         )
 
 
@@ -394,6 +390,7 @@ def test_encode_mismatched_audio_streams_integration(
         encode_mismatched_audio_streams(
             original_file=original_video_file,
             encoded_file=encoded_video_file,
+            integrity_report=_NO_MISMATCH_REPORT,
             output_file=output_file,
         )
 
@@ -427,6 +424,7 @@ def test_encode_mismatched_audio_streams_no_encoding_needed(
     result_video = encode_mismatched_audio_streams(
         original_file=original_video_file,
         encoded_file=encoded_video_file,
+        integrity_report=_NO_MISMATCH_REPORT,
         output_file=output_file,
     )
 
@@ -710,12 +708,10 @@ def test_build_stream_sources_for_audio_encoding_stream_type_mismatch_raises_err
         )
     )
 
-    mocker.patch("ts2mp4.audio_encoder.compare_stream_hashes", return_value=True)
-
     # Act & Assert
     with pytest.raises(RuntimeError) as excinfo:
         _build_stream_sources_for_audio_encoding(
-            mock_original_video_file, mock_encoded_video_file
+            mock_original_video_file, mock_encoded_video_file, _NO_MISMATCH_REPORT
         )
 
     assert "Mismatch in stream types" in str(excinfo.value)
