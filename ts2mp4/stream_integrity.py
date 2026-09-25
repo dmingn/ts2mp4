@@ -8,10 +8,6 @@ from .stream_source import ConvertedVideoFile, StreamSources, StreamWithSource
 from .video_file import AudioStream, Stream, VideoStream
 
 
-class StreamIntegrityError(RuntimeError):
-    """Raised when copied streams do not match their sources."""
-
-
 class IntegrityReport(BaseModel):
     """The result of comparing copied output streams against their sources."""
 
@@ -92,8 +88,6 @@ def check_integrity(
     -------
         An IntegrityReport listing the output indices of mismatched streams.
     """
-    logger.info(f"Verifying copied stream integrity for {converted_file.path.name}")
-
     return IntegrityReport(
         mismatched_output_indices=frozenset(
             stream_with_source.stream.index
@@ -102,26 +96,3 @@ def check_integrity(
             and not _stream_matches_source(stream_with_source)
         )
     )
-
-
-def verify_copied_streams(converted_file: ConvertedVideoFile[StreamSources]) -> None:
-    """Verify the integrity of copied streams by comparing their MD5 hashes.
-
-    Args:
-    ----
-        converted_file: The ConvertedVideoFile object.
-
-    Raises
-    ------
-        StreamIntegrityError: If any copied stream's MD5 hash does not match.
-    """
-    report = check_integrity(converted_file)
-
-    if not report.is_ok:
-        raise StreamIntegrityError(
-            f"Stream integrity check failed for output streams at indices "
-            f"{sorted(report.mismatched_output_indices)} "
-            f"in {converted_file.path.name}"
-        )
-
-    logger.info("Copied stream integrity verified successfully. All MD5 hashes match.")
