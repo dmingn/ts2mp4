@@ -11,10 +11,8 @@ from ts2mp4.ffmpeg import FFmpegProcessError
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_integrity import (
     IntegrityReport,
-    StreamIntegrityError,
     check_integrity,
     compare_stream_hashes,
-    verify_copied_streams,
 )
 from ts2mp4.stream_source import (
     ConvertedVideoFile,
@@ -325,39 +323,3 @@ def test_check_integrity_raises_for_unsupported_stream_type(
         match="Stream integrity check for non-audio/video streams is not implemented.",
     ):
         check_integrity(mock_converted_video_file)
-
-
-@pytest.mark.unit
-def test_verify_copied_streams_passes_when_report_is_ok(
-    mocker: MockerFixture,
-    mock_converted_video_file: MagicMock,
-) -> None:
-    """verify_copied_streams returns normally when the report has no mismatch."""
-    # Arrange
-    mocker.patch(
-        "ts2mp4.stream_integrity.check_integrity",
-        return_value=IntegrityReport(mismatched_output_indices=frozenset()),
-    )
-
-    # Act & Assert
-    verify_copied_streams(mock_converted_video_file)
-
-
-@pytest.mark.unit
-def test_verify_copied_streams_raises_when_report_has_mismatch(
-    mocker: MockerFixture,
-    mock_converted_video_file: MagicMock,
-) -> None:
-    """verify_copied_streams raises StreamIntegrityError listing mismatched indices."""
-    # Arrange
-    mocker.patch(
-        "ts2mp4.stream_integrity.check_integrity",
-        return_value=IntegrityReport(mismatched_output_indices=frozenset({2, 1})),
-    )
-
-    # Act & Assert
-    with pytest.raises(
-        StreamIntegrityError,
-        match=r"output streams at indices \[1, 2\]",
-    ):
-        verify_copied_streams(mock_converted_video_file)

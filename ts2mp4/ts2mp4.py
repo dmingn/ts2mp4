@@ -6,7 +6,7 @@ from logzero import logger
 
 from .audio_encoder import encode_mismatched_audio_streams
 from .quality_check import check_audio_quality
-from .stream_integrity import verify_copied_streams
+from .stream_integrity import check_integrity
 from .video_encoder import encode_video_streams
 from .video_file import VideoFile
 
@@ -29,10 +29,17 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
     """
     video_encoded_file = encode_video_streams(input_file, output_path, crf, preset)
 
-    try:
-        verify_copied_streams(converted_file=video_encoded_file)
-    except RuntimeError as e:
-        logger.warning(f"Audio integrity check failed: {e}")
+    logger.info(f"Verifying copied stream integrity for {video_encoded_file.path.name}")
+    video_encoded_integrity_report = check_integrity(video_encoded_file)
+    if video_encoded_integrity_report.is_ok:
+        logger.info(
+            "Copied stream integrity verified successfully. All MD5 hashes match."
+        )
+    else:
+        logger.warning(
+            "Audio integrity check failed for output streams at indices "
+            f"{sorted(video_encoded_integrity_report.mismatched_output_indices)}"
+        )
         logger.info("Attempting to encode mismatched audio streams.")
         temp_output_file = output_path.with_suffix(output_path.suffix + ".temp")
         audio_encoded_file = encode_mismatched_audio_streams(
@@ -41,7 +48,20 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
             output_file=temp_output_file,
         )
         if audio_encoded_file:
-            verify_copied_streams(audio_encoded_file)
+            logger.info(
+                f"Verifying copied stream integrity for {audio_encoded_file.path.name}"
+            )
+            audio_encoded_integrity_report = check_integrity(audio_encoded_file)
+            if not audio_encoded_integrity_report.is_ok:
+                raise RuntimeError(
+                    "Stream integrity check failed after audio encoding for output "
+                    f"streams at indices {sorted(audio_encoded_integrity_report.mismatched_output_indices)} "
+                    f"in {audio_encoded_file.path.name}"
+                )
+            logger.info(
+                "Copied stream integrity verified successfully. All MD5 hashes match."
+            )
+
             quality_metrics = check_audio_quality(audio_encoded_file)
             for stream_index, metrics in quality_metrics.items():
                 log_parts = []
