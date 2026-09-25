@@ -28,36 +28,6 @@ from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 _NO_MISMATCH_REPORT = IntegrityReport(mismatched_output_indices=frozenset())
 
 
-def _patch_audio_probe(
-    mocker: MockerFixture,
-    path: Path,
-    *,
-    index: int = 1,
-    codec_name: str | None = None,
-    sample_rate: int | None = None,
-    channels: int | None = None,
-    profile: str | None = None,
-    bit_rate: int | None = None,
-) -> None:
-    """Stub probe_file with a single audio stream at ``index``."""
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
-            streams=(
-                FFprobeStream(
-                    index=index,
-                    codec_type="audio",
-                    codec_name=codec_name,
-                    sample_rate=sample_rate,
-                    channels=channels,
-                    profile=profile,
-                    bit_rate=bit_rate,
-                ),
-            )
-        ),
-    )
-
-
 @pytest.fixture
 def mock_original_video_file(mocker: MockerFixture, tmp_path: Path) -> VideoFile:
     """Create a VideoFile for the original file with stubbed probe streams."""
@@ -211,18 +181,17 @@ def test_build_audio_encode_args(mocker: MockerFixture, tmp_path: Path) -> None:
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     path = tmp_path / "audio.ts"
     path.touch()
-    _patch_audio_probe(
-        mocker,
-        path,
-        codec_name="aac",
-        sample_rate=48000,
-        channels=2,
-        profile="LC",
-        bit_rate=192000,
-    )
     video_file = VideoFile(path=path)
     stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
-        source_stream=AudioStream(file=video_file, index=1),
+        source_stream=AudioStream(
+            file=video_file,
+            index=1,
+            codec_name="aac",
+            sample_rate=48000,
+            channels=2,
+            profile="LC",
+            bit_rate=192000,
+        ),
         conversion_type="encoded",
     )
 
@@ -255,10 +224,9 @@ def test_build_audio_encode_args_with_libfdk_aac(
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=True)
     path = tmp_path / "audio.ts"
     path.touch()
-    _patch_audio_probe(mocker, path, codec_name="aac")
     video_file = VideoFile(path=path)
     stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
-        source_stream=AudioStream(file=video_file, index=1),
+        source_stream=AudioStream(file=video_file, index=1, codec_name="aac"),
         conversion_type="encoded",
     )
 
@@ -279,10 +247,9 @@ def test_build_audio_encode_args_without_libfdk_aac(
     mock_logger_warning = mocker.patch("ts2mp4.audio_encoder.logger.warning")
     path = tmp_path / "audio.ts"
     path.touch()
-    _patch_audio_probe(mocker, path, codec_name="aac")
     video_file = VideoFile(path=path)
     stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
-        source_stream=AudioStream(file=video_file, index=1),
+        source_stream=AudioStream(file=video_file, index=1, codec_name="aac"),
         conversion_type="encoded",
     )
 
@@ -305,10 +272,9 @@ def test_build_audio_encode_args_with_none_values(
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     path = tmp_path / "audio.ts"
     path.touch()
-    _patch_audio_probe(mocker, path, codec_name="aac")
     video_file = VideoFile(path=path)
     stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
-        source_stream=AudioStream(file=video_file, index=1),
+        source_stream=AudioStream(file=video_file, index=1, codec_name="aac"),
         conversion_type="encoded",
     )
 
@@ -321,17 +287,15 @@ def test_build_audio_encode_args_with_none_values(
 
 @pytest.mark.unit
 def test_build_audio_encode_args_raises_for_unsupported_codec(
-    mocker: MockerFixture,
     tmp_path: Path,
 ) -> None:
     """Test that an error is raised for unsupported audio codecs."""
     # Arrange
     path = tmp_path / "audio.ts"
     path.touch()
-    _patch_audio_probe(mocker, path, codec_name="mp3")
     video_file = VideoFile(path=path)
     stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
-        source_stream=AudioStream(file=video_file, index=1),
+        source_stream=AudioStream(file=video_file, index=1, codec_name="mp3"),
         conversion_type="encoded",
     )
 

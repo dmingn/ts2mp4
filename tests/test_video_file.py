@@ -36,27 +36,57 @@ def dummy_video_file(tmp_path: Path) -> VideoFile:
 
 
 @pytest.mark.unit
-def test_audiostream_channels_derives_from_probe(
-    mocker: MockerFixture, tmp_path: Path
+def test_videofile_streams_copies_probe_metadata(
+    mocker: MockerFixture, dummy_video_file: VideoFile
 ) -> None:
-    """AudioStream.channels is read from the probed stream at this index."""
+    """VideoFile.streams copies probed metadata into the stream fields."""
     # Arrange
-    path = tmp_path / "test.ts"
-    path.touch()
-    video_file = VideoFile(path=path)
     mocker.patch(
         "ts2mp4.video_file.probe_file",
         return_value=FFprobeOutput(
             streams=(
-                FFprobeStream(index=0, codec_type="video"),
-                FFprobeStream(index=1, codec_type="audio", channels=6),
+                FFprobeStream(
+                    index=0, codec_type="video", duration=10.0, width=1920, height=1080
+                ),
+                FFprobeStream(
+                    index=1,
+                    codec_type="audio",
+                    duration=9.5,
+                    codec_name="aac",
+                    profile="LC",
+                    bit_rate=192000,
+                    channels=6,
+                    sample_rate=48000,
+                ),
             )
         ),
     )
-    stream = AudioStream(file=video_file, index=1)
 
-    # Act & Assert
-    assert stream.channels == 6
+    # Act
+    streams = dummy_video_file.streams
+
+    # Assert
+    assert streams == frozenset(
+        {
+            VideoStream(
+                file=dummy_video_file,
+                index=0,
+                duration=10.0,
+                width=1920,
+                height=1080,
+            ),
+            AudioStream(
+                file=dummy_video_file,
+                index=1,
+                duration=9.5,
+                codec_name="aac",
+                profile="LC",
+                bit_rate=192000,
+                channels=6,
+                sample_rate=48000,
+            ),
+        }
+    )
 
 
 @pytest.mark.unit
@@ -70,8 +100,6 @@ def test_videofile_streams_maps_probe_output_to_domain_types(
     # Assert
     assert isinstance(stream_at(streams, 0), VideoStream)
     assert isinstance(stream_at(streams, 1), AudioStream)
-    assert stream_at(streams, 0).codec_type == "video"
-    assert stream_at(streams, 1).codec_type == "audio"
     other = stream_at(streams, 4)
     assert isinstance(other, OtherStream)
     assert other.codec_type == "subtitle"
@@ -90,24 +118,13 @@ def test_videofile_streams_binds_each_stream_to_the_file(
 
 
 @pytest.mark.unit
-def test_basestream_sorts_by_file_path_then_index(
-    mocker: MockerFixture, tmp_path: Path
-) -> None:
+def test_basestream_sorts_by_file_path_then_index(tmp_path: Path) -> None:
     """BaseStream total order is file.path, then index."""
     # Arrange
     path_a = tmp_path / "a.ts"
     path_b = tmp_path / "b.ts"
     path_a.touch()
     path_b.touch()
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
-            streams=(
-                FFprobeStream(codec_type="video", index=0),
-                FFprobeStream(codec_type="audio", index=1, channels=2),
-            )
-        ),
-    )
     file_a = VideoFile(path=path_a)
     file_b = VideoFile(path=path_b)
     unordered = frozenset(

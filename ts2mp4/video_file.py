@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, FilePath
 
 from .ffprobe_schema import FFprobeOutput, FFprobeStream, probe_file
@@ -70,15 +72,13 @@ class VideoFile(BaseModel):
 
 
 class BaseStream(BaseModel):
-    """A stream slot in a VideoFile, identified by index.
-
-    Codec metadata is derived from ``file.probe`` at ``index``.
-    """
+    """A stream slot in a VideoFile, identified by index."""
 
     model_config = ConfigDict(frozen=True)
 
     file: VideoFile
     index: int
+    duration: float | None = None
 
     def __lt__(self, other: object) -> bool:
         """Order by ``file.path``, then ``index``."""
@@ -86,69 +86,30 @@ class BaseStream(BaseModel):
             return NotImplemented
         return (self.file.path, self.index) < (other.file.path, other.index)
 
-    @property
-    def _ffprobe_stream(self) -> FFprobeStream:
-        for stream in self.file.probe.streams:
-            if stream.index == self.index:
-                return stream
-        raise ValueError(f"Stream index {self.index} not found in {self.file.path}")
-
-    @property
-    def duration(self) -> float | None:
-        """Return the stream duration in seconds, if known."""
-        return self._ffprobe_stream.duration
-
-    @property
-    def codec_type(self) -> str:
-        """Return the ffprobe codec_type."""
-        return self._ffprobe_stream.codec_type
-
 
 class VideoStream(BaseStream):
     """A video stream belonging to a VideoFile."""
 
-    @property
-    def width(self) -> int | None:
-        """Return the frame width in pixels, if known."""
-        return self._ffprobe_stream.width
-
-    @property
-    def height(self) -> int | None:
-        """Return the frame height in pixels, if known."""
-        return self._ffprobe_stream.height
+    codec_type: Literal["video"] = "video"
+    width: int | None = None
+    height: int | None = None
 
 
 class AudioStream(BaseStream):
     """An audio stream belonging to a VideoFile."""
 
-    @property
-    def codec_name(self) -> str | None:
-        """Return the audio codec name, if known."""
-        return self._ffprobe_stream.codec_name
-
-    @property
-    def profile(self) -> str | None:
-        """Return the audio codec profile, if known."""
-        return self._ffprobe_stream.profile
-
-    @property
-    def bit_rate(self) -> int | None:
-        """Return the audio bit rate, if known."""
-        return self._ffprobe_stream.bit_rate
-
-    @property
-    def channels(self) -> int | None:
-        """Return the channel count, if known."""
-        return self._ffprobe_stream.channels
-
-    @property
-    def sample_rate(self) -> int | None:
-        """Return the sample rate in Hz, if known."""
-        return self._ffprobe_stream.sample_rate
+    codec_type: Literal["audio"] = "audio"
+    codec_name: str | None = None
+    profile: str | None = None
+    bit_rate: int | None = None
+    channels: int | None = None
+    sample_rate: int | None = None
 
 
 class OtherStream(BaseStream):
     """A non-video, non-audio stream belonging to a VideoFile."""
+
+    codec_type: str
 
 
 Stream = VideoStream | AudioStream | OtherStream
@@ -158,11 +119,31 @@ def _to_domain_stream(file: VideoFile, probe: FFprobeStream) -> Stream:
     """Map an ffprobe stream entry to a domain stream bound to ``file``."""
     match probe.codec_type:
         case "video":
-            return VideoStream(file=file, index=probe.index)
+            return VideoStream(
+                file=file,
+                index=probe.index,
+                duration=probe.duration,
+                width=probe.width,
+                height=probe.height,
+            )
         case "audio":
-            return AudioStream(file=file, index=probe.index)
+            return AudioStream(
+                file=file,
+                index=probe.index,
+                duration=probe.duration,
+                codec_name=probe.codec_name,
+                profile=probe.profile,
+                bit_rate=probe.bit_rate,
+                channels=probe.channels,
+                sample_rate=probe.sample_rate,
+            )
         case _:
-            return OtherStream(file=file, index=probe.index)
+            return OtherStream(
+                file=file,
+                index=probe.index,
+                duration=probe.duration,
+                codec_type=probe.codec_type,
+            )
 
 
 VideoFile.model_rebuild()
