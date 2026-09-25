@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.ffprobe_schema import FFprobeFormat, FFprobeOutput, FFprobeStream
+from ts2mp4.ffprobe_schema import FFprobeFormat, FFprobeOutput
 from ts2mp4.stream_disposition import (
     build_disposition_args,
     get_default_stream_indices,
@@ -17,7 +17,7 @@ from ts2mp4.video_file import AudioStream, Stream, VideoFile, VideoStream
 
 
 class _StreamSpec(NamedTuple):
-    """Probe fields for one stream in disposition selection cases."""
+    """Stream fields for one stream in disposition selection cases."""
 
     codec_type: str
     stream_index: int
@@ -129,30 +129,27 @@ def test_get_default_stream_indices(
 
     _patch_probe(
         mocker,
-        {
-            source_path: FFprobeOutput(
-                streams=tuple(
-                    FFprobeStream(
-                        codec_type=spec.codec_type,
-                        index=spec.stream_index,
-                        width=spec.width,
-                        height=spec.height,
-                        duration=spec.duration,
-                        channels=2 if spec.codec_type == "audio" else None,
-                    )
-                    for spec in stream_specs
-                ),
-                format=FFprobeFormat(duration=format_duration),
-            ),
-        },
+        {source_path: FFprobeOutput(format=FFprobeFormat(duration=format_duration))},
     )
 
     streams: list[Stream] = []
     for spec in stream_specs:
         if spec.codec_type == "video":
-            streams.append(VideoStream(file=video_file, index=spec.stream_index))
+            streams.append(
+                VideoStream(
+                    file=video_file,
+                    index=spec.stream_index,
+                    width=spec.width,
+                    height=spec.height,
+                    duration=spec.duration,
+                )
+            )
         else:
-            streams.append(AudioStream(file=video_file, index=spec.stream_index))
+            streams.append(
+                AudioStream(
+                    file=video_file, index=spec.stream_index, duration=spec.duration
+                )
+            )
 
     stream_sources = StreamSources(
         root=tuple(
@@ -212,50 +209,19 @@ def test_get_default_stream_indices_uses_each_source_video_file_for_container_du
     file_a = VideoFile(path=path_a)
     file_b = VideoFile(path=path_b)
 
-    low_res_video = VideoStream(file=file_a, index=0)
-    high_res_video = VideoStream(file=file_b, index=0)
-    audio = AudioStream(file=file_a, index=2)
+    low_res_video = VideoStream(
+        file=file_a, index=0, width=720, height=480, duration=100.0
+    )
+    high_res_video = VideoStream(
+        file=file_b, index=0, width=1440, height=1080, duration=100.0
+    )
+    audio = AudioStream(file=file_a, index=2, duration=100.0)
 
     mock_probe_file = _patch_probe(
         mocker,
         {
-            path_a: FFprobeOutput(
-                format=FFprobeFormat(duration=100.0),
-                streams=(
-                    FFprobeStream(
-                        index=0,
-                        codec_type="video",
-                        width=720,
-                        height=480,
-                        duration=100.0,
-                    ),
-                    FFprobeStream(
-                        index=1,
-                        codec_type="video",
-                        width=1,
-                        height=1,
-                        duration=100.0,
-                    ),
-                    FFprobeStream(
-                        index=2,
-                        codec_type="audio",
-                        channels=2,
-                        duration=100.0,
-                    ),
-                ),
-            ),
-            path_b: FFprobeOutput(
-                format=FFprobeFormat(duration=1000.0),
-                streams=(
-                    FFprobeStream(
-                        index=0,
-                        codec_type="video",
-                        width=1440,
-                        height=1080,
-                        duration=100.0,
-                    ),
-                ),
-            ),
+            path_a: FFprobeOutput(format=FFprobeFormat(duration=100.0)),
+            path_b: FFprobeOutput(format=FFprobeFormat(duration=1000.0)),
         },
     )
     stream_sources = StreamSources(
@@ -281,8 +247,6 @@ def test_get_default_stream_indices_uses_each_source_video_file_for_container_du
     # Assert
     assert result == frozenset({0, 2})
     # Each stream consults its own source file (not a single shared container).
-    # Stream metadata also goes through probe_file, so calls are repeated per path
-    # rather than exactly [path_a, path_b, path_a] as with the old media_info lookup.
     probed_paths = [call.args[0] for call in mock_probe_file.call_args_list]
     assert path_a in probed_paths
     assert path_b in probed_paths
