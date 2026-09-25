@@ -8,7 +8,6 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg import FFmpegProcessError
-from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_integrity import (
     IntegrityReport,
     check_integrity,
@@ -119,15 +118,6 @@ def mock_converted_video_file(
     output_video_file: VideoFile,
 ) -> MagicMock:
     """Return a mocked ConvertedVideoFile instance."""
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
-            streams=(
-                FFprobeStream(index=0, codec_type="video"),
-                FFprobeStream(index=1, codec_type="audio"),
-            )
-        ),
-    )
     input_streams = frozenset(
         (
             VideoStream(file=input_video_file, index=0),
