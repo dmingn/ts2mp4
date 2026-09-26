@@ -11,7 +11,7 @@ from .stream_source import (
     AudioConversion,
     Copy,
     EncodeAudio,
-    StreamSource,
+    StreamConversionPlan,
     StreamSources,
     streams_by_unique_index,
 )
@@ -19,7 +19,8 @@ from .video_encoder import VideoEncodedFile
 from .video_file import AudioStream, VideoFile, VideoStream
 
 StreamSourceForAudioEncoding = (
-    StreamSource[VideoStream, Copy] | StreamSource[AudioStream, AudioConversion]
+    StreamConversionPlan[VideoStream, Copy]
+    | StreamConversionPlan[AudioStream, AudioConversion]
 )
 
 
@@ -124,7 +125,7 @@ def build_stream_sources_for_audio_encoding(
 
             # Video streams should be always copied from the encoded file
             stream_sources_list.append(
-                StreamSource(
+                StreamConversionPlan(
                     source_stream=matching_stream,
                     conversion=Copy(),
                 )
@@ -140,7 +141,7 @@ def build_stream_sources_for_audio_encoding(
             if matching_stream.index not in integrity_report.mismatched_output_indices:
                 # If the stream matches, it can be copied from the encoded file
                 stream_sources_list.append(
-                    StreamSource(
+                    StreamConversionPlan(
                         source_stream=matching_stream,
                         conversion=Copy(),
                     )
@@ -148,7 +149,7 @@ def build_stream_sources_for_audio_encoding(
             else:
                 # If the stream mismatches, it must be encoded from the original file
                 stream_sources_list.append(
-                    StreamSource(
+                    StreamConversionPlan(
                         source_stream=original_stream,
                         conversion=_build_encode_audio_for(original_stream),
                     )

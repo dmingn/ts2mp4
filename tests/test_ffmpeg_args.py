@@ -15,7 +15,7 @@ from ts2mp4.stream_source import (
     Copy,
     EncodeAudio,
     EncodeVideo,
-    StreamSource,
+    StreamConversionPlan,
     StreamSources,
 )
 from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
@@ -37,11 +37,11 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
 
     stream_sources = StreamSources(
         root=(
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=VideoStream(file=encoded_file, index=0),
                 conversion=Copy(),
             ),
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=AudioStream(file=original_file, index=2),
                 conversion=EncodeAudio(codec="aac"),
             ),
@@ -101,15 +101,15 @@ def test_disposition_args_marks_only_default_streams(
 
     stream_sources = StreamSources(
         root=(
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=AudioStream(file=video_file, index=0),
                 conversion=Copy(),
             ),
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=AudioStream(file=video_file, index=1),
                 conversion=Copy(),
             ),
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=AudioStream(file=video_file, index=2),
                 conversion=Copy(),
             ),

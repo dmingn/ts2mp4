@@ -19,7 +19,7 @@ from ts2mp4.stream_source import (
     ConvertedVideoFile,
     Copy,
     EncodeAudio,
-    StreamSource,
+    StreamConversionPlan,
     StreamSources,
     StreamWithSource,
 )
@@ -100,15 +100,15 @@ async def test_get_audio_quality_metrics_returns_metrics_for_encoded_audio(
     stream2 = VideoStream(file=converted_video, index=1)
     stream3 = AudioStream(file=converted_video, index=2)
 
-    source1: StreamSource[AudioStream, Conversion] = StreamSource(
+    source1: StreamConversionPlan[AudioStream, Conversion] = StreamConversionPlan(
         conversion=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=0),
     )
-    source2: StreamSource[VideoStream, Conversion] = StreamSource(
+    source2: StreamConversionPlan[VideoStream, Conversion] = StreamConversionPlan(
         conversion=Copy(),
         source_stream=VideoStream(file=original_file, index=1),
     )
-    source3: StreamSource[AudioStream, Conversion] = StreamSource(
+    source3: StreamConversionPlan[AudioStream, Conversion] = StreamConversionPlan(
         conversion=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=1),
     )
@@ -161,11 +161,11 @@ async def test_get_audio_quality_metrics_skips_failed_stream(
     stream1 = AudioStream(file=converted_video, index=0)
     stream2 = AudioStream(file=converted_video, index=2)
 
-    source1: StreamSource[AudioStream, Conversion] = StreamSource(
+    source1: StreamConversionPlan[AudioStream, Conversion] = StreamConversionPlan(
         conversion=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=0),
     )
-    source2: StreamSource[AudioStream, Conversion] = StreamSource(
+    source2: StreamConversionPlan[AudioStream, Conversion] = StreamConversionPlan(
         conversion=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=1),
     )
@@ -211,7 +211,7 @@ async def test_get_audio_quality_metrics_returns_empty_when_no_metrics_parsed(
     converted_video = VideoFile(path=output_file)
 
     stream1 = AudioStream(file=converted_video, index=0)
-    source1: StreamSource[AudioStream, Conversion] = StreamSource(
+    source1: StreamConversionPlan[AudioStream, Conversion] = StreamConversionPlan(
         conversion=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=0),
     )
@@ -250,14 +250,14 @@ async def test_get_audio_quality_metrics_returns_positive_metrics_for_real_file(
     """Return positive APSNR/ASDR for each valid audio stream of a real file."""
     # Arrange
     video_file = VideoFile(path=ts_file)
-    stream_sources: list[StreamSource[Stream, Conversion]] = []
+    stream_sources: list[StreamConversionPlan[Stream, Conversion]] = []
     for stream in sorted(video_file.streams):
         if isinstance(stream, AudioStream):
             conversion: Conversion = EncodeAudio(codec="aac")
         else:
             conversion = Copy()
         stream_sources.append(
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=stream,
                 conversion=conversion,
             )

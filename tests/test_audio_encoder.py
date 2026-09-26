@@ -20,7 +20,7 @@ from ts2mp4.stream_source import (
     Copy,
     EncodeAudio,
     EncodeVideo,
-    StreamSource,
+    StreamConversionPlan,
     StreamSources,
 )
 from ts2mp4.video_encoder import (
@@ -119,7 +119,7 @@ def mock_video_encoded_file_factory(
 
         stream_sources = StreamSources(
             root=tuple(
-                StreamSource(
+                StreamConversionPlan(
                     source_stream=stream_at(original_streams, i),
                     conversion=(
                         EncodeVideo(codec="libx265", crf=23, preset="medium")
@@ -375,11 +375,11 @@ def test_build_stream_sources_for_audio_encoding_raises_for_missing_stream_in_re
         path=encoded_file_path,
         stream_sources=StreamSourcesForVideoEncoding(
             root=(
-                StreamSource(
+                StreamConversionPlan(
                     source_stream=stream_at(original_streams, 0),
                     conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
                 ),
-                StreamSource(
+                StreamConversionPlan(
                     source_stream=stream_at(original_streams, 1),
                     conversion=Copy(),
                 ),
@@ -411,11 +411,11 @@ def test_stream_sources_for_audio_encoding_validation_success(
     encoded_file = VideoFile(path=dummy_encoded_file)
 
     valid_sources: list[StreamSourceForAudioEncoding] = [
-        StreamSource(
+        StreamConversionPlan(
             conversion=Copy(),
             source_stream=VideoStream(file=encoded_file, index=0),
         ),
-        StreamSource(
+        StreamConversionPlan(
             conversion=EncodeAudio(codec="aac"),
             source_stream=AudioStream(file=original_file, index=1),
         ),
@@ -468,15 +468,15 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
     another_original = VideoFile(path=dummy_another_original)
 
     sources: list[StreamSourceForAudioEncoding] = [
-        StreamSource(
+        StreamConversionPlan(
             conversion=Copy(),
             source_stream=VideoStream(file=encoded_file, index=0),
         ),
-        StreamSource(
+        StreamConversionPlan(
             conversion=Copy(),
             source_stream=AudioStream(file=encoded_file, index=1),
         ),
-        StreamSource(
+        StreamConversionPlan(
             conversion=EncodeAudio(codec="aac"),
             source_stream=AudioStream(file=original_file, index=2),
         ),
@@ -485,7 +485,7 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
     if modifier == "no_video":
         sources = [s for s in sources if not isinstance(s.source_stream, VideoStream)]
     elif modifier == "video_from_original":
-        sources[0] = StreamSource(
+        sources[0] = StreamConversionPlan(
             source_stream=VideoStream(
                 file=original_file, index=sources[0].source_stream.index
             ),
@@ -495,13 +495,13 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
         sources = [s for s in sources if not isinstance(s.source_stream, AudioStream)]
     elif modifier == "copied_audio_from_original":
         sources.append(
-            StreamSource(
+            StreamConversionPlan(
                 conversion=Copy(),
                 source_stream=AudioStream(file=original_file, index=3),
             )
         )
     elif modifier == "encoded_audio_from_encoded":
-        sources[2] = StreamSource(
+        sources[2] = StreamConversionPlan(
             source_stream=AudioStream(
                 file=encoded_file, index=sources[2].source_stream.index
             ),
@@ -511,7 +511,7 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
         sources = [sources[2]]
     elif modifier == "encoded_from_multiple":
         sources.append(
-            StreamSource(
+            StreamConversionPlan(
                 conversion=EncodeAudio(codec="aac"),
                 source_stream=AudioStream(file=another_original, index=3),
             )
@@ -575,7 +575,7 @@ def test_build_stream_sources_for_audio_encoding_stream_type_mismatch_raises_err
     type(mock_encoded_video_file).stream_sources = mocker.PropertyMock(
         return_value=StreamSources(
             root=tuple(
-                StreamSource(
+                StreamConversionPlan(
                     source_stream=stream_at(original_streams, i),
                     conversion=Copy(),
                 )

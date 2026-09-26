@@ -18,7 +18,7 @@ from ts2mp4.stream_source import (
     Copy,
     EncodeAudio,
     EncodeVideo,
-    StreamSource,
+    StreamConversionPlan,
     StreamSources,
     StreamWithSource,
 )
@@ -139,11 +139,11 @@ def mock_converted_video_file(
     mock_converted_file.streams = output_streams
     mock_converted_file.stream_sources = StreamSources(
         root=(
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=next(s for s in input_streams if s.index == 0),
                 conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             ),
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=next(s for s in input_streams if s.index == 1),
                 conversion=Copy(),
             ),
@@ -218,21 +218,21 @@ def test_check_integrity_reports_only_mismatched_output_indices(
         return_value=[
             StreamWithSource(
                 stream=VideoStream(file=output_video_file, index=0),
-                source=StreamSource(
+                source=StreamConversionPlan(
                     source_stream=VideoStream(file=input_video_file, index=0),
                     conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
                 ),
             ),
             StreamWithSource(
                 stream=AudioStream(file=output_video_file, index=1),
-                source=StreamSource(
+                source=StreamConversionPlan(
                     source_stream=AudioStream(file=input_video_file, index=2),
                     conversion=Copy(),
                 ),
             ),
             StreamWithSource(
                 stream=AudioStream(file=output_video_file, index=2),
-                source=StreamSource(
+                source=StreamConversionPlan(
                     source_stream=AudioStream(file=input_video_file, index=1),
                     conversion=Copy(),
                 ),
@@ -261,7 +261,7 @@ def test_check_integrity_skips_non_copied_streams(
         "ts2mp4.stream_integrity.compare_stream_hashes"
     )
     stream_sources = list(mock_converted_video_file.stream_sources)
-    stream_sources[1] = StreamSource(
+    stream_sources[1] = StreamConversionPlan(
         source_stream=stream_sources[1].source_stream,
         conversion=EncodeAudio(codec="aac"),
     )

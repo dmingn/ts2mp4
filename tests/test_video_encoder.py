@@ -7,7 +7,7 @@ import pytest
 
 from tests.helpers import StubVideoFile, stream_at
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
-from ts2mp4.stream_source import Copy, EncodeVideo, StreamSource
+from ts2mp4.stream_source import Copy, EncodeVideo, StreamConversionPlan
 from ts2mp4.video_encoder import (
     StreamSourceForVideoEncoding,
     StreamSourcesForVideoEncoding,
@@ -158,11 +158,11 @@ def test_stream_sources_for_video_encoding_raises_on_invalid_sources(
     # Arrange
     video_file = mock_video_file_factory()
     sources: list[StreamSourceForVideoEncoding] = [
-        StreamSource(
+        StreamConversionPlan(
             source_stream=stream_at(video_file.streams, 0),
             conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
         ),
-        StreamSource(
+        StreamConversionPlan(
             source_stream=stream_at(video_file.streams, 1),
             conversion=Copy(),
         ),
@@ -175,7 +175,7 @@ def test_stream_sources_for_video_encoding_raises_on_invalid_sources(
     elif modifier == "multiple_sources":
         other_video_file = mock_video_file_factory(file_name="other.ts")
         sources.append(
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=stream_at(other_video_file.streams, 0),
                 conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             )

@@ -1,4 +1,4 @@
-"""Unit tests for the StreamSource module."""
+"""Unit tests for the StreamConversionPlan module."""
 
 from pathlib import Path
 
@@ -12,7 +12,7 @@ from ts2mp4.stream_source import (
     ConvertedVideoFile,
     Copy,
     EncodeVideo,
-    StreamSource,
+    StreamConversionPlan,
     StreamSources,
     StreamWithSource,
     streams_by_unique_index,
@@ -31,9 +31,9 @@ def dummy_video_file(tmp_path: Path) -> VideoFile:
 @pytest.fixture
 def stream_source(
     dummy_video_file: VideoFile,
-) -> StreamSource[VideoStream, Conversion]:
-    """Create a dummy StreamSource instance."""
-    return StreamSource(
+) -> StreamConversionPlan[VideoStream, Conversion]:
+    """Create a dummy StreamConversionPlan instance."""
+    return StreamConversionPlan(
         source_stream=VideoStream(file=dummy_video_file, index=0),
         conversion=Copy(),
     )
@@ -51,15 +51,15 @@ def stream_sources(tmp_path: Path) -> StreamSources:
 
     return StreamSources(
         root=(
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=VideoStream(file=file_a, index=0),
                 conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             ),
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=AudioStream(file=file_a, index=1),
                 conversion=Copy(),
             ),
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=AudioStream(file=file_b, index=0),
                 conversion=Copy(),
             ),
@@ -142,7 +142,7 @@ def test_stream_sources_properties_are_empty_when_no_sources() -> None:
 @pytest.mark.unit
 def test_converted_videofile_rejects_mismatched_stream_counts(
     dummy_video_file: VideoFile,
-    stream_source: StreamSource[VideoStream, Conversion],
+    stream_source: StreamConversionPlan[VideoStream, Conversion],
 ) -> None:
     """ConvertedVideoFile raises when stream_sources length mismatches streams."""
     # Arrange
@@ -170,11 +170,11 @@ def test_converted_videofile_rejects_when_output_indices_do_not_match_positions(
     # Arrange
     stream_sources = StreamSources(
         root=(
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=VideoStream(file=dummy_video_file, index=0),
                 conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             ),
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=AudioStream(file=dummy_video_file, index=1),
                 conversion=Copy(),
             ),
@@ -216,7 +216,7 @@ def test_streams_by_unique_index_rejects_duplicate_indices(
 @pytest.mark.unit
 def test_converted_videofile_stream_with_sources_pairs_output_and_source(
     dummy_video_file: VideoFile,
-    stream_source: StreamSource[VideoStream, Conversion],
+    stream_source: StreamConversionPlan[VideoStream, Conversion],
 ) -> None:
     """ConvertedVideoFile.stream_with_sources pairs each output stream with its source."""
     # Arrange
@@ -244,9 +244,11 @@ def test_converted_videofile_stream_with_sources_raises_on_type_mismatch(
 ) -> None:
     """ConvertedVideoFile.stream_with_sources raises when stream and source types differ."""
     # Arrange
-    audio_stream_source: StreamSource[AudioStream, Conversion] = StreamSource(
-        source_stream=AudioStream(file=dummy_video_file, index=0),
-        conversion=Copy(),
+    audio_stream_source: StreamConversionPlan[AudioStream, Conversion] = (
+        StreamConversionPlan(
+            source_stream=AudioStream(file=dummy_video_file, index=0),
+            conversion=Copy(),
+        )
     )
     converted_file = StubConvertedVideoFile[StreamSources](
         path=dummy_video_file.path,
@@ -268,11 +270,11 @@ def test_converted_videofile_stream_with_sources_raises_when_output_index_missin
     # Arrange
     stream_sources = StreamSources(
         root=(
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=VideoStream(file=dummy_video_file, index=0),
                 conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             ),
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=AudioStream(file=dummy_video_file, index=1),
                 conversion=Copy(),
             ),

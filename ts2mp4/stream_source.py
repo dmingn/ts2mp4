@@ -53,8 +53,8 @@ Conversion = VideoConversion | AudioConversion
 ConversionT = TypeVar("ConversionT", bound=Conversion, covariant=True)
 
 
-class StreamSource(BaseModel, Generic[StreamT, ConversionT]):
-    """A class representing the source of a stream."""
+class StreamConversionPlan(BaseModel, Generic[StreamT, ConversionT]):
+    """How one output stream is made from ``source_stream``."""
 
     source_stream: StreamT
     conversion: ConversionT
@@ -66,60 +66,60 @@ class StreamWithSource(BaseModel, Generic[StreamT]):
     """A class representing a stream with its source."""
 
     stream: StreamT
-    source: StreamSource[StreamT, Conversion]
+    source: StreamConversionPlan[StreamT, Conversion]
 
     model_config = ConfigDict(frozen=True)
 
 
 def is_video_stream_source(
-    source: StreamSource[Stream, ConversionT],
-) -> TypeGuard[StreamSource[VideoStream, ConversionT]]:
+    source: StreamConversionPlan[Stream, ConversionT],
+) -> TypeGuard[StreamConversionPlan[VideoStream, ConversionT]]:
     """Return True if the source is a video stream source."""
     return isinstance(source.source_stream, VideoStream)
 
 
 def is_audio_stream_source(
-    source: StreamSource[Stream, ConversionT],
-) -> TypeGuard[StreamSource[AudioStream, ConversionT]]:
+    source: StreamConversionPlan[Stream, ConversionT],
+) -> TypeGuard[StreamConversionPlan[AudioStream, ConversionT]]:
     """Return True if the source is an audio stream source."""
     return isinstance(source.source_stream, AudioStream)
 
 
 def is_other_stream_source(
-    source: StreamSource[Stream, ConversionT],
-) -> TypeGuard[StreamSource[OtherStream, ConversionT]]:
+    source: StreamConversionPlan[Stream, ConversionT],
+) -> TypeGuard[StreamConversionPlan[OtherStream, ConversionT]]:
     """Return True if the source is an other stream source."""
     return isinstance(source.source_stream, OtherStream)
 
 
-class StreamSources(RootModel[tuple[StreamSource[Stream, Conversion], ...]]):
-    """A tuple of StreamSource objects."""
+class StreamSources(RootModel[tuple[StreamConversionPlan[Stream, Conversion], ...]]):
+    """A tuple of StreamConversionPlan objects."""
 
     model_config = ConfigDict(frozen=True)
 
-    def __iter__(self) -> Iterator[StreamSource[Stream, Conversion]]:  # type: ignore[override]
-        """Return an iterator over the StreamSource objects."""
+    def __iter__(self) -> Iterator[StreamConversionPlan[Stream, Conversion]]:  # type: ignore[override]
+        """Return an iterator over the StreamConversionPlan objects."""
         return iter(self.root)
 
-    def __getitem__(self, item: int) -> StreamSource[Stream, Conversion]:
-        """Return the StreamSource object at the given index."""
+    def __getitem__(self, item: int) -> StreamConversionPlan[Stream, Conversion]:
+        """Return the StreamConversionPlan object at the given index."""
         return self.root[item]
 
     def __len__(self) -> int:
-        """Return the number of StreamSource objects."""
+        """Return the number of StreamConversionPlan objects."""
         return len(self.root)
 
     @property
     def video_stream_sources(
         self,
-    ) -> frozenset[StreamSource[VideoStream, Conversion]]:
+    ) -> frozenset[StreamConversionPlan[VideoStream, Conversion]]:
         """Return a set of video stream sources."""
         return frozenset(filter(is_video_stream_source, self.root))
 
     @property
     def audio_stream_sources(
         self,
-    ) -> frozenset[StreamSource[AudioStream, Conversion]]:
+    ) -> frozenset[StreamConversionPlan[AudioStream, Conversion]]:
         """Return a set of audio stream sources."""
         return frozenset(filter(is_audio_stream_source, self.root))
 
@@ -154,8 +154,8 @@ class ConvertedVideoFile(VideoFile, Generic[StreamSourcesT]):
 
     This class extends VideoFile to include information about how each stream
     in the converted file was created. The ``stream_sources`` tuple contains
-    ``StreamSource`` objects, where the position in the tuple corresponds to
-    the stream's index in the converted video file. Each ``StreamSource``
+    ``StreamConversionPlan`` objects, where the position in the tuple corresponds to
+    the stream's index in the converted video file. Each ``StreamConversionPlan``
     object describes which original stream was used to generate that stream
     in the converted file, and how it was created (copied or encoded).
     """

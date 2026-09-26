@@ -8,13 +8,14 @@ from .stream_source import (
     ConvertedVideoFile,
     Copy,
     EncodeVideo,
-    StreamSource,
+    StreamConversionPlan,
     StreamSources,
 )
 from .video_file import AudioStream, VideoFile, VideoStream
 
 StreamSourceForVideoEncoding = (
-    StreamSource[VideoStream, EncodeVideo] | StreamSource[AudioStream, Copy]
+    StreamConversionPlan[VideoStream, EncodeVideo]
+    | StreamConversionPlan[AudioStream, Copy]
 )
 
 
@@ -61,14 +62,14 @@ def build_stream_sources_for_video_encoding(
     )
 
     video_sources: list[StreamSourceForVideoEncoding] = [
-        StreamSource(
+        StreamConversionPlan(
             source_stream=stream,
             conversion=encode_video,
         )
         for stream in sorted(input_file.valid_video_streams)
     ]
     audio_sources: list[StreamSourceForVideoEncoding] = [
-        StreamSource(
+        StreamConversionPlan(
             source_stream=stream,
             conversion=Copy(),
         )
