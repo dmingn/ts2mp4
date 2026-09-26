@@ -12,7 +12,13 @@ from ts2mp4.stream_disposition import (
     build_disposition_args,
     get_default_stream_indices,
 )
-from ts2mp4.stream_source import ConversionType, StreamSource, StreamSources
+from ts2mp4.stream_source import (
+    Conversion,
+    Copy,
+    EncodeVideo,
+    StreamSource,
+    StreamSources,
+)
 from ts2mp4.video_file import AudioStream, Stream, VideoStream
 
 
@@ -26,11 +32,11 @@ class _StreamSpec(NamedTuple):
     duration: float | None = None
 
 
-def _conversion_type_for_stream(stream: Stream) -> ConversionType:
-    """Return a conversion_type suitable for StreamSource construction in tests."""
+def _conversion_for_stream(stream: Stream) -> Conversion:
+    """Return a conversion suitable for StreamSource construction in tests."""
     if isinstance(stream, VideoStream):
-        return "encoded"
-    return "copied"
+        return EncodeVideo()
+    return Copy()
 
 
 @pytest.mark.unit
@@ -132,7 +138,7 @@ def test_get_default_stream_indices(
         root=tuple(
             StreamSource(
                 source_stream=stream,
-                conversion_type=_conversion_type_for_stream(stream),
+                conversion=_conversion_for_stream(stream),
             )
             for stream in sorted(video_file.streams)
         )
@@ -219,15 +225,15 @@ def test_get_default_stream_indices_uses_each_source_video_file_for_container_du
         root=(
             StreamSource(
                 source_stream=low_res_video,
-                conversion_type="copied",
+                conversion=Copy(),
             ),
             StreamSource(
                 source_stream=high_res_video,
-                conversion_type="encoded",
+                conversion=EncodeVideo(),
             ),
             StreamSource(
                 source_stream=audio,
-                conversion_type="copied",
+                conversion=Copy(),
             ),
         )
     )

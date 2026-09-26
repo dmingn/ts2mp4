@@ -1,7 +1,7 @@
 """Encodes mismatched audio streams that failed integrity checks."""
 
 from pathlib import Path
-from typing import Literal, Optional, Self
+from typing import Optional, Self
 
 from logzero import logger
 from pydantic import model_validator
@@ -10,8 +10,11 @@ from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
 from .stream_disposition import build_disposition_args
 from .stream_integrity import IntegrityReport
 from .stream_source import (
-    ConversionType,
+    AudioConversion,
+    Conversion,
     ConvertedVideoFile,
+    Copy,
+    EncodeAudio,
     StreamSource,
     StreamSources,
     is_audio_stream_source,
@@ -21,8 +24,7 @@ from .video_encoder import VideoEncodedFile
 from .video_file import AudioStream, VideoFile, VideoStream
 
 StreamSourceForAudioEncoding = (
-    StreamSource[VideoStream, Literal["copied"]]
-    | StreamSource[AudioStream, Literal["copied", "encoded"]]
+    StreamSource[VideoStream, Copy] | StreamSource[AudioStream, AudioConversion]
 )
 
 
@@ -43,8 +45,10 @@ class StreamSourcesForAudioEncoding(StreamSources):
     @model_validator(mode="after")
     def validate_source_grouping(self) -> Self:
         """Validate the grouping and sources of the streams."""
-        copied_sources = [s for s in self.root if s.conversion_type == "copied"]
-        sources_to_encode = [s for s in self.root if s.conversion_type == "encoded"]
+        copied_sources = [s for s in self.root if isinstance(s.conversion, Copy)]
+        sources_to_encode = [
+            s for s in self.root if isinstance(s.conversion, EncodeAudio)
+        ]
 
         if not copied_sources:
             raise ValueError("At least one stream must be copied.")
@@ -111,7 +115,7 @@ def _build_stream_sources_for_audio_encoding(
             stream_sources_list.append(
                 StreamSource(
                     source_stream=matching_stream,
-                    conversion_type="copied",
+                    conversion=Copy(),
                 )
             )
         elif isinstance(original_stream, AudioStream):
@@ -127,7 +131,7 @@ def _build_stream_sources_for_audio_encoding(
                 stream_sources_list.append(
                     StreamSource(
                         source_stream=matching_stream,
-                        conversion_type="copied",
+                        conversion=Copy(),
                     )
                 )
             else:
@@ -135,7 +139,7 @@ def _build_stream_sources_for_audio_encoding(
                 stream_sources_list.append(
                     StreamSource(
                         source_stream=original_stream,
-                        conversion_type="encoded",
+                        conversion=EncodeAudio(),
                     )
                 )
 
@@ -143,7 +147,7 @@ def _build_stream_sources_for_audio_encoding(
 
 
 def _build_audio_encode_args(
-    stream_source: StreamSource[AudioStream, ConversionType], output_stream_index: int
+    stream_source: StreamSource[AudioStream, Conversion], output_stream_index: int
 ) -> list[str]:
     """Build FFmpeg arguments for encoding an audio stream."""
     original_audio_stream = stream_source.source_stream
@@ -230,7 +234,7 @@ def _build_ffmpeg_args_from_stream_sources(
         ffmpeg_args.extend(["-map", f"{input_index}:{source.source_stream.index}"])
 
         # Add codec arguments using the global output stream index
-        if source.conversion_type == "copied":
+        if isinstance(source.conversion, Copy):
             ffmpeg_args.extend([f"-codec:{i}", "copy"])
         elif is_audio_stream_source(source):
             ffmpeg_args.extend(_build_audio_encode_args(source, i))
@@ -283,7 +287,7 @@ def encode_mismatched_audio_streams(
     )
 
     # If all audio streams are to be copied, no encoding is needed.
-    if not any(s.conversion_type == "encoded" for s in stream_sources):
+    if not any(isinstance(s.conversion, EncodeAudio) for s in stream_sources):
         logger.info("No audio streams require encoding. Skipping.")
         return None
 

@@ -15,6 +15,9 @@ from ts2mp4.stream_integrity import (
 )
 from ts2mp4.stream_source import (
     ConvertedVideoFile,
+    Copy,
+    EncodeAudio,
+    EncodeVideo,
     StreamSource,
     StreamSources,
     StreamWithSource,
@@ -138,11 +141,11 @@ def mock_converted_video_file(
         root=(
             StreamSource(
                 source_stream=next(s for s in input_streams if s.index == 0),
-                conversion_type="encoded",
+                conversion=EncodeVideo(),
             ),
             StreamSource(
                 source_stream=next(s for s in input_streams if s.index == 1),
-                conversion_type="copied",
+                conversion=Copy(),
             ),
         )
     )
@@ -217,21 +220,21 @@ def test_check_integrity_reports_only_mismatched_output_indices(
                 stream=VideoStream(file=output_video_file, index=0),
                 source=StreamSource(
                     source_stream=VideoStream(file=input_video_file, index=0),
-                    conversion_type="encoded",
+                    conversion=EncodeVideo(),
                 ),
             ),
             StreamWithSource(
                 stream=AudioStream(file=output_video_file, index=1),
                 source=StreamSource(
                     source_stream=AudioStream(file=input_video_file, index=2),
-                    conversion_type="copied",
+                    conversion=Copy(),
                 ),
             ),
             StreamWithSource(
                 stream=AudioStream(file=output_video_file, index=2),
                 source=StreamSource(
                     source_stream=AudioStream(file=input_video_file, index=1),
-                    conversion_type="copied",
+                    conversion=Copy(),
                 ),
             ),
         ]
@@ -260,7 +263,7 @@ def test_check_integrity_skips_non_copied_streams(
     stream_sources = list(mock_converted_video_file.stream_sources)
     stream_sources[1] = StreamSource(
         source_stream=stream_sources[1].source_stream,
-        conversion_type="encoded",
+        conversion=EncodeAudio(),
     )
     mock_converted_video_file.stream_sources = StreamSources(root=tuple(stream_sources))
     type(mock_converted_video_file).stream_with_sources = mocker.PropertyMock(

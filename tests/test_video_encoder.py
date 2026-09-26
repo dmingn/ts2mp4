@@ -9,7 +9,7 @@ from pytest_mock import MockerFixture
 from tests.helpers import StubVideoFile, stream_at
 from ts2mp4.ffmpeg import FFmpegResult
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
-from ts2mp4.stream_source import StreamSource
+from ts2mp4.stream_source import Copy, EncodeVideo, StreamSource
 from ts2mp4.video_encoder import (
     StreamSourceForVideoEncoding,
     StreamSourcesForVideoEncoding,
@@ -68,11 +68,11 @@ def test_build_stream_sources_orders_by_stream_index(tmp_path: Path) -> None:
 
     # Assert
     assert [s.source_stream.index for s in stream_sources] == [0, 1, 2, 3]
-    assert [s.conversion_type for s in stream_sources] == [
-        "encoded",
-        "encoded",
-        "copied",
-        "copied",
+    assert [s.conversion for s in stream_sources] == [
+        EncodeVideo(),
+        EncodeVideo(),
+        Copy(),
+        Copy(),
     ]
 
 
@@ -91,11 +91,11 @@ def test_build_stream_sources_marks_video_encoded_and_audio_copied(
     assert isinstance(stream_sources, StreamSourcesForVideoEncoding)
     assert len(stream_sources) == 3
     assert isinstance(stream_sources[0].source_stream, VideoStream)
-    assert stream_sources[0].conversion_type == "encoded"
+    assert stream_sources[0].conversion == EncodeVideo()
     assert isinstance(stream_sources[1].source_stream, AudioStream)
-    assert stream_sources[1].conversion_type == "copied"
+    assert stream_sources[1].conversion == Copy()
     assert isinstance(stream_sources[2].source_stream, AudioStream)
-    assert stream_sources[2].conversion_type == "copied"
+    assert stream_sources[2].conversion == Copy()
 
 
 @pytest.mark.unit
@@ -135,11 +135,11 @@ def test_stream_sources_for_video_encoding_raises_on_invalid_sources(
     sources: list[StreamSourceForVideoEncoding] = [
         StreamSource(
             source_stream=stream_at(video_file.streams, 0),
-            conversion_type="encoded",
+            conversion=EncodeVideo(),
         ),
         StreamSource(
             source_stream=stream_at(video_file.streams, 1),
-            conversion_type="copied",
+            conversion=Copy(),
         ),
     ]
 
@@ -152,7 +152,7 @@ def test_stream_sources_for_video_encoding_raises_on_invalid_sources(
         sources.append(
             StreamSource(
                 source_stream=stream_at(other_video_file.streams, 0),
-                conversion_type="encoded",
+                conversion=EncodeVideo(),
             )
         )
     elif modifier == "duplicate_streams":
@@ -172,15 +172,15 @@ def stream_sources_for_video_encoding(
     sources: list[StreamSourceForVideoEncoding] = [
         StreamSource(
             source_stream=stream_at(mock_video_file.streams, 0),
-            conversion_type="encoded",
+            conversion=EncodeVideo(),
         ),
         StreamSource(
             source_stream=stream_at(mock_video_file.streams, 1),
-            conversion_type="copied",
+            conversion=Copy(),
         ),
         StreamSource(
             source_stream=stream_at(mock_video_file.streams, 2),
-            conversion_type="copied",
+            conversion=Copy(),
         ),
     ]
     return StreamSourcesForVideoEncoding(root=tuple(sources))

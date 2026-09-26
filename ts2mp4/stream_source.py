@@ -1,7 +1,7 @@
 """Stream source and converted video file models."""
 
 from collections.abc import Iterable
-from typing import Generic, Iterator, Literal, Self, TypeGuard, TypeVar, assert_never
+from typing import Generic, Iterator, Self, TypeGuard, TypeVar, assert_never
 
 from pydantic import BaseModel, ConfigDict, RootModel, model_validator
 
@@ -15,15 +15,36 @@ from .video_file import (
 
 StreamT = TypeVar("StreamT", bound=Stream, covariant=True)
 
-ConversionType = Literal["encoded", "copied"]
-ConversionTypeT = TypeVar("ConversionTypeT", bound=ConversionType, covariant=True)
+
+class Copy(BaseModel):
+    """Copy the source stream without re-encoding."""
+
+    model_config = ConfigDict(frozen=True)
 
 
-class StreamSource(BaseModel, Generic[StreamT, ConversionTypeT]):
+class EncodeVideo(BaseModel):
+    """Re-encode the source video stream."""
+
+    model_config = ConfigDict(frozen=True)
+
+
+class EncodeAudio(BaseModel):
+    """Re-encode the source audio stream."""
+
+    model_config = ConfigDict(frozen=True)
+
+
+VideoConversion = Copy | EncodeVideo
+AudioConversion = Copy | EncodeAudio
+Conversion = VideoConversion | AudioConversion
+ConversionT = TypeVar("ConversionT", bound=Conversion, covariant=True)
+
+
+class StreamSource(BaseModel, Generic[StreamT, ConversionT]):
     """A class representing the source of a stream."""
 
     source_stream: StreamT
-    conversion_type: ConversionTypeT
+    conversion: ConversionT
 
     model_config = ConfigDict(frozen=True)
 
@@ -32,42 +53,42 @@ class StreamWithSource(BaseModel, Generic[StreamT]):
     """A class representing a stream with its source."""
 
     stream: StreamT
-    source: StreamSource[StreamT, ConversionType]
+    source: StreamSource[StreamT, Conversion]
 
     model_config = ConfigDict(frozen=True)
 
 
 def is_video_stream_source(
-    source: StreamSource[Stream, ConversionTypeT],
-) -> TypeGuard[StreamSource[VideoStream, ConversionTypeT]]:
+    source: StreamSource[Stream, ConversionT],
+) -> TypeGuard[StreamSource[VideoStream, ConversionT]]:
     """Return True if the source is a video stream source."""
     return isinstance(source.source_stream, VideoStream)
 
 
 def is_audio_stream_source(
-    source: StreamSource[Stream, ConversionTypeT],
-) -> TypeGuard[StreamSource[AudioStream, ConversionTypeT]]:
+    source: StreamSource[Stream, ConversionT],
+) -> TypeGuard[StreamSource[AudioStream, ConversionT]]:
     """Return True if the source is an audio stream source."""
     return isinstance(source.source_stream, AudioStream)
 
 
 def is_other_stream_source(
-    source: StreamSource[Stream, ConversionTypeT],
-) -> TypeGuard[StreamSource[OtherStream, ConversionTypeT]]:
+    source: StreamSource[Stream, ConversionT],
+) -> TypeGuard[StreamSource[OtherStream, ConversionT]]:
     """Return True if the source is an other stream source."""
     return isinstance(source.source_stream, OtherStream)
 
 
-class StreamSources(RootModel[tuple[StreamSource[Stream, ConversionType], ...]]):
+class StreamSources(RootModel[tuple[StreamSource[Stream, Conversion], ...]]):
     """A tuple of StreamSource objects."""
 
     model_config = ConfigDict(frozen=True)
 
-    def __iter__(self) -> Iterator[StreamSource[Stream, ConversionType]]:  # type: ignore[override]
+    def __iter__(self) -> Iterator[StreamSource[Stream, Conversion]]:  # type: ignore[override]
         """Return an iterator over the StreamSource objects."""
         return iter(self.root)
 
-    def __getitem__(self, item: int) -> StreamSource[Stream, ConversionType]:
+    def __getitem__(self, item: int) -> StreamSource[Stream, Conversion]:
         """Return the StreamSource object at the given index."""
         return self.root[item]
 
@@ -78,14 +99,14 @@ class StreamSources(RootModel[tuple[StreamSource[Stream, ConversionType], ...]])
     @property
     def video_stream_sources(
         self,
-    ) -> frozenset[StreamSource[VideoStream, ConversionType]]:
+    ) -> frozenset[StreamSource[VideoStream, Conversion]]:
         """Return a set of video stream sources."""
         return frozenset(filter(is_video_stream_source, self.root))
 
     @property
     def audio_stream_sources(
         self,
-    ) -> frozenset[StreamSource[AudioStream, ConversionType]]:
+    ) -> frozenset[StreamSource[AudioStream, Conversion]]:
         """Return a set of audio stream sources."""
         return frozenset(filter(is_audio_stream_source, self.root))
 

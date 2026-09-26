@@ -4,7 +4,7 @@ from logzero import logger
 from pydantic import BaseModel, ConfigDict
 
 from .hashing import get_stream_md5
-from .stream_source import ConvertedVideoFile, StreamSources, StreamWithSource
+from .stream_source import ConvertedVideoFile, Copy, StreamSources, StreamWithSource
 from .video_file import AudioStream, Stream, VideoStream
 
 
@@ -92,7 +92,7 @@ def check_integrity(
         mismatched_output_indices=frozenset(
             stream_with_source.stream.index
             for stream_with_source in converted_file.stream_with_sources
-            if stream_with_source.source.conversion_type == "copied"
+            if isinstance(stream_with_source.source.conversion, Copy)
             and not _stream_matches_source(stream_with_source)
         )
     )
