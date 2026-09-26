@@ -263,7 +263,7 @@ def test_check_integrity_skips_non_copied_streams(
     stream_sources = list(mock_converted_video_file.stream_sources)
     stream_sources[1] = StreamSource(
         source_stream=stream_sources[1].source_stream,
-        conversion=EncodeAudio(),
+        conversion=EncodeAudio(codec="aac"),
     )
     mock_converted_video_file.stream_sources = StreamSources(root=tuple(stream_sources))
     type(mock_converted_video_file).stream_with_sources = mocker.PropertyMock(

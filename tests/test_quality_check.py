@@ -101,7 +101,7 @@ async def test_get_audio_quality_metrics_returns_metrics_for_encoded_audio(
     stream3 = AudioStream(file=converted_video, index=2)
 
     source1: StreamSource[AudioStream, Conversion] = StreamSource(
-        conversion=EncodeAudio(),
+        conversion=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=0),
     )
     source2: StreamSource[VideoStream, Conversion] = StreamSource(
@@ -109,7 +109,7 @@ async def test_get_audio_quality_metrics_returns_metrics_for_encoded_audio(
         source_stream=VideoStream(file=original_file, index=1),
     )
     source3: StreamSource[AudioStream, Conversion] = StreamSource(
-        conversion=EncodeAudio(),
+        conversion=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=1),
     )
 
@@ -162,11 +162,11 @@ async def test_get_audio_quality_metrics_skips_failed_stream(
     stream2 = AudioStream(file=converted_video, index=2)
 
     source1: StreamSource[AudioStream, Conversion] = StreamSource(
-        conversion=EncodeAudio(),
+        conversion=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=0),
     )
     source2: StreamSource[AudioStream, Conversion] = StreamSource(
-        conversion=EncodeAudio(),
+        conversion=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=1),
     )
 
@@ -212,7 +212,7 @@ async def test_get_audio_quality_metrics_returns_empty_when_no_metrics_parsed(
 
     stream1 = AudioStream(file=converted_video, index=0)
     source1: StreamSource[AudioStream, Conversion] = StreamSource(
-        conversion=EncodeAudio(),
+        conversion=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=0),
     )
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
@@ -253,7 +253,7 @@ async def test_get_audio_quality_metrics_returns_positive_metrics_for_real_file(
     stream_sources: list[StreamSource[Stream, Conversion]] = []
     for stream in sorted(video_file.streams):
         if isinstance(stream, AudioStream):
-            conversion: Conversion = EncodeAudio()
+            conversion: Conversion = EncodeAudio(codec="aac")
         else:
             conversion = Copy()
         stream_sources.append(

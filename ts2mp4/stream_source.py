@@ -29,7 +29,13 @@ class EncodeVideo(BaseModel):
 
 
 class EncodeAudio(BaseModel):
-    """Re-encode the source audio stream."""
+    """Re-encode the source audio stream with the given encoder options."""
+
+    codec: str
+    sample_rate: int | None = None
+    channels: int | None = None
+    profile: str | None = None
+    bit_rate: int | None = None
 
     model_config = ConfigDict(frozen=True)
 

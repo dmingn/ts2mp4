@@ -7,17 +7,15 @@ from logzero import logger
 from pydantic import model_validator
 
 from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
-from .stream_disposition import build_disposition_args
+from .ffmpeg_args import build_ffmpeg_args
 from .stream_integrity import IntegrityReport
 from .stream_source import (
     AudioConversion,
-    Conversion,
     ConvertedVideoFile,
     Copy,
     EncodeAudio,
     StreamSource,
     StreamSources,
-    is_audio_stream_source,
     streams_by_unique_index,
 )
 from .video_encoder import VideoEncodedFile
@@ -139,118 +137,46 @@ def _build_stream_sources_for_audio_encoding(
                 stream_sources_list.append(
                     StreamSource(
                         source_stream=original_stream,
-                        conversion=EncodeAudio(),
+                        conversion=_build_encode_audio_for(original_stream),
                     )
                 )
 
     return StreamSourcesForAudioEncoding(root=tuple(stream_sources_list))
 
 
-def _build_audio_encode_args(
-    stream_source: StreamSource[AudioStream, Conversion], output_stream_index: int
-) -> list[str]:
-    """Build FFmpeg arguments for encoding an audio stream."""
-    original_audio_stream = stream_source.source_stream
+_FFMPEG_AAC_PROFILES = {"LC": "aac_low"}
 
-    codec_name = str(original_audio_stream.codec_name)
-    if original_audio_stream.codec_name == "aac":
-        if is_libfdk_aac_available():
-            codec_name = "libfdk_aac"
-        else:
-            logger.warning(
-                "libfdk_aac is not available. Falling back to the default AAC encoder."
-            )
-    else:
+
+def _build_encode_audio_for(stream: AudioStream) -> EncodeAudio:
+    """Return an EncodeAudio that re-encodes ``stream`` with its own settings.
+
+    The sample rate, channel count, profile and bit rate are taken from
+    ``stream``. The encoder is libfdk_aac when available, otherwise aac.
+    """
+    if stream.codec_name != "aac":
         raise NotImplementedError(
             "Encoding is currently only supported for aac audio codec."
         )
 
-    encode_args = [
-        f"-codec:{output_stream_index}",
-        codec_name,
-    ]
-    if original_audio_stream.sample_rate is not None:
-        encode_args.extend(
-            [
-                f"-ar:{output_stream_index}",
-                str(original_audio_stream.sample_rate),
-            ]
+    if is_libfdk_aac_available():
+        codec = "libfdk_aac"
+    else:
+        logger.warning(
+            "libfdk_aac is not available. Falling back to the default AAC encoder."
         )
-    if original_audio_stream.channels is not None:
-        encode_args.extend(
-            [
-                f"-ac:{output_stream_index}",
-                str(original_audio_stream.channels),
-            ]
-        )
-    if original_audio_stream.profile is not None:
-        profile_map = {"LC": "aac_low"}
-        profile = profile_map.get(
-            original_audio_stream.profile, original_audio_stream.profile
-        )
-        encode_args.extend(
-            [
-                f"-profile:{output_stream_index}",
-                profile,
-            ]
-        )
-    if original_audio_stream.bit_rate is not None:
-        encode_args.extend(
-            [
-                f"-b:{output_stream_index}",
-                str(original_audio_stream.bit_rate),
-            ]
-        )
-    encode_args.extend([f"-bsf:{output_stream_index}", "aac_adtstoasc"])
-    return encode_args
+        codec = "aac"
 
-
-def _build_ffmpeg_args_from_stream_sources(
-    stream_sources: StreamSourcesForAudioEncoding,
-    output_path: Path,
-) -> list[str]:
-    """Build FFmpeg arguments from a StreamSources object."""
-    # Create a unique, ordered list of input files and a mapping to their index
-    input_files = list(dict.fromkeys(s.source_stream.file for s in stream_sources))
-    input_file_map = {file: i for i, file in enumerate(input_files)}
-
-    ffmpeg_args = [
-        "-hide_banner",
-        "-nostats",
-        "-fflags",
-        "+discardcorrupt",
-        "-y",
-    ]
-
-    # Add -i arguments for each unique input file
-    for file in input_files:
-        ffmpeg_args.extend(["-i", str(file.path)])
-
-    # Add -map and codec arguments for each stream
-    for i, source in enumerate(stream_sources):
-        input_index = input_file_map[source.source_stream.file]
-
-        # Add map argument using the original stream index from the source file
-        ffmpeg_args.extend(["-map", f"{input_index}:{source.source_stream.index}"])
-
-        # Add codec arguments using the global output stream index
-        if isinstance(source.conversion, Copy):
-            ffmpeg_args.extend([f"-codec:{i}", "copy"])
-        elif is_audio_stream_source(source):
-            ffmpeg_args.extend(_build_audio_encode_args(source, i))
-        else:
-            # This path should be unreachable due to validation in StreamSourcesForAudioEncoding
-            raise ValueError(
-                f"Invalid conversion requested for stream type "
-                f"'{type(source.source_stream).__name__}'."
-            )
-
-    ffmpeg_args.extend(build_disposition_args(stream_sources))
-
-    # Add final output arguments
-    ffmpeg_args.extend(["-f", "mp4", str(output_path)])
-
-    return ffmpeg_args
+    return EncodeAudio(
+        codec=codec,
+        sample_rate=stream.sample_rate,
+        channels=stream.channels,
+        profile=(
+            _FFMPEG_AAC_PROFILES.get(stream.profile, stream.profile)
+            if stream.profile is not None
+            else None
+        ),
+        bit_rate=stream.bit_rate,
+    )
 
 
 def encode_mismatched_audio_streams(
@@ -291,7 +217,7 @@ def encode_mismatched_audio_streams(
         logger.info("No audio streams require encoding. Skipping.")
         return None
 
-    ffmpeg_args = _build_ffmpeg_args_from_stream_sources(
+    ffmpeg_args = build_ffmpeg_args(
         stream_sources=stream_sources,
         output_path=output_file,
     )
