@@ -1,17 +1,14 @@
-"""Encodes mismatched audio streams that failed integrity checks."""
+"""Builds the stream sources that re-encode audio streams failing integrity checks."""
 
-from pathlib import Path
 from typing import Self
 
 from logzero import logger
 from pydantic import model_validator
 
-from .ffmpeg import execute_ffmpeg, is_libfdk_aac_available
-from .ffmpeg_args import build_ffmpeg_args
+from .ffmpeg import is_libfdk_aac_available
 from .stream_integrity import IntegrityReport
 from .stream_source import (
     AudioConversion,
-    ConvertedVideoFile,
     Copy,
     EncodeAudio,
     StreamSource,
@@ -72,16 +69,32 @@ class StreamSourcesForAudioEncoding(StreamSources):
         return self
 
 
-AudioEncodedFile = ConvertedVideoFile[StreamSourcesForAudioEncoding]
-"""Represents a ConvertedVideoFile after mismatched audio encoding."""
-
-
-def _build_stream_sources_for_audio_encoding(
+def build_stream_sources_for_audio_encoding(
     original_file: VideoFile,
     encoded_file: VideoEncodedFile,
     integrity_report: IntegrityReport,
 ) -> StreamSourcesForAudioEncoding:
-    """Build the stream sources for audio encoding."""
+    """Build the stream sources that fix mismatched audio streams.
+
+    Video streams and matching audio streams are copied from ``encoded_file``.
+    Audio streams reported as mismatched in ``integrity_report`` are encoded
+    from ``original_file`` with their original settings.
+
+    Args:
+    ----
+        original_file: The VideoFile object for the original source file (e.g., .ts).
+        encoded_file: The VideoEncodedFile produced from original_file.
+                      It contains the mapping between original and encoded streams.
+        integrity_report: The IntegrityReport from check_integrity on encoded_file.
+                          It must report at least one mismatched stream.
+
+    Raises
+    ------
+        ValueError: If integrity_report reports no mismatched streams.
+    """
+    if integrity_report.is_ok:
+        raise ValueError("integrity_report must report at least one mismatch.")
+
     # Source streams are guaranteed to be unique for a video-encoded file.
     # stream_sources position i corresponds to output stream index i.
     streams_by_index = streams_by_unique_index(encoded_file.streams)
@@ -177,58 +190,3 @@ def _build_encode_audio_for(stream: AudioStream) -> EncodeAudio:
         ),
         bit_rate=stream.bit_rate,
     )
-
-
-def encode_mismatched_audio_streams(
-    original_file: VideoFile,
-    encoded_file: VideoEncodedFile,
-    integrity_report: IntegrityReport,
-    output_file: Path,
-) -> AudioEncodedFile:
-    """Encode mismatched audio streams from an original file to a new output file.
-
-    This function treats audio streams reported as mismatched in integrity_report
-    as having different content compared to the original file. It then
-    generates a new video file by:
-    - Copying the video stream from the already encoded file.
-    - Copying matching audio streams from the encoded file.
-    - Encoding mismatched or missing audio streams from the original file.
-
-    Args:
-    ----
-        original_file: The VideoFile object for the original source file (e.g., .ts).
-        encoded_file: The VideoEncodedFile object from encode_video_streams.
-                      It contains the mapping between original and encoded streams.
-        integrity_report: The IntegrityReport from check_integrity on encoded_file.
-                          It must report at least one mismatched stream.
-        output_file: The path where the corrected output file will be saved.
-
-    Returns
-    -------
-        The AudioEncodedFile written to output_file.
-
-    Raises
-    ------
-        ValueError: If integrity_report reports no mismatched streams.
-    """
-    if integrity_report.is_ok:
-        raise ValueError("integrity_report must report at least one mismatch.")
-
-    stream_sources = _build_stream_sources_for_audio_encoding(
-        original_file=original_file,
-        encoded_file=encoded_file,
-        integrity_report=integrity_report,
-    )
-
-    ffmpeg_args = build_ffmpeg_args(
-        stream_sources=stream_sources,
-        output_path=output_file,
-    )
-
-    execute_ffmpeg(ffmpeg_args)
-
-    audio_encoded_file = AudioEncodedFile(
-        path=output_file, stream_sources=stream_sources
-    )
-
-    return audio_encoded_file

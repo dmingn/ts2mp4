@@ -1,15 +1,9 @@
-"""Encodes video streams from TS to MP4 (pipeline stage 1).
+"""Builds the stream sources for encoding video from TS to MP4."""
 
-Output is consumed by audio_encoder when copied audio fails integrity checks.
-"""
-
-from pathlib import Path
 from typing import Self
 
 from pydantic import model_validator
 
-from .ffmpeg import execute_ffmpeg
-from .ffmpeg_args import build_ffmpeg_args
 from .stream_source import (
     ConvertedVideoFile,
     Copy,
@@ -54,10 +48,10 @@ VideoEncodedFile = ConvertedVideoFile[StreamSourcesForVideoEncoding]
 """Represents a ConvertedVideoFile after video stream encoding."""
 
 
-def _build_stream_sources(
+def build_stream_sources_for_video_encoding(
     input_file: VideoFile, crf: int, preset: str
 ) -> StreamSourcesForVideoEncoding:
-    """Build the stream sources for video encoding."""
+    """Build the stream sources that encode video and copy audio from TS to MP4."""
     encode_video = EncodeVideo(
         codec="libx265",
         crf=crf,
@@ -82,15 +76,3 @@ def _build_stream_sources(
     ]
 
     return StreamSourcesForVideoEncoding(root=tuple(video_sources + audio_sources))
-
-
-def encode_video_streams(
-    input_file: VideoFile, output_path: Path, crf: int, preset: str
-) -> VideoEncodedFile:
-    """Encode video streams from TS to MP4 (audio streams are copied)."""
-    stream_sources = _build_stream_sources(input_file, crf=crf, preset=preset)
-    ffmpeg_args = build_ffmpeg_args(
-        stream_sources=stream_sources, output_path=output_path
-    )
-    execute_ffmpeg(ffmpeg_args)
-    return VideoEncodedFile(path=output_path, stream_sources=stream_sources)

@@ -16,25 +16,52 @@ _MISMATCH_REPORT = IntegrityReport(mismatched_output_indices=frozenset({1}))
 
 
 @pytest.mark.unit
-def test_ts2mp4_encodes_video_with_given_parameters(
+def test_ts2mp4_builds_video_stream_sources_with_given_parameters(
     mock_video_file: VideoFile,
     mocker: MockerFixture,
 ) -> None:
-    """Pass the input file, output path, crf, and preset to encode_video_streams."""
+    """Pass the input file, crf, and preset to the video stream source builder."""
     # Arrange
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
 
-    mock_encode_video_streams = mocker.patch("ts2mp4.ts2mp4.encode_video_streams")
+    mock_build_video_stream_sources = mocker.patch(
+        "ts2mp4.ts2mp4.build_stream_sources_for_video_encoding"
+    )
+    mocker.patch("ts2mp4.ts2mp4.execute_conversion")
     mocker.patch("ts2mp4.ts2mp4.check_integrity", return_value=_OK_REPORT)
 
     # Act
     ts2mp4(mock_video_file, output_file, crf, preset)
 
     # Assert
-    mock_encode_video_streams.assert_called_once_with(
-        mock_video_file, output_file, crf, preset
+    mock_build_video_stream_sources.assert_called_once_with(
+        mock_video_file, crf=crf, preset=preset
+    )
+
+
+@pytest.mark.unit
+def test_ts2mp4_converts_video_stream_sources_to_output(
+    mock_video_file: VideoFile,
+    mocker: MockerFixture,
+) -> None:
+    """Convert the video stream sources into the output path."""
+    # Arrange
+    output_file = Path("output.mp4")
+
+    mock_build_video_stream_sources = mocker.patch(
+        "ts2mp4.ts2mp4.build_stream_sources_for_video_encoding"
+    )
+    mock_execute_conversion = mocker.patch("ts2mp4.ts2mp4.execute_conversion")
+    mocker.patch("ts2mp4.ts2mp4.check_integrity", return_value=_OK_REPORT)
+
+    # Act
+    ts2mp4(mock_video_file, output_file, crf=23, preset="medium")
+
+    # Assert
+    mock_execute_conversion.assert_called_once_with(
+        mock_build_video_stream_sources.return_value, output_file
     )
 
 
@@ -43,7 +70,7 @@ def test_ts2mp4_checks_integrity_of_video_encoded_file(
     mock_video_file: VideoFile,
     mocker: MockerFixture,
 ) -> None:
-    """Check integrity of the file produced by encode_video_streams."""
+    """Check integrity of the file produced by the video conversion."""
     # Arrange
     output_file = Path("output.mp4")
     crf = 23
@@ -51,8 +78,9 @@ def test_ts2mp4_checks_integrity_of_video_encoded_file(
 
     mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
     mock_output_video_file_instance.path = output_file
+    mocker.patch("ts2mp4.ts2mp4.build_stream_sources_for_video_encoding")
     mocker.patch(
-        "ts2mp4.ts2mp4.encode_video_streams",
+        "ts2mp4.ts2mp4.execute_conversion",
         return_value=mock_output_video_file_instance,
     )
     mock_check_integrity = mocker.patch(
@@ -76,29 +104,34 @@ def test_ts2mp4_skips_audio_encoding_when_integrity_is_ok(
     crf = 23
     preset = "medium"
 
-    mocker.patch("ts2mp4.ts2mp4.encode_video_streams")
+    mocker.patch("ts2mp4.ts2mp4.build_stream_sources_for_video_encoding")
+    mock_execute_conversion = mocker.patch("ts2mp4.ts2mp4.execute_conversion")
     mocker.patch("ts2mp4.ts2mp4.check_integrity", return_value=_OK_REPORT)
-    mock_encode_audio = mocker.patch("ts2mp4.ts2mp4.encode_mismatched_audio_streams")
+    mock_build_audio_stream_sources = mocker.patch(
+        "ts2mp4.ts2mp4.build_stream_sources_for_audio_encoding"
+    )
 
     # Act
     ts2mp4(mock_video_file, output_file, crf, preset)
 
     # Assert
-    mock_encode_audio.assert_not_called()
+    mock_build_audio_stream_sources.assert_not_called()
+    mock_execute_conversion.assert_called_once()
 
 
 @pytest.mark.unit
 def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(
     mock_video_file: VideoFile, mocker: MockerFixture
 ) -> None:
-    """Propagate RuntimeError when encode_video_streams fails."""
+    """Propagate RuntimeError when the video conversion fails."""
     # Arrange
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
 
+    mocker.patch("ts2mp4.ts2mp4.build_stream_sources_for_video_encoding")
     mocker.patch(
-        "ts2mp4.ts2mp4.encode_video_streams",
+        "ts2mp4.ts2mp4.execute_conversion",
         side_effect=RuntimeError("ffmpeg failed with return code 1"),
     )
 
@@ -111,14 +144,15 @@ def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(
 def test_ts2mp4_does_not_check_integrity_on_ffmpeg_failure(
     mock_video_file: VideoFile, mocker: MockerFixture
 ) -> None:
-    """Skip check_integrity when encode_video_streams raises."""
+    """Skip check_integrity when the video conversion raises."""
     # Arrange
     output_file = Path("output.mp4")
     crf = 23
     preset = "medium"
 
+    mocker.patch("ts2mp4.ts2mp4.build_stream_sources_for_video_encoding")
     mocker.patch(
-        "ts2mp4.ts2mp4.encode_video_streams",
+        "ts2mp4.ts2mp4.execute_conversion",
         side_effect=RuntimeError("ffmpeg failed with return code 1"),
     )
     mock_check_integrity = mocker.patch("ts2mp4.ts2mp4.check_integrity")
@@ -140,12 +174,13 @@ def test_ts2mp4_propagates_runtime_error_from_check_integrity(
     crf = 23
     preset = "medium"
 
-    mocker.patch("ts2mp4.ts2mp4.encode_video_streams")
+    mocker.patch("ts2mp4.ts2mp4.build_stream_sources_for_video_encoding")
+    mocker.patch("ts2mp4.ts2mp4.execute_conversion")
     mocker.patch(
         "ts2mp4.ts2mp4.check_integrity",
         side_effect=RuntimeError("Stream type mismatch for stream index 1"),
     )
-    mocker.patch("ts2mp4.ts2mp4.encode_mismatched_audio_streams")
+    mocker.patch("ts2mp4.ts2mp4.build_stream_sources_for_audio_encoding")
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="Stream type mismatch"):
@@ -156,7 +191,8 @@ class _AudioFallbackMocks(NamedTuple):
     video_encoded_file: MagicMock
     audio_encoded_file: MagicMock
     check_integrity: MagicMock
-    encode_audio: MagicMock
+    build_audio_stream_sources: MagicMock
+    execute_conversion: MagicMock
     check_audio_quality: MagicMock
     replace: MagicMock
 
@@ -168,7 +204,7 @@ def audio_fallback_mocks(mocker: MockerFixture) -> _AudioFallbackMocks:
     video_encoded_file.path = Path("output.mp4")
     audio_encoded_file = mocker.MagicMock(spec=VideoFile)
     audio_encoded_file.path = Path("output.mp4.temp")
-    mocker.patch("ts2mp4.ts2mp4.encode_video_streams", return_value=video_encoded_file)
+    mocker.patch("ts2mp4.ts2mp4.build_stream_sources_for_video_encoding")
 
     return _AudioFallbackMocks(
         video_encoded_file=video_encoded_file,
@@ -177,9 +213,12 @@ def audio_fallback_mocks(mocker: MockerFixture) -> _AudioFallbackMocks:
             "ts2mp4.ts2mp4.check_integrity",
             side_effect=[_MISMATCH_REPORT, _OK_REPORT],
         ),
-        encode_audio=mocker.patch(
-            "ts2mp4.ts2mp4.encode_mismatched_audio_streams",
-            return_value=audio_encoded_file,
+        build_audio_stream_sources=mocker.patch(
+            "ts2mp4.ts2mp4.build_stream_sources_for_audio_encoding"
+        ),
+        execute_conversion=mocker.patch(
+            "ts2mp4.ts2mp4.execute_conversion",
+            side_effect=[video_encoded_file, audio_encoded_file],
         ),
         check_audio_quality=mocker.patch(
             "ts2mp4.ts2mp4.check_audio_quality", return_value={}
@@ -189,10 +228,10 @@ def audio_fallback_mocks(mocker: MockerFixture) -> _AudioFallbackMocks:
 
 
 @pytest.mark.unit
-def test_ts2mp4_encodes_mismatched_audio_on_integrity_failure(
+def test_ts2mp4_builds_audio_stream_sources_on_integrity_failure(
     mock_video_file: VideoFile, audio_fallback_mocks: _AudioFallbackMocks
 ) -> None:
-    """Encode mismatched audio into a temp file when the integrity check fails."""
+    """Build audio stream sources from the report when the integrity check fails."""
     # Arrange
     output_file = Path("output.mp4")
 
@@ -200,11 +239,28 @@ def test_ts2mp4_encodes_mismatched_audio_on_integrity_failure(
     ts2mp4(mock_video_file, output_file, crf=23, preset="medium")
 
     # Assert
-    audio_fallback_mocks.encode_audio.assert_called_once_with(
+    audio_fallback_mocks.build_audio_stream_sources.assert_called_once_with(
         original_file=mock_video_file,
         encoded_file=audio_fallback_mocks.video_encoded_file,
         integrity_report=_MISMATCH_REPORT,
-        output_file=Path("output.mp4.temp"),
+    )
+
+
+@pytest.mark.unit
+def test_ts2mp4_converts_audio_stream_sources_to_temp_file(
+    mock_video_file: VideoFile, audio_fallback_mocks: _AudioFallbackMocks
+) -> None:
+    """Convert the audio stream sources into a temp file next to the output."""
+    # Arrange
+    output_file = Path("output.mp4")
+
+    # Act
+    ts2mp4(mock_video_file, output_file, crf=23, preset="medium")
+
+    # Assert
+    audio_fallback_mocks.execute_conversion.assert_called_with(
+        audio_fallback_mocks.build_audio_stream_sources.return_value,
+        Path("output.mp4.temp"),
     )
 
 
@@ -278,27 +334,16 @@ def test_ts2mp4_replaces_output_with_audio_encoded_file(
 
 @pytest.mark.unit
 def test_ts2mp4_raises_on_audio_encode_failure(
-    mock_video_file: VideoFile, mocker: MockerFixture, tmp_path: Path
+    mock_video_file: VideoFile, audio_fallback_mocks: _AudioFallbackMocks
 ) -> None:
-    """Propagate RuntimeError when encode_mismatched_audio_streams fails."""
+    """Propagate RuntimeError when the audio conversion fails."""
     # Arrange
-    output_file = tmp_path / "output.mp4"
-    output_file.touch()
-    crf = 23
-    preset = "medium"
-
-    mock_output_video_file_instance = mocker.MagicMock(spec=VideoFile)
-    mock_output_video_file_instance.path = output_file
-    mocker.patch(
-        "ts2mp4.ts2mp4.encode_video_streams",
-        return_value=mock_output_video_file_instance,
-    )
-    mocker.patch("ts2mp4.ts2mp4.check_integrity", return_value=_MISMATCH_REPORT)
-    mocker.patch(
-        "ts2mp4.ts2mp4.encode_mismatched_audio_streams",
-        side_effect=RuntimeError("Encode failed"),
-    )
+    output_file = Path("output.mp4")
+    audio_fallback_mocks.execute_conversion.side_effect = [
+        audio_fallback_mocks.video_encoded_file,
+        RuntimeError("Encode failed"),
+    ]
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="Encode failed"):
-        ts2mp4(mock_video_file, output_file, crf, preset)
+        ts2mp4(mock_video_file, output_file, crf=23, preset="medium")
