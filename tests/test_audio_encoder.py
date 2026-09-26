@@ -10,8 +10,7 @@ from tests.helpers import StubVideoFile, stream_at
 from ts2mp4.audio_encoder import (
     StreamSourceForAudioEncoding,
     StreamSourcesForAudioEncoding,
-    _build_audio_encode_args,
-    _build_ffmpeg_args_from_stream_sources,
+    _build_encode_audio_for,
     _build_stream_sources_for_audio_encoding,
     encode_mismatched_audio_streams,
 )
@@ -168,11 +167,13 @@ def test_build_stream_sources_for_audio_encoding_no_mismatch(
 
 @pytest.mark.unit
 def test_build_stream_sources_for_audio_encoding_with_mismatch(
+    mocker: MockerFixture,
     mock_original_video_file: VideoFile,
     mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
     """Tests that the source of a mismatched output stream is encoded from the original."""
     # Arrange
+    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     # Output stream 1 comes from original stream 2, and output 2 from original 1.
     mock_encoded_video_file = mock_video_encoded_file_factory(
         mock_original_video_file, [0, 2, 1]
@@ -210,120 +211,114 @@ def test_build_stream_sources_for_audio_encoding_missing_stream_raises_error(
 
 
 @pytest.mark.unit
-def test_build_audio_encode_args(mocker: MockerFixture, tmp_path: Path) -> None:
-    """Test that audio convert arguments are built correctly."""
+def test_build_encode_audio_for_takes_settings_from_stream(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    """_build_encode_audio_for takes sample rate, channels and bit rate from the stream."""
     # Arrange
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
-    stream_source: StreamSource[AudioStream, EncodeAudio] = StreamSource(
-        source_stream=_probed_audio_stream(
-            tmp_path,
-            codec_name="aac",
-            sample_rate=48000,
-            channels=2,
-            profile="LC",
-            bit_rate=192000,
-        ),
-        conversion=EncodeAudio(),
+    stream = _probed_audio_stream(
+        tmp_path,
+        codec_name="aac",
+        sample_rate=48000,
+        channels=2,
+        bit_rate=192000,
     )
 
     # Act
-    args = _build_audio_encode_args(stream_source, 1)
+    conversion = _build_encode_audio_for(stream)
 
     # Assert
-    assert args == [
-        "-codec:1",
-        "aac",
-        "-ar:1",
-        "48000",
-        "-ac:1",
-        "2",
-        "-profile:1",
-        "aac_low",
-        "-b:1",
-        "192000",
-        "-bsf:1",
-        "aac_adtstoasc",
-    ]
+    assert conversion == EncodeAudio(
+        codec="aac",
+        sample_rate=48000,
+        channels=2,
+        bit_rate=192000,
+    )
 
 
 @pytest.mark.unit
-def test_build_audio_encode_args_with_libfdk_aac(
+def test_build_encode_audio_for_maps_lc_profile_to_aac_low(
     mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """Test that libfdk_aac is used when available for audio conversion."""
+    """_build_encode_audio_for maps the probed LC profile to FFmpeg's aac_low."""
+    # Arrange
+    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
+    stream = _probed_audio_stream(tmp_path, codec_name="aac", profile="LC")
+
+    # Act
+    conversion = _build_encode_audio_for(stream)
+
+    # Assert
+    assert conversion.profile == "aac_low"
+
+
+@pytest.mark.unit
+def test_build_encode_audio_for_uses_libfdk_aac_when_available(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    """_build_encode_audio_for selects libfdk_aac when it is available."""
     # Arrange
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=True)
-    stream_source: StreamSource[AudioStream, EncodeAudio] = StreamSource(
-        source_stream=_probed_audio_stream(tmp_path, codec_name="aac"),
-        conversion=EncodeAudio(),
-    )
+    stream = _probed_audio_stream(tmp_path, codec_name="aac")
 
     # Act
-    args = _build_audio_encode_args(stream_source, 1)
+    conversion = _build_encode_audio_for(stream)
 
     # Assert
-    assert "libfdk_aac" in args
+    assert conversion.codec == "libfdk_aac"
 
 
 @pytest.mark.unit
-def test_build_audio_encode_args_without_libfdk_aac(
+def test_build_encode_audio_for_warns_when_libfdk_aac_unavailable(
     mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """Test that a warning is logged when libfdk_aac is not available for audio conversion."""
+    """_build_encode_audio_for warns and falls back to aac without libfdk_aac."""
     # Arrange
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     mock_logger_warning = mocker.patch("ts2mp4.audio_encoder.logger.warning")
-    stream_source: StreamSource[AudioStream, EncodeAudio] = StreamSource(
-        source_stream=_probed_audio_stream(tmp_path, codec_name="aac"),
-        conversion=EncodeAudio(),
-    )
+    stream = _probed_audio_stream(tmp_path, codec_name="aac")
 
     # Act
-    args = _build_audio_encode_args(stream_source, 1)
+    conversion = _build_encode_audio_for(stream)
 
     # Assert
-    assert "aac" in args
+    assert conversion.codec == "aac"
     mock_logger_warning.assert_called_once_with(
         "libfdk_aac is not available. Falling back to the default AAC encoder."
     )
 
 
 @pytest.mark.unit
-def test_build_audio_encode_args_with_none_values(
+def test_build_encode_audio_for_leaves_unknown_settings_unset(
     mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """Test that audio convert arguments are built correctly with minimal stream info."""
+    """_build_encode_audio_for leaves settings the probe does not report as None."""
     # Arrange
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
-    stream_source: StreamSource[AudioStream, EncodeAudio] = StreamSource(
-        source_stream=_probed_audio_stream(tmp_path, codec_name="aac"),
-        conversion=EncodeAudio(),
-    )
+    stream = _probed_audio_stream(tmp_path, codec_name="aac")
 
     # Act
-    args = _build_audio_encode_args(stream_source, 1)
+    conversion = _build_encode_audio_for(stream)
 
     # Assert
-    assert args == ["-codec:1", "aac", "-bsf:1", "aac_adtstoasc"]
+    assert conversion == EncodeAudio(codec="aac")
 
 
 @pytest.mark.unit
-def test_build_audio_encode_args_raises_for_unsupported_codec(
+def test_build_encode_audio_for_raises_for_unsupported_codec(
     tmp_path: Path,
 ) -> None:
-    """Test that an error is raised for unsupported audio codecs."""
+    """_build_encode_audio_for rejects codecs other than aac."""
     # Arrange
-    stream_source: StreamSource[AudioStream, EncodeAudio] = StreamSource(
-        source_stream=_probed_audio_stream(tmp_path, codec_name="mp3"),
-        conversion=EncodeAudio(),
-    )
+    stream = _probed_audio_stream(tmp_path, codec_name="mp3")
 
     # Act & Assert
     with pytest.raises(
         NotImplementedError,
         match="Encoding is currently only supported for aac audio codec.",
     ):
-        _build_audio_encode_args(stream_source, 1)
+        _build_encode_audio_for(stream)
 
 
 @pytest.mark.integration
@@ -417,93 +412,6 @@ def test_encode_mismatched_audio_streams_no_encoding_needed(
 
 
 @pytest.mark.unit
-def test_build_ffmpeg_args_from_stream_sources(
-    mocker: MockerFixture, tmp_path: Path
-) -> None:
-    """Tests that FFmpeg arguments are correctly built from a StreamSources object."""
-    # Arrange
-    dummy_original_file = tmp_path / "original.ts"
-    dummy_original_file.touch()
-    original_file = VideoFile(path=dummy_original_file)
-
-    dummy_encoded_file = tmp_path / "encoded.mp4"
-    dummy_encoded_file.touch()
-    encoded_file = VideoFile(path=dummy_encoded_file)
-
-    ss1: StreamSource[VideoStream, Copy] = StreamSource(
-        source_stream=VideoStream(file=encoded_file, index=0),
-        conversion=Copy(),
-    )
-    ss2: StreamSource[AudioStream, Copy] = StreamSource(
-        source_stream=AudioStream(file=encoded_file, index=1),
-        conversion=Copy(),
-    )
-    ss3: StreamSource[AudioStream, EncodeAudio] = StreamSource(
-        source_stream=AudioStream(file=original_file, index=2),
-        conversion=EncodeAudio(),
-    )
-
-    stream_sources = StreamSourcesForAudioEncoding(root=(ss1, ss2, ss3))
-
-    mock_build_audio_encode_args = mocker.patch(
-        "ts2mp4.audio_encoder._build_audio_encode_args",
-        return_value=["-codec:2", "libfdk_aac"],
-    )
-    mocker.patch(
-        "ts2mp4.audio_encoder.build_disposition_args",
-        return_value=[
-            "-disposition:0",
-            "default",
-            "-disposition:1",
-            "default",
-            "-disposition:2",
-            "0",
-        ],
-    )
-
-    output_path = Path("output.mp4")
-    expected_args = [
-        "-hide_banner",
-        "-nostats",
-        "-fflags",
-        "+discardcorrupt",
-        "-y",
-        "-i",
-        str(encoded_file.path),
-        "-i",
-        str(original_file.path),
-        "-map",
-        "0:0",
-        "-codec:0",
-        "copy",
-        "-map",
-        "0:1",
-        "-codec:1",
-        "copy",
-        "-map",
-        "1:2",
-        "-codec:2",
-        "libfdk_aac",
-        "-disposition:0",
-        "default",
-        "-disposition:1",
-        "default",
-        "-disposition:2",
-        "0",
-        "-f",
-        "mp4",
-        str(output_path),
-    ]
-
-    # Act
-    args = _build_ffmpeg_args_from_stream_sources(stream_sources, output_path)
-
-    # Assert
-    assert args == expected_args
-    mock_build_audio_encode_args.assert_called_once_with(ss3, 2)
-
-
-@pytest.mark.unit
 def test_stream_sources_for_audio_encoding_validation_success(
     tmp_path: Path,
 ) -> None:
@@ -523,7 +431,7 @@ def test_stream_sources_for_audio_encoding_validation_success(
             source_stream=VideoStream(file=encoded_file, index=0),
         ),
         StreamSource(
-            conversion=EncodeAudio(),
+            conversion=EncodeAudio(codec="aac"),
             source_stream=AudioStream(file=original_file, index=1),
         ),
     ]
@@ -584,7 +492,7 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
             source_stream=AudioStream(file=encoded_file, index=1),
         ),
         StreamSource(
-            conversion=EncodeAudio(),
+            conversion=EncodeAudio(codec="aac"),
             source_stream=AudioStream(file=original_file, index=2),
         ),
     ]
@@ -619,7 +527,7 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
     elif modifier == "encoded_from_multiple":
         sources.append(
             StreamSource(
-                conversion=EncodeAudio(),
+                conversion=EncodeAudio(codec="aac"),
                 source_stream=AudioStream(file=another_original, index=3),
             )
         )
