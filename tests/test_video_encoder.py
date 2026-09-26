@@ -68,7 +68,7 @@ def test_build_stream_sources_for_video_encoding_orders_by_stream_index(
 
     # Assert
     assert [s.source_stream.index for s in stream_sources] == [0, 1, 2, 3]
-    assert [type(s.conversion) for s in stream_sources] == [
+    assert [type(s.conversion_method) for s in stream_sources] == [
         EncodeVideo,
         EncodeVideo,
         Copy,
@@ -93,11 +93,11 @@ def test_build_stream_sources_for_video_encoding_marks_video_encoded_and_audio_c
     assert isinstance(stream_sources, StreamSourcesForVideoEncoding)
     assert len(stream_sources) == 3
     assert isinstance(stream_sources[0].source_stream, VideoStream)
-    assert isinstance(stream_sources[0].conversion, EncodeVideo)
+    assert isinstance(stream_sources[0].conversion_method, EncodeVideo)
     assert isinstance(stream_sources[1].source_stream, AudioStream)
-    assert stream_sources[1].conversion == Copy()
+    assert stream_sources[1].conversion_method == Copy()
     assert isinstance(stream_sources[2].source_stream, AudioStream)
-    assert stream_sources[2].conversion == Copy()
+    assert stream_sources[2].conversion_method == Copy()
 
 
 @pytest.mark.unit
@@ -114,7 +114,7 @@ def test_build_stream_sources_for_video_encoding_encodes_video_with_libx265_sett
     )
 
     # Assert
-    assert stream_sources[0].conversion == EncodeVideo(
+    assert stream_sources[0].conversion_method == EncodeVideo(
         codec="libx265",
         crf=23,
         preset="medium",
@@ -160,11 +160,11 @@ def test_stream_sources_for_video_encoding_raises_on_invalid_sources(
     sources: list[StreamSourceForVideoEncoding] = [
         StreamConversionPlan(
             source_stream=stream_at(video_file.streams, 0),
-            conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
+            conversion_method=EncodeVideo(codec="libx265", crf=23, preset="medium"),
         ),
         StreamConversionPlan(
             source_stream=stream_at(video_file.streams, 1),
-            conversion=Copy(),
+            conversion_method=Copy(),
         ),
     ]
 
@@ -177,7 +177,7 @@ def test_stream_sources_for_video_encoding_raises_on_invalid_sources(
         sources.append(
             StreamConversionPlan(
                 source_stream=stream_at(other_video_file.streams, 0),
-                conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
+                conversion_method=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             )
         )
     elif modifier == "duplicate_streams":

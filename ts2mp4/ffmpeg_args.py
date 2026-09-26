@@ -3,7 +3,13 @@
 from pathlib import Path
 from typing import assert_never
 
-from .stream_source import Conversion, Copy, EncodeAudio, EncodeVideo, StreamSources
+from .stream_source import (
+    ConversionMethod,
+    Copy,
+    EncodeAudio,
+    EncodeVideo,
+    StreamSources,
+)
 
 
 def _stream_options_args(
@@ -18,43 +24,43 @@ def _stream_options_args(
     ]
 
 
-def _encode_video_args(conversion: EncodeVideo, output_index: int) -> list[str]:
-    """Build the codec arguments for an output stream encoded with ``conversion``."""
+def _encode_video_args(conversion_method: EncodeVideo, output_index: int) -> list[str]:
+    """Build the codec arguments for an output stream encoded with ``conversion_method``."""
     return _stream_options_args(
         [
-            ("codec", conversion.codec),
-            ("crf", conversion.crf),
-            ("preset", conversion.preset),
-            ("filter", conversion.video_filter),
-            ("fps_mode", conversion.fps_mode),
+            ("codec", conversion_method.codec),
+            ("crf", conversion_method.crf),
+            ("preset", conversion_method.preset),
+            ("filter", conversion_method.video_filter),
+            ("fps_mode", conversion_method.fps_mode),
         ],
         output_index,
     )
 
 
-def _encode_audio_args(conversion: EncodeAudio, output_index: int) -> list[str]:
-    """Build the codec arguments for an output stream encoded with ``conversion``."""
+def _encode_audio_args(conversion_method: EncodeAudio, output_index: int) -> list[str]:
+    """Build the codec arguments for an output stream encoded with ``conversion_method``."""
     return _stream_options_args(
         [
-            ("codec", conversion.codec),
-            ("ar", conversion.sample_rate),
-            ("ac", conversion.channels),
-            ("profile", conversion.profile),
-            ("b", conversion.bit_rate),
+            ("codec", conversion_method.codec),
+            ("ar", conversion_method.sample_rate),
+            ("ac", conversion_method.channels),
+            ("profile", conversion_method.profile),
+            ("b", conversion_method.bit_rate),
         ],
         output_index,
     )
 
 
-def _codec_args(conversion: Conversion, output_index: int) -> list[str]:
+def _codec_args(conversion_method: ConversionMethod, output_index: int) -> list[str]:
     """Build the codec arguments for an output stream."""
-    match conversion:
+    match conversion_method:
         case Copy():
             return [f"-codec:{output_index}", "copy"]
         case EncodeVideo():
-            return _encode_video_args(conversion, output_index)
+            return _encode_video_args(conversion_method, output_index)
         case EncodeAudio():
-            return _encode_audio_args(conversion, output_index)
+            return _encode_audio_args(conversion_method, output_index)
         case _ as unreachable:
             assert_never(unreachable)
 
@@ -95,7 +101,7 @@ def build_ffmpeg_args(stream_sources: StreamSources, output_path: Path) -> list[
                 "-map",
                 f"{input_index_by_file[source.source_stream.file]}:"
                 f"{source.source_stream.index}",
-                *_codec_args(source.conversion, i),
+                *_codec_args(source.conversion_method, i),
             )
         ]
         + _disposition_args(stream_sources)

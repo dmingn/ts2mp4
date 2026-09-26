@@ -47,17 +47,17 @@ class EncodeAudio(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-VideoConversion = Copy | EncodeVideo
-AudioConversion = Copy | EncodeAudio
-Conversion = VideoConversion | AudioConversion
-ConversionT = TypeVar("ConversionT", bound=Conversion, covariant=True)
+VideoConversionMethod = Copy | EncodeVideo
+AudioConversionMethod = Copy | EncodeAudio
+ConversionMethod = VideoConversionMethod | AudioConversionMethod
+ConversionMethodT = TypeVar("ConversionMethodT", bound=ConversionMethod, covariant=True)
 
 
-class StreamConversionPlan(BaseModel, Generic[StreamT, ConversionT]):
+class StreamConversionPlan(BaseModel, Generic[StreamT, ConversionMethodT]):
     """How one output stream is made from ``source_stream``."""
 
     source_stream: StreamT
-    conversion: ConversionT
+    conversion_method: ConversionMethodT
 
     model_config = ConfigDict(frozen=True)
 
@@ -66,42 +66,44 @@ class StreamWithSource(BaseModel, Generic[StreamT]):
     """A class representing a stream with its source."""
 
     stream: StreamT
-    source: StreamConversionPlan[StreamT, Conversion]
+    source: StreamConversionPlan[StreamT, ConversionMethod]
 
     model_config = ConfigDict(frozen=True)
 
 
 def is_video_stream_source(
-    source: StreamConversionPlan[Stream, ConversionT],
-) -> TypeGuard[StreamConversionPlan[VideoStream, ConversionT]]:
+    source: StreamConversionPlan[Stream, ConversionMethodT],
+) -> TypeGuard[StreamConversionPlan[VideoStream, ConversionMethodT]]:
     """Return True if the source is a video stream source."""
     return isinstance(source.source_stream, VideoStream)
 
 
 def is_audio_stream_source(
-    source: StreamConversionPlan[Stream, ConversionT],
-) -> TypeGuard[StreamConversionPlan[AudioStream, ConversionT]]:
+    source: StreamConversionPlan[Stream, ConversionMethodT],
+) -> TypeGuard[StreamConversionPlan[AudioStream, ConversionMethodT]]:
     """Return True if the source is an audio stream source."""
     return isinstance(source.source_stream, AudioStream)
 
 
 def is_other_stream_source(
-    source: StreamConversionPlan[Stream, ConversionT],
-) -> TypeGuard[StreamConversionPlan[OtherStream, ConversionT]]:
+    source: StreamConversionPlan[Stream, ConversionMethodT],
+) -> TypeGuard[StreamConversionPlan[OtherStream, ConversionMethodT]]:
     """Return True if the source is an other stream source."""
     return isinstance(source.source_stream, OtherStream)
 
 
-class StreamSources(RootModel[tuple[StreamConversionPlan[Stream, Conversion], ...]]):
+class StreamSources(
+    RootModel[tuple[StreamConversionPlan[Stream, ConversionMethod], ...]]
+):
     """A tuple of StreamConversionPlan objects."""
 
     model_config = ConfigDict(frozen=True)
 
-    def __iter__(self) -> Iterator[StreamConversionPlan[Stream, Conversion]]:  # type: ignore[override]
+    def __iter__(self) -> Iterator[StreamConversionPlan[Stream, ConversionMethod]]:  # type: ignore[override]
         """Return an iterator over the StreamConversionPlan objects."""
         return iter(self.root)
 
-    def __getitem__(self, item: int) -> StreamConversionPlan[Stream, Conversion]:
+    def __getitem__(self, item: int) -> StreamConversionPlan[Stream, ConversionMethod]:
         """Return the StreamConversionPlan object at the given index."""
         return self.root[item]
 
@@ -112,14 +114,14 @@ class StreamSources(RootModel[tuple[StreamConversionPlan[Stream, Conversion], ..
     @property
     def video_stream_sources(
         self,
-    ) -> frozenset[StreamConversionPlan[VideoStream, Conversion]]:
+    ) -> frozenset[StreamConversionPlan[VideoStream, ConversionMethod]]:
         """Return a set of video stream sources."""
         return frozenset(filter(is_video_stream_source, self.root))
 
     @property
     def audio_stream_sources(
         self,
-    ) -> frozenset[StreamConversionPlan[AudioStream, Conversion]]:
+    ) -> frozenset[StreamConversionPlan[AudioStream, ConversionMethod]]:
         """Return a set of audio stream sources."""
         return frozenset(filter(is_audio_stream_source, self.root))
 

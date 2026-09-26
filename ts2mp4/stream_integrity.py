@@ -92,7 +92,7 @@ def check_integrity(
         mismatched_output_indices=frozenset(
             stream_with_source.stream.index
             for stream_with_source in converted_file.stream_with_sources
-            if isinstance(stream_with_source.source.conversion, Copy)
+            if isinstance(stream_with_source.source.conversion_method, Copy)
             and not _stream_matches_source(stream_with_source)
         )
     )

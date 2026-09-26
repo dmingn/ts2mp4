@@ -39,11 +39,11 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
         root=(
             StreamConversionPlan(
                 source_stream=VideoStream(file=encoded_file, index=0),
-                conversion=Copy(),
+                conversion_method=Copy(),
             ),
             StreamConversionPlan(
                 source_stream=AudioStream(file=original_file, index=2),
-                conversion=EncodeAudio(codec="aac"),
+                conversion_method=EncodeAudio(codec="aac"),
             ),
         )
     )
@@ -103,15 +103,15 @@ def test_disposition_args_marks_only_default_streams(
         root=(
             StreamConversionPlan(
                 source_stream=AudioStream(file=video_file, index=0),
-                conversion=Copy(),
+                conversion_method=Copy(),
             ),
             StreamConversionPlan(
                 source_stream=AudioStream(file=video_file, index=1),
-                conversion=Copy(),
+                conversion_method=Copy(),
             ),
             StreamConversionPlan(
                 source_stream=AudioStream(file=video_file, index=2),
-                conversion=Copy(),
+                conversion_method=Copy(),
             ),
         )
     )
@@ -141,7 +141,7 @@ def test_disposition_args_marks_only_default_streams(
 def test_encode_audio_args_includes_all_set_options() -> None:
     """_encode_audio_args emits every set option for the output stream."""
     # Arrange
-    conversion = EncodeAudio(
+    conversion_method = EncodeAudio(
         codec="aac",
         sample_rate=48000,
         channels=2,
@@ -150,7 +150,7 @@ def test_encode_audio_args_includes_all_set_options() -> None:
     )
 
     # Act
-    args = _encode_audio_args(conversion, 1)
+    args = _encode_audio_args(conversion_method, 1)
 
     # Assert
     assert args == [
@@ -171,10 +171,10 @@ def test_encode_audio_args_includes_all_set_options() -> None:
 def test_encode_audio_args_omits_unset_options() -> None:
     """_encode_audio_args omits options that are None."""
     # Arrange
-    conversion = EncodeAudio(codec="aac")
+    conversion_method = EncodeAudio(codec="aac")
 
     # Act
-    args = _encode_audio_args(conversion, 1)
+    args = _encode_audio_args(conversion_method, 1)
 
     # Assert
     assert args == ["-codec:1", "aac"]
@@ -184,7 +184,7 @@ def test_encode_audio_args_omits_unset_options() -> None:
 def test_encode_video_args_includes_all_set_options() -> None:
     """_encode_video_args emits every set option for the output stream."""
     # Arrange
-    conversion = EncodeVideo(
+    conversion_method = EncodeVideo(
         codec="libx265",
         crf=23,
         preset="medium",
@@ -193,7 +193,7 @@ def test_encode_video_args_includes_all_set_options() -> None:
     )
 
     # Act
-    args = _encode_video_args(conversion, 0)
+    args = _encode_video_args(conversion_method, 0)
 
     # Assert
     assert args == [
@@ -214,10 +214,10 @@ def test_encode_video_args_includes_all_set_options() -> None:
 def test_encode_video_args_omits_unset_options() -> None:
     """_encode_video_args omits options that are None."""
     # Arrange
-    conversion = EncodeVideo(codec="libx265", crf=23, preset="medium")
+    conversion_method = EncodeVideo(codec="libx265", crf=23, preset="medium")
 
     # Act
-    args = _encode_video_args(conversion, 0)
+    args = _encode_video_args(conversion_method, 0)
 
     # Assert
     assert args == ["-codec:0", "libx265", "-crf:0", "23", "-preset:0", "medium"]

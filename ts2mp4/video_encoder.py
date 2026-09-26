@@ -64,14 +64,14 @@ def build_stream_sources_for_video_encoding(
     video_sources: list[StreamSourceForVideoEncoding] = [
         StreamConversionPlan(
             source_stream=stream,
-            conversion=encode_video,
+            conversion_method=encode_video,
         )
         for stream in sorted(input_file.valid_video_streams)
     ]
     audio_sources: list[StreamSourceForVideoEncoding] = [
         StreamConversionPlan(
             source_stream=stream,
-            conversion=Copy(),
+            conversion_method=Copy(),
         )
         for stream in sorted(input_file.valid_audio_streams)
     ]

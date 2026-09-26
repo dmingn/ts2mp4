@@ -121,7 +121,7 @@ def mock_video_encoded_file_factory(
             root=tuple(
                 StreamConversionPlan(
                     source_stream=stream_at(original_streams, i),
-                    conversion=(
+                    conversion_method=(
                         EncodeVideo(codec="libx265", crf=23, preset="medium")
                         if isinstance(stream_at(original_streams, i), VideoStream)
                         else Copy()
@@ -178,13 +178,15 @@ def test_build_stream_sources_for_audio_encoding_copies_matching_streams(
 
     # Assert
     copied_source_indices = [
-        s.source_stream.index for s in stream_sources if isinstance(s.conversion, Copy)
+        s.source_stream.index
+        for s in stream_sources
+        if isinstance(s.conversion_method, Copy)
     ]
     assert copied_source_indices == [0, 1]
     assert all(
         s.source_stream.file.path == mock_encoded_video_file.path
         for s in stream_sources
-        if isinstance(s.conversion, Copy)
+        if isinstance(s.conversion_method, Copy)
     )
 
 
@@ -210,7 +212,9 @@ def test_build_stream_sources_for_audio_encoding_with_mismatch(
 
     # Assert
     encoded_source_streams = [
-        s.source_stream for s in stream_sources if isinstance(s.conversion, EncodeAudio)
+        s.source_stream
+        for s in stream_sources
+        if isinstance(s.conversion_method, EncodeAudio)
     ]
     assert encoded_source_streams == [stream_at(mock_original_video_file.streams, 1)]
 
@@ -252,10 +256,10 @@ def test_build_encode_audio_for_takes_settings_from_stream(
     )
 
     # Act
-    conversion = _build_encode_audio_for(stream)
+    conversion_method = _build_encode_audio_for(stream)
 
     # Assert
-    assert conversion == EncodeAudio(
+    assert conversion_method == EncodeAudio(
         codec="aac",
         sample_rate=48000,
         channels=2,
@@ -273,10 +277,10 @@ def test_build_encode_audio_for_maps_lc_profile_to_aac_low(
     stream = _probed_audio_stream(tmp_path, codec_name="aac", profile="LC")
 
     # Act
-    conversion = _build_encode_audio_for(stream)
+    conversion_method = _build_encode_audio_for(stream)
 
     # Assert
-    assert conversion.profile == "aac_low"
+    assert conversion_method.profile == "aac_low"
 
 
 @pytest.mark.unit
@@ -289,10 +293,10 @@ def test_build_encode_audio_for_uses_libfdk_aac_when_available(
     stream = _probed_audio_stream(tmp_path, codec_name="aac")
 
     # Act
-    conversion = _build_encode_audio_for(stream)
+    conversion_method = _build_encode_audio_for(stream)
 
     # Assert
-    assert conversion.codec == "libfdk_aac"
+    assert conversion_method.codec == "libfdk_aac"
 
 
 @pytest.mark.unit
@@ -306,10 +310,10 @@ def test_build_encode_audio_for_warns_when_libfdk_aac_unavailable(
     stream = _probed_audio_stream(tmp_path, codec_name="aac")
 
     # Act
-    conversion = _build_encode_audio_for(stream)
+    conversion_method = _build_encode_audio_for(stream)
 
     # Assert
-    assert conversion.codec == "aac"
+    assert conversion_method.codec == "aac"
     mock_logger_warning.assert_called_once_with(
         "libfdk_aac is not available. Falling back to the default AAC encoder."
     )
@@ -325,10 +329,10 @@ def test_build_encode_audio_for_leaves_unknown_settings_unset(
     stream = _probed_audio_stream(tmp_path, codec_name="aac")
 
     # Act
-    conversion = _build_encode_audio_for(stream)
+    conversion_method = _build_encode_audio_for(stream)
 
     # Assert
-    assert conversion == EncodeAudio(codec="aac")
+    assert conversion_method == EncodeAudio(codec="aac")
 
 
 @pytest.mark.unit
@@ -377,11 +381,13 @@ def test_build_stream_sources_for_audio_encoding_raises_for_missing_stream_in_re
             root=(
                 StreamConversionPlan(
                     source_stream=stream_at(original_streams, 0),
-                    conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
+                    conversion_method=EncodeVideo(
+                        codec="libx265", crf=23, preset="medium"
+                    ),
                 ),
                 StreamConversionPlan(
                     source_stream=stream_at(original_streams, 1),
-                    conversion=Copy(),
+                    conversion_method=Copy(),
                 ),
             )
         ),
@@ -412,11 +418,11 @@ def test_stream_sources_for_audio_encoding_validation_success(
 
     valid_sources: list[StreamSourceForAudioEncoding] = [
         StreamConversionPlan(
-            conversion=Copy(),
+            conversion_method=Copy(),
             source_stream=VideoStream(file=encoded_file, index=0),
         ),
         StreamConversionPlan(
-            conversion=EncodeAudio(codec="aac"),
+            conversion_method=EncodeAudio(codec="aac"),
             source_stream=AudioStream(file=original_file, index=1),
         ),
     ]
@@ -469,15 +475,15 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
 
     sources: list[StreamSourceForAudioEncoding] = [
         StreamConversionPlan(
-            conversion=Copy(),
+            conversion_method=Copy(),
             source_stream=VideoStream(file=encoded_file, index=0),
         ),
         StreamConversionPlan(
-            conversion=Copy(),
+            conversion_method=Copy(),
             source_stream=AudioStream(file=encoded_file, index=1),
         ),
         StreamConversionPlan(
-            conversion=EncodeAudio(codec="aac"),
+            conversion_method=EncodeAudio(codec="aac"),
             source_stream=AudioStream(file=original_file, index=2),
         ),
     ]
@@ -489,14 +495,14 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
             source_stream=VideoStream(
                 file=original_file, index=sources[0].source_stream.index
             ),
-            conversion=sources[0].conversion,
+            conversion_method=sources[0].conversion_method,
         )
     elif modifier == "no_audio":
         sources = [s for s in sources if not isinstance(s.source_stream, AudioStream)]
     elif modifier == "copied_audio_from_original":
         sources.append(
             StreamConversionPlan(
-                conversion=Copy(),
+                conversion_method=Copy(),
                 source_stream=AudioStream(file=original_file, index=3),
             )
         )
@@ -505,14 +511,14 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
             source_stream=AudioStream(
                 file=encoded_file, index=sources[2].source_stream.index
             ),
-            conversion=sources[2].conversion,
+            conversion_method=sources[2].conversion_method,
         )
     elif modifier == "only_encoded":
         sources = [sources[2]]
     elif modifier == "encoded_from_multiple":
         sources.append(
             StreamConversionPlan(
-                conversion=EncodeAudio(codec="aac"),
+                conversion_method=EncodeAudio(codec="aac"),
                 source_stream=AudioStream(file=another_original, index=3),
             )
         )
@@ -577,7 +583,7 @@ def test_build_stream_sources_for_audio_encoding_stream_type_mismatch_raises_err
             root=tuple(
                 StreamConversionPlan(
                     source_stream=stream_at(original_streams, i),
-                    conversion=Copy(),
+                    conversion_method=Copy(),
                 )
                 for i in range(len(initial_streams))
             )

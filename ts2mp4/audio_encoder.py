@@ -8,7 +8,7 @@ from pydantic import model_validator
 from .ffmpeg import is_libfdk_aac_available
 from .stream_integrity import IntegrityReport
 from .stream_source import (
-    AudioConversion,
+    AudioConversionMethod,
     Copy,
     EncodeAudio,
     StreamConversionPlan,
@@ -20,7 +20,7 @@ from .video_file import AudioStream, VideoFile, VideoStream
 
 StreamSourceForAudioEncoding = (
     StreamConversionPlan[VideoStream, Copy]
-    | StreamConversionPlan[AudioStream, AudioConversion]
+    | StreamConversionPlan[AudioStream, AudioConversionMethod]
 )
 
 
@@ -41,9 +41,9 @@ class StreamSourcesForAudioEncoding(StreamSources):
     @model_validator(mode="after")
     def validate_source_grouping(self) -> Self:
         """Validate the grouping and sources of the streams."""
-        copied_sources = [s for s in self.root if isinstance(s.conversion, Copy)]
+        copied_sources = [s for s in self.root if isinstance(s.conversion_method, Copy)]
         sources_to_encode = [
-            s for s in self.root if isinstance(s.conversion, EncodeAudio)
+            s for s in self.root if isinstance(s.conversion_method, EncodeAudio)
         ]
 
         if not copied_sources:
@@ -127,7 +127,7 @@ def build_stream_sources_for_audio_encoding(
             stream_sources_list.append(
                 StreamConversionPlan(
                     source_stream=matching_stream,
-                    conversion=Copy(),
+                    conversion_method=Copy(),
                 )
             )
         elif isinstance(original_stream, AudioStream):
@@ -143,7 +143,7 @@ def build_stream_sources_for_audio_encoding(
                 stream_sources_list.append(
                     StreamConversionPlan(
                         source_stream=matching_stream,
-                        conversion=Copy(),
+                        conversion_method=Copy(),
                     )
                 )
             else:
@@ -151,7 +151,7 @@ def build_stream_sources_for_audio_encoding(
                 stream_sources_list.append(
                     StreamConversionPlan(
                         source_stream=original_stream,
-                        conversion=_build_encode_audio_for(original_stream),
+                        conversion_method=_build_encode_audio_for(original_stream),
                     )
                 )
 

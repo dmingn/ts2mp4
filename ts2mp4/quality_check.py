@@ -76,7 +76,7 @@ async def get_audio_quality_metrics(
     quality_metrics: dict[int, AudioQualityMetrics] = {}
 
     for stream_with_source in converted_file.stream_with_sources:
-        if not isinstance(stream_with_source.source.conversion, EncodeAudio):
+        if not isinstance(stream_with_source.source.conversion_method, EncodeAudio):
             continue
 
         original_file = stream_with_source.source.source_stream.file.path
