@@ -155,9 +155,9 @@ def mock_converted_video_file(
         return_value=[
             StreamWithSource(
                 stream=next(s for s in output_streams if s.index == i),
-                source=source,
+                source=plan,
             )
-            for i, source in enumerate(mock_converted_file.stream_sources)
+            for i, plan in enumerate(mock_converted_file.stream_sources)
         ]
     )
 
@@ -274,9 +274,9 @@ def test_check_integrity_skips_non_copied_streams(
                 stream=next(
                     s for s in mock_converted_video_file.streams if s.index == i
                 ),
-                source=source,
+                source=plan,
             )
-            for i, source in enumerate(mock_converted_video_file.stream_sources)
+            for i, plan in enumerate(mock_converted_video_file.stream_sources)
         ]
     )
 
@@ -306,9 +306,9 @@ def test_check_integrity_raises_for_unsupported_stream_type(
                 stream=next(
                     s for s in mock_converted_video_file.streams if s.index == i
                 ),
-                source=source,
+                source=plan,
             )
-            for i, source in enumerate(mock_converted_video_file.stream_sources)
+            for i, plan in enumerate(mock_converted_video_file.stream_sources)
         ]
     )
 

@@ -96,12 +96,12 @@ def build_ffmpeg_args(stream_sources: StreamSources, output_path: Path) -> list[
         + [arg for file in input_files for arg in ("-i", str(file.path))]
         + [
             arg
-            for i, source in enumerate(stream_sources)
+            for i, plan in enumerate(stream_sources)
             for arg in (
                 "-map",
-                f"{input_index_by_file[source.source_stream.file]}:"
-                f"{source.source_stream.index}",
-                *_codec_args(source.conversion_method, i),
+                f"{input_index_by_file[plan.source_stream.file]}:"
+                f"{plan.source_stream.index}",
+                *_codec_args(plan.conversion_method, i),
             )
         ]
         + _disposition_args(stream_sources)

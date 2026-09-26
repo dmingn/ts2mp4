@@ -71,25 +71,25 @@ class StreamWithSource(BaseModel, Generic[StreamT]):
     model_config = ConfigDict(frozen=True)
 
 
-def is_video_stream_source(
-    source: StreamConversionPlan[Stream, ConversionMethodT],
+def is_video_stream_plan(
+    plan: StreamConversionPlan[Stream, ConversionMethodT],
 ) -> TypeGuard[StreamConversionPlan[VideoStream, ConversionMethodT]]:
-    """Return True if the source is a video stream source."""
-    return isinstance(source.source_stream, VideoStream)
+    """Return True if ``plan`` converts a video stream."""
+    return isinstance(plan.source_stream, VideoStream)
 
 
-def is_audio_stream_source(
-    source: StreamConversionPlan[Stream, ConversionMethodT],
+def is_audio_stream_plan(
+    plan: StreamConversionPlan[Stream, ConversionMethodT],
 ) -> TypeGuard[StreamConversionPlan[AudioStream, ConversionMethodT]]:
-    """Return True if the source is an audio stream source."""
-    return isinstance(source.source_stream, AudioStream)
+    """Return True if ``plan`` converts an audio stream."""
+    return isinstance(plan.source_stream, AudioStream)
 
 
-def is_other_stream_source(
-    source: StreamConversionPlan[Stream, ConversionMethodT],
+def is_other_stream_plan(
+    plan: StreamConversionPlan[Stream, ConversionMethodT],
 ) -> TypeGuard[StreamConversionPlan[OtherStream, ConversionMethodT]]:
-    """Return True if the source is an other stream source."""
-    return isinstance(source.source_stream, OtherStream)
+    """Return True if ``plan`` converts an other stream."""
+    return isinstance(plan.source_stream, OtherStream)
 
 
 class StreamSources(
@@ -112,30 +112,28 @@ class StreamSources(
         return len(self.root)
 
     @property
-    def video_stream_sources(
+    def video_stream_plans(
         self,
     ) -> frozenset[StreamConversionPlan[VideoStream, ConversionMethod]]:
-        """Return a set of video stream sources."""
-        return frozenset(filter(is_video_stream_source, self.root))
+        """Return the plans that convert video streams."""
+        return frozenset(filter(is_video_stream_plan, self.root))
 
     @property
-    def audio_stream_sources(
+    def audio_stream_plans(
         self,
     ) -> frozenset[StreamConversionPlan[AudioStream, ConversionMethod]]:
-        """Return a set of audio stream sources."""
-        return frozenset(filter(is_audio_stream_source, self.root))
+        """Return the plans that convert audio streams."""
+        return frozenset(filter(is_audio_stream_plan, self.root))
 
     @property
     def source_video_files(self) -> frozenset[VideoFile]:
         """Return a set of source video files for the stream sources."""
-        return frozenset(stream.source_stream.file for stream in self.root)
+        return frozenset(plan.source_stream.file for plan in self.root)
 
     @property
     def default_stream_indices(self) -> frozenset[int]:
         """Return the output stream indices to mark with disposition default."""
-        return get_default_stream_indices(
-            [source.source_stream for source in self.root]
-        )
+        return get_default_stream_indices([plan.source_stream for plan in self.root])
 
 
 StreamSourcesT = TypeVar("StreamSourcesT", bound=StreamSources, covariant=True)
@@ -205,7 +203,7 @@ class ConvertedVideoFile(VideoFile, Generic[StreamSourcesT]):
         whose ``index`` is ``i``.
         """
         streams_by_index = streams_by_unique_index(self.streams)
-        for index, source in enumerate(self.stream_sources):
+        for index, plan in enumerate(self.stream_sources):
             try:
                 stream = streams_by_index[index]
             except KeyError as e:
@@ -215,22 +213,22 @@ class ConvertedVideoFile(VideoFile, Generic[StreamSourcesT]):
                 ) from e
             match stream:
                 case VideoStream():
-                    if not is_video_stream_source(source):
+                    if not is_video_stream_plan(plan):
                         raise RuntimeError(
                             f"Stream type mismatch for stream index {stream.index}"
                         )
-                    yield StreamWithSource(stream=stream, source=source)
+                    yield StreamWithSource(stream=stream, source=plan)
                 case AudioStream():
-                    if not is_audio_stream_source(source):
+                    if not is_audio_stream_plan(plan):
                         raise RuntimeError(
                             f"Stream type mismatch for stream index {stream.index}"
                         )
-                    yield StreamWithSource(stream=stream, source=source)
+                    yield StreamWithSource(stream=stream, source=plan)
                 case OtherStream():
-                    if not is_other_stream_source(source):
+                    if not is_other_stream_plan(plan):
                         raise RuntimeError(
                             f"Stream type mismatch for stream index {stream.index}"
                         )
-                    yield StreamWithSource(stream=stream, source=source)
+                    yield StreamWithSource(stream=stream, source=plan)
                 case _:
                     assert_never(stream)

@@ -29,7 +29,7 @@ def dummy_video_file(tmp_path: Path) -> VideoFile:
 
 
 @pytest.fixture
-def stream_source(
+def stream_conversion_plan(
     dummy_video_file: VideoFile,
 ) -> StreamConversionPlan[VideoStream, ConversionMethod]:
     """Create a dummy StreamConversionPlan instance."""
@@ -68,29 +68,29 @@ def stream_sources(tmp_path: Path) -> StreamSources:
 
 
 @pytest.mark.unit
-def test_stream_sources_video_stream_sources_filters_video(
+def test_stream_sources_video_stream_plans_filters_video(
     stream_sources: StreamSources,
 ) -> None:
-    """StreamSources.video_stream_sources returns only video sources."""
+    """StreamSources.video_stream_plans returns only video plans."""
     # Act
-    video_sources = stream_sources.video_stream_sources
+    video_plans = stream_sources.video_stream_plans
 
     # Assert
-    assert len(video_sources) == 1
-    assert all(isinstance(s.source_stream, VideoStream) for s in video_sources)
+    assert len(video_plans) == 1
+    assert all(isinstance(s.source_stream, VideoStream) for s in video_plans)
 
 
 @pytest.mark.unit
-def test_stream_sources_audio_stream_sources_filters_audio(
+def test_stream_sources_audio_stream_plans_filters_audio(
     stream_sources: StreamSources,
 ) -> None:
-    """StreamSources.audio_stream_sources returns only audio sources."""
+    """StreamSources.audio_stream_plans returns only audio plans."""
     # Act
-    audio_sources = stream_sources.audio_stream_sources
+    audio_plans = stream_sources.audio_stream_plans
 
     # Assert
-    assert len(audio_sources) == 2
-    assert all(isinstance(s.source_stream, AudioStream) for s in audio_sources)
+    assert len(audio_plans) == 2
+    assert all(isinstance(s.source_stream, AudioStream) for s in audio_plans)
 
 
 @pytest.mark.unit
@@ -123,30 +123,30 @@ def test_stream_sources_default_stream_indices_selects_from_source_streams(
     # Assert
     assert default_stream_indices == frozenset({0, 1})
     mock_get_default_stream_indices.assert_called_once_with(
-        [source.source_stream for source in stream_sources]
+        [plan.source_stream for plan in stream_sources]
     )
 
 
 @pytest.mark.unit
-def test_stream_sources_properties_are_empty_when_no_sources() -> None:
-    """StreamSources filter and file properties are empty for no sources."""
+def test_stream_sources_properties_are_empty_when_no_plans() -> None:
+    """StreamSources filter and file properties are empty for no plans."""
     # Arrange
     empty_stream_sources = StreamSources(root=())
 
     # Act & Assert
-    assert len(empty_stream_sources.video_stream_sources) == 0
-    assert len(empty_stream_sources.audio_stream_sources) == 0
+    assert len(empty_stream_sources.video_stream_plans) == 0
+    assert len(empty_stream_sources.audio_stream_plans) == 0
     assert len(empty_stream_sources.source_video_files) == 0
 
 
 @pytest.mark.unit
 def test_converted_videofile_rejects_mismatched_stream_counts(
     dummy_video_file: VideoFile,
-    stream_source: StreamConversionPlan[VideoStream, ConversionMethod],
+    stream_conversion_plan: StreamConversionPlan[VideoStream, ConversionMethod],
 ) -> None:
     """ConvertedVideoFile raises when stream_sources length mismatches streams."""
     # Arrange
-    stream_sources = StreamSources(root=(stream_source,))
+    stream_sources = StreamSources(root=(stream_conversion_plan,))
 
     # Act & Assert
     with pytest.raises(ValueError, match="Mismatch in stream counts"):
@@ -216,11 +216,11 @@ def test_streams_by_unique_index_rejects_duplicate_indices(
 @pytest.mark.unit
 def test_converted_videofile_stream_with_sources_pairs_output_and_source(
     dummy_video_file: VideoFile,
-    stream_source: StreamConversionPlan[VideoStream, ConversionMethod],
+    stream_conversion_plan: StreamConversionPlan[VideoStream, ConversionMethod],
 ) -> None:
     """ConvertedVideoFile.stream_with_sources pairs each output stream with its source."""
     # Arrange
-    stream_sources = StreamSources(root=(stream_source,))
+    stream_sources = StreamSources(root=(stream_conversion_plan,))
     converted_file = StubConvertedVideoFile[StreamSources](
         path=dummy_video_file.path,
         stub_probe=FFprobeOutput(streams=(FFprobeStream(codec_type="video", index=0),)),
@@ -235,7 +235,7 @@ def test_converted_videofile_stream_with_sources_pairs_output_and_source(
     item = items[0]
     assert isinstance(item, StreamWithSource)
     assert item.stream == stream_at(converted_file.streams, 0)
-    assert item.source == stream_source
+    assert item.source == stream_conversion_plan
 
 
 @pytest.mark.unit
@@ -244,7 +244,7 @@ def test_converted_videofile_stream_with_sources_raises_on_type_mismatch(
 ) -> None:
     """ConvertedVideoFile.stream_with_sources raises when stream and source types differ."""
     # Arrange
-    audio_stream_source: StreamConversionPlan[AudioStream, ConversionMethod] = (
+    audio_stream_plan: StreamConversionPlan[AudioStream, ConversionMethod] = (
         StreamConversionPlan(
             source_stream=AudioStream(file=dummy_video_file, index=0),
             conversion_method=Copy(),
@@ -253,7 +253,7 @@ def test_converted_videofile_stream_with_sources_raises_on_type_mismatch(
     converted_file = StubConvertedVideoFile[StreamSources](
         path=dummy_video_file.path,
         stub_probe=FFprobeOutput(streams=(FFprobeStream(codec_type="video", index=0),)),
-        stream_sources=StreamSources(root=(audio_stream_source,)),
+        stream_sources=StreamSources(root=(audio_stream_plan,)),
     )
 
     # Act & Assert

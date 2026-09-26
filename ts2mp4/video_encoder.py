@@ -13,7 +13,7 @@ from .stream_source import (
 )
 from .video_file import AudioStream, VideoFile, VideoStream
 
-StreamSourceForVideoEncoding = (
+StreamConversionPlanForVideoEncoding = (
     StreamConversionPlan[VideoStream, EncodeVideo]
     | StreamConversionPlan[AudioStream, Copy]
 )
@@ -22,14 +22,14 @@ StreamSourceForVideoEncoding = (
 class StreamSourcesForVideoEncoding(StreamSources):
     """Represents the stream sources for video encoding."""
 
-    root: tuple[StreamSourceForVideoEncoding, ...]
+    root: tuple[StreamConversionPlanForVideoEncoding, ...]
 
     @model_validator(mode="after")
     def validate_stream_presence(self) -> Self:
         """Validate the presence of at least one video and one audio stream."""
-        if not self.video_stream_sources:
+        if not self.video_stream_plans:
             raise ValueError("At least one video stream is required.")
-        if not self.audio_stream_sources:
+        if not self.audio_stream_plans:
             raise ValueError("At least one audio stream is required.")
         return self
 
@@ -61,14 +61,14 @@ def build_stream_sources_for_video_encoding(
         fps_mode="cfr",
     )
 
-    video_sources: list[StreamSourceForVideoEncoding] = [
+    video_plans: list[StreamConversionPlanForVideoEncoding] = [
         StreamConversionPlan(
             source_stream=stream,
             conversion_method=encode_video,
         )
         for stream in sorted(input_file.valid_video_streams)
     ]
-    audio_sources: list[StreamSourceForVideoEncoding] = [
+    audio_plans: list[StreamConversionPlanForVideoEncoding] = [
         StreamConversionPlan(
             source_stream=stream,
             conversion_method=Copy(),
@@ -76,4 +76,4 @@ def build_stream_sources_for_video_encoding(
         for stream in sorted(input_file.valid_audio_streams)
     ]
 
-    return StreamSourcesForVideoEncoding(root=tuple(video_sources + audio_sources))
+    return StreamSourcesForVideoEncoding(root=tuple(video_plans + audio_plans))

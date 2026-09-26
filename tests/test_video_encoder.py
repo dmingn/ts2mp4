@@ -9,7 +9,7 @@ from tests.helpers import StubVideoFile, stream_at
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_source import Copy, EncodeVideo, StreamConversionPlan
 from ts2mp4.video_encoder import (
-    StreamSourceForVideoEncoding,
+    StreamConversionPlanForVideoEncoding,
     StreamSourcesForVideoEncoding,
     build_stream_sources_for_video_encoding,
 )
@@ -149,7 +149,7 @@ def test_build_stream_sources_for_video_encoding_encodes_video_with_libx265_sett
         ),
     ],
 )
-def test_stream_sources_for_video_encoding_raises_on_invalid_sources(
+def test_stream_sources_for_video_encoding_raises_on_invalid_plans(
     mock_video_file_factory: Callable[..., VideoFile],
     modifier: str,
     error_message: str,
@@ -157,7 +157,7 @@ def test_stream_sources_for_video_encoding_raises_on_invalid_sources(
     """Raise ValueError when StreamSourcesForVideoEncoding validation fails."""
     # Arrange
     video_file = mock_video_file_factory()
-    sources: list[StreamSourceForVideoEncoding] = [
+    plans: list[StreamConversionPlanForVideoEncoding] = [
         StreamConversionPlan(
             source_stream=stream_at(video_file.streams, 0),
             conversion_method=EncodeVideo(codec="libx265", crf=23, preset="medium"),
@@ -169,20 +169,20 @@ def test_stream_sources_for_video_encoding_raises_on_invalid_sources(
     ]
 
     if modifier == "no_video":
-        sources = [s for s in sources if not isinstance(s.source_stream, VideoStream)]
+        plans = [s for s in plans if not isinstance(s.source_stream, VideoStream)]
     elif modifier == "no_audio":
-        sources = [s for s in sources if not isinstance(s.source_stream, AudioStream)]
+        plans = [s for s in plans if not isinstance(s.source_stream, AudioStream)]
     elif modifier == "multiple_sources":
         other_video_file = mock_video_file_factory(file_name="other.ts")
-        sources.append(
+        plans.append(
             StreamConversionPlan(
                 source_stream=stream_at(other_video_file.streams, 0),
                 conversion_method=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             )
         )
     elif modifier == "duplicate_streams":
-        sources.append(sources[0])
+        plans.append(plans[0])
 
     # Act & Assert
     with pytest.raises(ValueError, match=error_message):
-        StreamSourcesForVideoEncoding(root=tuple(sources))
+        StreamSourcesForVideoEncoding(root=tuple(plans))

@@ -25,7 +25,7 @@ from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
     mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """build_ffmpeg_args maps each source from its input file in output order."""
+    """build_ffmpeg_args maps each plan from its input file in output order."""
     # Arrange
     encoded_path = tmp_path / "encoded.mp4"
     encoded_path.touch()

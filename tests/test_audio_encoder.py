@@ -8,7 +8,7 @@ from pytest_mock import MockerFixture
 
 from tests.helpers import StubVideoFile, stream_at
 from ts2mp4.audio_encoder import (
-    StreamSourceForAudioEncoding,
+    StreamConversionPlanForAudioEncoding,
     StreamSourcesForAudioEncoding,
     _build_encode_audio_for,
     build_stream_sources_for_audio_encoding,
@@ -196,7 +196,7 @@ def test_build_stream_sources_for_audio_encoding_with_mismatch(
     mock_original_video_file: VideoFile,
     mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
-    """Tests that the source of a mismatched output stream is encoded from the original."""
+    """Tests that the plan for a mismatched output stream encodes from the original."""
     # Arrange
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     # Output stream 1 comes from original stream 2, and output 2 from original 1.
@@ -416,7 +416,7 @@ def test_stream_sources_for_audio_encoding_validation_success(
     dummy_encoded_file.touch()
     encoded_file = VideoFile(path=dummy_encoded_file)
 
-    valid_sources: list[StreamSourceForAudioEncoding] = [
+    valid_plans: list[StreamConversionPlanForAudioEncoding] = [
         StreamConversionPlan(
             conversion_method=Copy(),
             source_stream=VideoStream(file=encoded_file, index=0),
@@ -428,7 +428,7 @@ def test_stream_sources_for_audio_encoding_validation_success(
     ]
 
     # Act & Assert
-    StreamSourcesForAudioEncoding(root=tuple(valid_sources))
+    StreamSourcesForAudioEncoding(root=tuple(valid_plans))
 
 
 @pytest.mark.unit
@@ -473,7 +473,7 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
     dummy_another_original.touch()
     another_original = VideoFile(path=dummy_another_original)
 
-    sources: list[StreamSourceForAudioEncoding] = [
+    plans: list[StreamConversionPlanForAudioEncoding] = [
         StreamConversionPlan(
             conversion_method=Copy(),
             source_stream=VideoStream(file=encoded_file, index=0),
@@ -489,34 +489,34 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
     ]
 
     if modifier == "no_video":
-        sources = [s for s in sources if not isinstance(s.source_stream, VideoStream)]
+        plans = [s for s in plans if not isinstance(s.source_stream, VideoStream)]
     elif modifier == "video_from_original":
-        sources[0] = StreamConversionPlan(
+        plans[0] = StreamConversionPlan(
             source_stream=VideoStream(
-                file=original_file, index=sources[0].source_stream.index
+                file=original_file, index=plans[0].source_stream.index
             ),
-            conversion_method=sources[0].conversion_method,
+            conversion_method=plans[0].conversion_method,
         )
     elif modifier == "no_audio":
-        sources = [s for s in sources if not isinstance(s.source_stream, AudioStream)]
+        plans = [s for s in plans if not isinstance(s.source_stream, AudioStream)]
     elif modifier == "copied_audio_from_original":
-        sources.append(
+        plans.append(
             StreamConversionPlan(
                 conversion_method=Copy(),
                 source_stream=AudioStream(file=original_file, index=3),
             )
         )
     elif modifier == "encoded_audio_from_encoded":
-        sources[2] = StreamConversionPlan(
+        plans[2] = StreamConversionPlan(
             source_stream=AudioStream(
-                file=encoded_file, index=sources[2].source_stream.index
+                file=encoded_file, index=plans[2].source_stream.index
             ),
-            conversion_method=sources[2].conversion_method,
+            conversion_method=plans[2].conversion_method,
         )
     elif modifier == "only_encoded":
-        sources = [sources[2]]
+        plans = [plans[2]]
     elif modifier == "encoded_from_multiple":
-        sources.append(
+        plans.append(
             StreamConversionPlan(
                 conversion_method=EncodeAudio(codec="aac"),
                 source_stream=AudioStream(file=another_original, index=3),
@@ -525,7 +525,7 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
 
     # Act & Assert
     with pytest.raises(ValueError, match=error_message):
-        StreamSourcesForAudioEncoding(root=tuple(sources))
+        StreamSourcesForAudioEncoding(root=tuple(plans))
 
 
 @pytest.mark.unit

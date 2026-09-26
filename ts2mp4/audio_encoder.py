@@ -18,7 +18,7 @@ from .stream_source import (
 from .video_encoder import VideoEncodedFile
 from .video_file import AudioStream, VideoFile, VideoStream
 
-StreamSourceForAudioEncoding = (
+StreamConversionPlanForAudioEncoding = (
     StreamConversionPlan[VideoStream, Copy]
     | StreamConversionPlan[AudioStream, AudioConversionMethod]
 )
@@ -27,29 +27,29 @@ StreamSourceForAudioEncoding = (
 class StreamSourcesForAudioEncoding(StreamSources):
     """Represents the stream sources for audio encoding."""
 
-    root: tuple[StreamSourceForAudioEncoding, ...]
+    root: tuple[StreamConversionPlanForAudioEncoding, ...]
 
     @model_validator(mode="after")
     def validate_stream_presence(self) -> Self:
         """Validate the presence of at least one video and one audio stream."""
-        if not self.video_stream_sources:
+        if not self.video_stream_plans:
             raise ValueError("At least one video stream is required.")
-        if not self.audio_stream_sources:
+        if not self.audio_stream_plans:
             raise ValueError("At least one audio stream is required.")
         return self
 
     @model_validator(mode="after")
     def validate_source_grouping(self) -> Self:
         """Validate the grouping and sources of the streams."""
-        copied_sources = [s for s in self.root if isinstance(s.conversion_method, Copy)]
+        copied_plans = [s for s in self.root if isinstance(s.conversion_method, Copy)]
         sources_to_encode = [
             s for s in self.root if isinstance(s.conversion_method, EncodeAudio)
         ]
 
-        if not copied_sources:
+        if not copied_plans:
             raise ValueError("At least one stream must be copied.")
 
-        encoded_files = {s.source_stream.file for s in copied_sources}
+        encoded_files = {s.source_stream.file for s in copied_plans}
         if len(encoded_files) != 1:
             raise ValueError("All copied streams must come from the same encoded file.")
 
@@ -100,11 +100,11 @@ def build_stream_sources_for_audio_encoding(
     # stream_sources position i corresponds to output stream index i.
     streams_by_index = streams_by_unique_index(encoded_file.streams)
     original_encoded_stream_mapping = {
-        stream_source.source_stream.index: streams_by_index[i]
-        for i, stream_source in enumerate(encoded_file.stream_sources)
+        plan.source_stream.index: streams_by_index[i]
+        for i, plan in enumerate(encoded_file.stream_sources)
     }
 
-    stream_sources_list: list[StreamSourceForAudioEncoding] = []
+    plans: list[StreamConversionPlanForAudioEncoding] = []
 
     for original_stream in sorted(original_file.valid_streams):
         matching_stream = original_encoded_stream_mapping.get(original_stream.index)
@@ -124,7 +124,7 @@ def build_stream_sources_for_audio_encoding(
                 )
 
             # Video streams should be always copied from the encoded file
-            stream_sources_list.append(
+            plans.append(
                 StreamConversionPlan(
                     source_stream=matching_stream,
                     conversion_method=Copy(),
@@ -140,7 +140,7 @@ def build_stream_sources_for_audio_encoding(
 
             if matching_stream.index not in integrity_report.mismatched_output_indices:
                 # If the stream matches, it can be copied from the encoded file
-                stream_sources_list.append(
+                plans.append(
                     StreamConversionPlan(
                         source_stream=matching_stream,
                         conversion_method=Copy(),
@@ -148,14 +148,14 @@ def build_stream_sources_for_audio_encoding(
                 )
             else:
                 # If the stream mismatches, it must be encoded from the original file
-                stream_sources_list.append(
+                plans.append(
                     StreamConversionPlan(
                         source_stream=original_stream,
                         conversion_method=_build_encode_audio_for(original_stream),
                     )
                 )
 
-    return StreamSourcesForAudioEncoding(root=tuple(stream_sources_list))
+    return StreamSourcesForAudioEncoding(root=tuple(plans))
 
 
 _FFMPEG_AAC_PROFILES = {"LC": "aac_low"}
