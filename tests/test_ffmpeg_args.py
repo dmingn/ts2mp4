@@ -5,8 +5,18 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.ffmpeg_args import _encode_audio_args, build_ffmpeg_args
-from ts2mp4.stream_source import Copy, EncodeAudio, StreamSource, StreamSources
+from ts2mp4.ffmpeg_args import (
+    _encode_audio_args,
+    _encode_video_args,
+    build_ffmpeg_args,
+)
+from ts2mp4.stream_source import (
+    Copy,
+    EncodeAudio,
+    EncodeVideo,
+    StreamSource,
+    StreamSources,
+)
 from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
 
@@ -66,8 +76,6 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
         "1:2",
         "-codec:1",
         "aac",
-        "-bsf:1",
-        "aac_adtstoasc",
         "-disposition:0",
         "default",
         "-f",
@@ -103,8 +111,6 @@ def test_encode_audio_args_includes_all_set_options() -> None:
         "aac_low",
         "-b:1",
         "192000",
-        "-bsf:1",
-        "aac_adtstoasc",
     ]
 
 
@@ -118,4 +124,47 @@ def test_encode_audio_args_omits_unset_options() -> None:
     args = _encode_audio_args(conversion, 1)
 
     # Assert
-    assert args == ["-codec:1", "aac", "-bsf:1", "aac_adtstoasc"]
+    assert args == ["-codec:1", "aac"]
+
+
+@pytest.mark.unit
+def test_encode_video_args_includes_all_set_options() -> None:
+    """_encode_video_args emits every set option for the output stream."""
+    # Arrange
+    conversion = EncodeVideo(
+        codec="libx265",
+        crf=23,
+        preset="medium",
+        video_filter="bwdif",
+        fps_mode="cfr",
+    )
+
+    # Act
+    args = _encode_video_args(conversion, 0)
+
+    # Assert
+    assert args == [
+        "-codec:0",
+        "libx265",
+        "-crf:0",
+        "23",
+        "-preset:0",
+        "medium",
+        "-filter:0",
+        "bwdif",
+        "-fps_mode:0",
+        "cfr",
+    ]
+
+
+@pytest.mark.unit
+def test_encode_video_args_omits_unset_options() -> None:
+    """_encode_video_args omits options that are None."""
+    # Arrange
+    conversion = EncodeVideo(codec="libx265", crf=23, preset="medium")
+
+    # Act
+    args = _encode_video_args(conversion, 0)
+
+    # Assert
+    assert args == ["-codec:0", "libx265", "-crf:0", "23", "-preset:0", "medium"]

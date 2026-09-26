@@ -9,7 +9,7 @@ from typing import Self
 from pydantic import model_validator
 
 from .ffmpeg import execute_ffmpeg
-from .stream_disposition import build_disposition_args
+from .ffmpeg_args import build_ffmpeg_args
 from .stream_source import (
     ConvertedVideoFile,
     Copy,
@@ -49,22 +49,27 @@ class StreamSourcesForVideoEncoding(StreamSources):
             raise ValueError("Source streams must be unique.")
         return self
 
-    @property
-    def source_video_file(self) -> VideoFile:
-        """Return the source video file for the stream sources."""
-        return next(iter(self.source_video_files))
-
 
 VideoEncodedFile = ConvertedVideoFile[StreamSourcesForVideoEncoding]
 """Represents a ConvertedVideoFile after video stream encoding."""
 
 
-def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForVideoEncoding:
+def _build_stream_sources(
+    input_file: VideoFile, crf: int, preset: str
+) -> StreamSourcesForVideoEncoding:
     """Build the stream sources for video encoding."""
+    encode_video = EncodeVideo(
+        codec="libx265",
+        crf=crf,
+        preset=preset,
+        video_filter="bwdif",
+        fps_mode="cfr",
+    )
+
     video_sources: list[StreamSourceForVideoEncoding] = [
         StreamSource(
             source_stream=stream,
-            conversion=EncodeVideo(),
+            conversion=encode_video,
         )
         for stream in sorted(input_file.valid_video_streams)
     ]
@@ -79,58 +84,13 @@ def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForVideoEncodin
     return StreamSourcesForVideoEncoding(root=tuple(video_sources + audio_sources))
 
 
-def _build_ffmpeg_args_from_stream_sources(
-    stream_sources: StreamSourcesForVideoEncoding,
-    output_path: Path,
-    crf: int,
-    preset: str,
-) -> list[str]:
-    """Build FFmpeg arguments for video encoding (TS to MP4)."""
-    return (
-        [
-            "-hide_banner",
-            "-nostats",
-            "-fflags",
-            "+discardcorrupt",
-            "-y",
-            "-i",
-            str(stream_sources.source_video_file.path),
-        ]
-        + [
-            arg
-            for source in stream_sources
-            for arg in ("-map", f"0:{source.source_stream.index}")
-        ]
-        + build_disposition_args(stream_sources)
-        + [
-            "-f",
-            "mp4",
-            "-fps_mode",
-            "cfr",
-            "-vf",
-            "bwdif",
-            "-codec:v",
-            "libx265",
-            "-crf",
-            str(crf),
-            "-preset",
-            preset,
-            "-codec:a",
-            "copy",
-            "-bsf:a",
-            "aac_adtstoasc",
-            str(output_path),
-        ]
-    )
-
-
 def encode_video_streams(
     input_file: VideoFile, output_path: Path, crf: int, preset: str
 ) -> VideoEncodedFile:
     """Encode video streams from TS to MP4 (audio streams are copied)."""
-    stream_sources = _build_stream_sources(input_file)
-    ffmpeg_args = _build_ffmpeg_args_from_stream_sources(
-        stream_sources=stream_sources, output_path=output_path, crf=crf, preset=preset
+    stream_sources = _build_stream_sources(input_file, crf=crf, preset=preset)
+    ffmpeg_args = build_ffmpeg_args(
+        stream_sources=stream_sources, output_path=output_path
     )
     execute_ffmpeg(ffmpeg_args)
     return VideoEncodedFile(path=output_path, stream_sources=stream_sources)

@@ -7,16 +7,10 @@ from .stream_disposition import build_disposition_args
 from .stream_source import Conversion, Copy, EncodeAudio, EncodeVideo, StreamSources
 
 
-def _encode_audio_args(conversion: EncodeAudio, output_index: int) -> list[str]:
-    """Build the codec arguments for an output stream encoded with ``conversion``."""
-    options: list[tuple[str, str | int | None]] = [
-        ("codec", conversion.codec),
-        ("ar", conversion.sample_rate),
-        ("ac", conversion.channels),
-        ("profile", conversion.profile),
-        ("b", conversion.bit_rate),
-        ("bsf", "aac_adtstoasc"),
-    ]
+def _stream_options_args(
+    options: list[tuple[str, str | int | None]], output_index: int
+) -> list[str]:
+    """Build per-stream option arguments, omitting options that are None."""
     return [
         arg
         for name, value in options
@@ -25,15 +19,43 @@ def _encode_audio_args(conversion: EncodeAudio, output_index: int) -> list[str]:
     ]
 
 
+def _encode_video_args(conversion: EncodeVideo, output_index: int) -> list[str]:
+    """Build the codec arguments for an output stream encoded with ``conversion``."""
+    return _stream_options_args(
+        [
+            ("codec", conversion.codec),
+            ("crf", conversion.crf),
+            ("preset", conversion.preset),
+            ("filter", conversion.video_filter),
+            ("fps_mode", conversion.fps_mode),
+        ],
+        output_index,
+    )
+
+
+def _encode_audio_args(conversion: EncodeAudio, output_index: int) -> list[str]:
+    """Build the codec arguments for an output stream encoded with ``conversion``."""
+    return _stream_options_args(
+        [
+            ("codec", conversion.codec),
+            ("ar", conversion.sample_rate),
+            ("ac", conversion.channels),
+            ("profile", conversion.profile),
+            ("b", conversion.bit_rate),
+        ],
+        output_index,
+    )
+
+
 def _codec_args(conversion: Conversion, output_index: int) -> list[str]:
     """Build the codec arguments for an output stream."""
     match conversion:
         case Copy():
             return [f"-codec:{output_index}", "copy"]
+        case EncodeVideo():
+            return _encode_video_args(conversion, output_index)
         case EncodeAudio():
             return _encode_audio_args(conversion, output_index)
-        case EncodeVideo():
-            raise NotImplementedError("Video encoding arguments are not supported.")
         case _ as unreachable:
             assert_never(unreachable)
 

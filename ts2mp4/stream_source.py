@@ -23,7 +23,13 @@ class Copy(BaseModel):
 
 
 class EncodeVideo(BaseModel):
-    """Re-encode the source video stream."""
+    """Re-encode the source video stream with the given encoder options."""
+
+    codec: str
+    crf: int
+    preset: str
+    video_filter: str | None = None
+    fps_mode: str | None = None
 
     model_config = ConfigDict(frozen=True)
 

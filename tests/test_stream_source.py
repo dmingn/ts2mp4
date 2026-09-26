@@ -53,7 +53,7 @@ def stream_sources(tmp_path: Path) -> StreamSources:
         root=(
             StreamSource(
                 source_stream=VideoStream(file=file_a, index=0),
-                conversion=EncodeVideo(),
+                conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             ),
             StreamSource(
                 source_stream=AudioStream(file=file_a, index=1),
@@ -151,7 +151,7 @@ def test_converted_videofile_rejects_when_output_indices_do_not_match_positions(
         root=(
             StreamSource(
                 source_stream=VideoStream(file=dummy_video_file, index=0),
-                conversion=EncodeVideo(),
+                conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             ),
             StreamSource(
                 source_stream=AudioStream(file=dummy_video_file, index=1),
@@ -249,7 +249,7 @@ def test_converted_videofile_stream_with_sources_raises_when_output_index_missin
         root=(
             StreamSource(
                 source_stream=VideoStream(file=dummy_video_file, index=0),
-                conversion=EncodeVideo(),
+                conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             ),
             StreamSource(
                 source_stream=AudioStream(file=dummy_video_file, index=1),
