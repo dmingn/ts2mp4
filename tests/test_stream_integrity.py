@@ -141,7 +141,7 @@ def mock_converted_video_file(
         root=(
             StreamSource(
                 source_stream=next(s for s in input_streams if s.index == 0),
-                conversion=EncodeVideo(),
+                conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             ),
             StreamSource(
                 source_stream=next(s for s in input_streams if s.index == 1),
@@ -220,7 +220,7 @@ def test_check_integrity_reports_only_mismatched_output_indices(
                 stream=VideoStream(file=output_video_file, index=0),
                 source=StreamSource(
                     source_stream=VideoStream(file=input_video_file, index=0),
-                    conversion=EncodeVideo(),
+                    conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
                 ),
             ),
             StreamWithSource(

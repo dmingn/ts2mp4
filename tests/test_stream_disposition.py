@@ -35,7 +35,7 @@ class _StreamSpec(NamedTuple):
 def _conversion_for_stream(stream: Stream) -> Conversion:
     """Return a conversion suitable for StreamSource construction in tests."""
     if isinstance(stream, VideoStream):
-        return EncodeVideo()
+        return EncodeVideo(codec="libx265", crf=23, preset="medium")
     return Copy()
 
 
@@ -229,7 +229,7 @@ def test_get_default_stream_indices_uses_each_source_video_file_for_container_du
             ),
             StreamSource(
                 source_stream=high_res_video,
-                conversion=EncodeVideo(),
+                conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             ),
             StreamSource(
                 source_stream=audio,

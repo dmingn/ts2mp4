@@ -123,7 +123,7 @@ def mock_video_encoded_file_factory(
                 StreamSource(
                     source_stream=stream_at(original_streams, i),
                     conversion=(
-                        EncodeVideo()
+                        EncodeVideo(codec="libx265", crf=23, preset="medium")
                         if isinstance(stream_at(original_streams, i), VideoStream)
                         else Copy()
                     ),
@@ -351,7 +351,7 @@ def test_encode_mismatched_audio_streams_integration(
             root=(
                 StreamSource(
                     source_stream=stream_at(original_streams, 0),
-                    conversion=EncodeVideo(),
+                    conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
                 ),
                 StreamSource(
                     source_stream=stream_at(original_streams, 1),
@@ -386,7 +386,11 @@ def test_encode_mismatched_audio_streams_no_encoding_needed(
         root=tuple(
             StreamSource(
                 source_stream=s,
-                conversion=(EncodeVideo() if isinstance(s, VideoStream) else Copy()),
+                conversion=(
+                    EncodeVideo(codec="libx265", crf=23, preset="medium")
+                    if isinstance(s, VideoStream)
+                    else Copy()
+                ),
             )
             for s in sorted(original_streams)
             if isinstance(s, (VideoStream, AudioStream))

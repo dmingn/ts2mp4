@@ -13,7 +13,6 @@ from ts2mp4.stream_source import Copy, EncodeVideo, StreamSource
 from ts2mp4.video_encoder import (
     StreamSourceForVideoEncoding,
     StreamSourcesForVideoEncoding,
-    _build_ffmpeg_args_from_stream_sources,
     _build_stream_sources,
     encode_video_streams,
 )
@@ -64,15 +63,15 @@ def test_build_stream_sources_orders_by_stream_index(tmp_path: Path) -> None:
     )
 
     # Act
-    stream_sources = _build_stream_sources(input_file)
+    stream_sources = _build_stream_sources(input_file, crf=23, preset="medium")
 
     # Assert
     assert [s.source_stream.index for s in stream_sources] == [0, 1, 2, 3]
-    assert [s.conversion for s in stream_sources] == [
-        EncodeVideo(),
-        EncodeVideo(),
-        Copy(),
-        Copy(),
+    assert [type(s.conversion) for s in stream_sources] == [
+        EncodeVideo,
+        EncodeVideo,
+        Copy,
+        Copy,
     ]
 
 
@@ -85,17 +84,38 @@ def test_build_stream_sources_marks_video_encoded_and_audio_copied(
     input_file = mock_video_file_factory(video_streams=1, audio_streams=2)
 
     # Act
-    stream_sources = _build_stream_sources(input_file)
+    stream_sources = _build_stream_sources(input_file, crf=23, preset="medium")
 
     # Assert
     assert isinstance(stream_sources, StreamSourcesForVideoEncoding)
     assert len(stream_sources) == 3
     assert isinstance(stream_sources[0].source_stream, VideoStream)
-    assert stream_sources[0].conversion == EncodeVideo()
+    assert isinstance(stream_sources[0].conversion, EncodeVideo)
     assert isinstance(stream_sources[1].source_stream, AudioStream)
     assert stream_sources[1].conversion == Copy()
     assert isinstance(stream_sources[2].source_stream, AudioStream)
     assert stream_sources[2].conversion == Copy()
+
+
+@pytest.mark.unit
+def test_build_stream_sources_encodes_video_with_libx265_settings(
+    mock_video_file_factory: Callable[..., VideoFile],
+) -> None:
+    """Encode video with libx265, the given crf and preset, bwdif and cfr."""
+    # Arrange
+    input_file = mock_video_file_factory(video_streams=1, audio_streams=1)
+
+    # Act
+    stream_sources = _build_stream_sources(input_file, crf=23, preset="medium")
+
+    # Assert
+    assert stream_sources[0].conversion == EncodeVideo(
+        codec="libx265",
+        crf=23,
+        preset="medium",
+        video_filter="bwdif",
+        fps_mode="cfr",
+    )
 
 
 @pytest.mark.unit
@@ -135,7 +155,7 @@ def test_stream_sources_for_video_encoding_raises_on_invalid_sources(
     sources: list[StreamSourceForVideoEncoding] = [
         StreamSource(
             source_stream=stream_at(video_file.streams, 0),
-            conversion=EncodeVideo(),
+            conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
         ),
         StreamSource(
             source_stream=stream_at(video_file.streams, 1),
@@ -152,7 +172,7 @@ def test_stream_sources_for_video_encoding_raises_on_invalid_sources(
         sources.append(
             StreamSource(
                 source_stream=stream_at(other_video_file.streams, 0),
-                conversion=EncodeVideo(),
+                conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             )
         )
     elif modifier == "duplicate_streams":
@@ -161,89 +181,6 @@ def test_stream_sources_for_video_encoding_raises_on_invalid_sources(
     # Act & Assert
     with pytest.raises(ValueError, match=error_message):
         StreamSourcesForVideoEncoding(root=tuple(sources))
-
-
-@pytest.fixture
-def stream_sources_for_video_encoding(
-    mock_video_file_factory: Callable[..., VideoFile],
-) -> StreamSourcesForVideoEncoding:
-    """Create a StreamSourcesForVideoEncoding instance for testing."""
-    mock_video_file = mock_video_file_factory(video_streams=1, audio_streams=2)
-    sources: list[StreamSourceForVideoEncoding] = [
-        StreamSource(
-            source_stream=stream_at(mock_video_file.streams, 0),
-            conversion=EncodeVideo(),
-        ),
-        StreamSource(
-            source_stream=stream_at(mock_video_file.streams, 1),
-            conversion=Copy(),
-        ),
-        StreamSource(
-            source_stream=stream_at(mock_video_file.streams, 2),
-            conversion=Copy(),
-        ),
-    ]
-    return StreamSourcesForVideoEncoding(root=tuple(sources))
-
-
-@pytest.mark.unit
-def test_build_ffmpeg_args_from_stream_sources_includes_maps_codecs_and_disposition(
-    stream_sources_for_video_encoding: StreamSourcesForVideoEncoding,
-) -> None:
-    """Build FFmpeg args with maps, codecs, disposition, and encoder options."""
-    # Arrange
-    output_path = Path("output.mp4")
-    crf = 23
-    preset = "medium"
-    expected_args = [
-        "-hide_banner",
-        "-nostats",
-        "-fflags",
-        "+discardcorrupt",
-        "-y",
-        "-i",
-        str(stream_sources_for_video_encoding.source_video_file.path),
-        "-map",
-        "0:0",
-        "-map",
-        "0:1",
-        "-map",
-        "0:2",
-        "-disposition:0",
-        "default",
-        "-disposition:1",
-        "default",
-        "-disposition:2",
-        "0",
-        "-f",
-        "mp4",
-        "-fps_mode",
-        "cfr",
-        "-vf",
-        "bwdif",
-        "-codec:v",
-        "libx265",
-        "-crf",
-        "23",
-        "-preset",
-        "medium",
-        "-codec:a",
-        "copy",
-        "-bsf:a",
-        "aac_adtstoasc",
-        str(output_path),
-    ]
-
-    # Act
-    args = _build_ffmpeg_args_from_stream_sources(
-        stream_sources=stream_sources_for_video_encoding,
-        output_path=output_path,
-        crf=crf,
-        preset=preset,
-    )
-
-    # Assert
-    assert args == expected_args
 
 
 @pytest.mark.unit
@@ -258,7 +195,7 @@ def test_encode_video_streams_calls_ffmpeg_with_built_args(
     preset = "medium"
 
     mock_build_args = mocker.patch(
-        "ts2mp4.video_encoder._build_ffmpeg_args_from_stream_sources",
+        "ts2mp4.video_encoder.build_ffmpeg_args",
         return_value=["mock_arg"],
     )
     mock_execute_ffmpeg = mocker.patch("ts2mp4.video_encoder.execute_ffmpeg")
@@ -276,11 +213,11 @@ def test_encode_video_streams_calls_ffmpeg_with_built_args(
     encode_video_streams(mock_video_file, output_file, crf, preset)
 
     # Assert
-    mock_build_stream_sources.assert_called_once_with(mock_video_file)
+    mock_build_stream_sources.assert_called_once_with(
+        mock_video_file, crf=crf, preset=preset
+    )
     mock_build_args.assert_called_once_with(
         stream_sources=mock_build_stream_sources.return_value,
         output_path=output_file,
-        crf=crf,
-        preset=preset,
     )
     mock_execute_ffmpeg.assert_called_once_with(["mock_arg"])
