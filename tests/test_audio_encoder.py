@@ -11,8 +11,7 @@ from ts2mp4.audio_encoder import (
     StreamSourceForAudioEncoding,
     StreamSourcesForAudioEncoding,
     _build_encode_audio_for,
-    _build_stream_sources_for_audio_encoding,
-    encode_mismatched_audio_streams,
+    build_stream_sources_for_audio_encoding,
 )
 from ts2mp4.ffmpeg import execute_ffmpeg
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
@@ -141,27 +140,51 @@ def mock_video_encoded_file_factory(
 
 
 @pytest.mark.unit
-def test_build_stream_sources_for_audio_encoding_no_mismatch(
+def test_build_stream_sources_for_audio_encoding_raises_without_mismatch(
     mock_original_video_file: VideoFile,
     mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
-    """Tests that all streams are marked as COPIED when the report has no mismatch."""
+    """build_stream_sources_for_audio_encoding rejects a report without mismatches."""
     # Arrange
     mock_encoded_video_file = mock_video_encoded_file_factory(
         mock_original_video_file, [0, 1, 2]
     )
 
+    # Act & Assert
+    with pytest.raises(ValueError, match="must report at least one mismatch"):
+        build_stream_sources_for_audio_encoding(
+            mock_original_video_file, mock_encoded_video_file, _NO_MISMATCH_REPORT
+        )
+
+
+@pytest.mark.unit
+def test_build_stream_sources_for_audio_encoding_copies_matching_streams(
+    mocker: MockerFixture,
+    mock_original_video_file: VideoFile,
+    mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
+) -> None:
+    """Streams not reported as mismatched are copied from the encoded file."""
+    # Arrange
+    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
+    mock_encoded_video_file = mock_video_encoded_file_factory(
+        mock_original_video_file, [0, 1, 2]
+    )
+    integrity_report = IntegrityReport(mismatched_output_indices=frozenset({2}))
+
     # Act
-    stream_sources = _build_stream_sources_for_audio_encoding(
-        mock_original_video_file, mock_encoded_video_file, _NO_MISMATCH_REPORT
+    stream_sources = build_stream_sources_for_audio_encoding(
+        mock_original_video_file, mock_encoded_video_file, integrity_report
     )
 
     # Assert
-    assert len(stream_sources) == 3
-    assert all(s.conversion == Copy() for s in stream_sources)
+    copied_source_indices = [
+        s.source_stream.index for s in stream_sources if isinstance(s.conversion, Copy)
+    ]
+    assert copied_source_indices == [0, 1]
     assert all(
         s.source_stream.file.path == mock_encoded_video_file.path
         for s in stream_sources
+        if isinstance(s.conversion, Copy)
     )
 
 
@@ -181,7 +204,7 @@ def test_build_stream_sources_for_audio_encoding_with_mismatch(
     integrity_report = IntegrityReport(mismatched_output_indices=frozenset({2}))
 
     # Act
-    stream_sources = _build_stream_sources_for_audio_encoding(
+    stream_sources = build_stream_sources_for_audio_encoding(
         mock_original_video_file, mock_encoded_video_file, integrity_report
     )
 
@@ -194,19 +217,22 @@ def test_build_stream_sources_for_audio_encoding_with_mismatch(
 
 @pytest.mark.unit
 def test_build_stream_sources_for_audio_encoding_missing_stream_raises_error(
+    mocker: MockerFixture,
     mock_original_video_file: VideoFile,
     mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
     """Tests that a missing stream raises a RuntimeError."""
     # Arrange
+    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     mock_encoded_video_file = mock_video_encoded_file_factory(
         mock_original_video_file, [0, 1]
     )
+    integrity_report = IntegrityReport(mismatched_output_indices=frozenset({1}))
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="is missing a required stream"):
-        _build_stream_sources_for_audio_encoding(
-            mock_original_video_file, mock_encoded_video_file, _NO_MISMATCH_REPORT
+        build_stream_sources_for_audio_encoding(
+            mock_original_video_file, mock_encoded_video_file, integrity_report
         )
 
 
@@ -322,10 +348,10 @@ def test_build_encode_audio_for_raises_for_unsupported_codec(
 
 
 @pytest.mark.integration
-def test_encode_mismatched_audio_streams_integration(
+def test_build_stream_sources_for_audio_encoding_raises_for_missing_stream_in_real_file(
     tmp_path: Path, ts_file: Path
 ) -> None:
-    """Test the audio encoding function with a real video file."""
+    """A real encoded file that lacks an original audio stream is rejected."""
     # Arrange
     original_video_file = VideoFile(path=ts_file)
     original_streams = original_video_file.streams
@@ -361,41 +387,13 @@ def test_encode_mismatched_audio_streams_integration(
         ),
     )
 
-    output_file = tmp_path / "output.mp4"
-
     # Act & Assert
     with pytest.raises(RuntimeError, match="is missing a required stream"):
-        encode_mismatched_audio_streams(
+        build_stream_sources_for_audio_encoding(
             original_file=original_video_file,
             encoded_file=encoded_video_file,
             integrity_report=IntegrityReport(mismatched_output_indices=frozenset({1})),
-            output_file=output_file,
         )
-
-
-@pytest.mark.unit
-def test_encode_mismatched_audio_streams_raises_without_mismatch(
-    mocker: MockerFixture,
-    mock_original_video_file: VideoFile,
-    mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
-    tmp_path: Path,
-) -> None:
-    """encode_mismatched_audio_streams rejects a report without mismatches."""
-    # Arrange
-    mock_execute_ffmpeg = mocker.patch("ts2mp4.audio_encoder.execute_ffmpeg")
-    encoded_video_file = mock_video_encoded_file_factory(
-        mock_original_video_file, [0, 1, 2]
-    )
-
-    # Act & Assert
-    with pytest.raises(ValueError, match="must report at least one mismatch"):
-        encode_mismatched_audio_streams(
-            original_file=mock_original_video_file,
-            encoded_file=encoded_video_file,
-            integrity_report=_NO_MISMATCH_REPORT,
-            output_file=tmp_path / "output.mp4",
-        )
-    mock_execute_ffmpeg.assert_not_called()
 
 
 @pytest.mark.unit
@@ -588,8 +586,10 @@ def test_build_stream_sources_for_audio_encoding_stream_type_mismatch_raises_err
 
     # Act & Assert
     with pytest.raises(RuntimeError) as excinfo:
-        _build_stream_sources_for_audio_encoding(
-            mock_original_video_file, mock_encoded_video_file, _NO_MISMATCH_REPORT
+        build_stream_sources_for_audio_encoding(
+            mock_original_video_file,
+            mock_encoded_video_file,
+            IntegrityReport(mismatched_output_indices=frozenset({2})),
         )
 
     assert "Mismatch in stream types" in str(excinfo.value)

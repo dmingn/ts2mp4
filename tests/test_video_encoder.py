@@ -4,17 +4,14 @@ from pathlib import Path
 from typing import Callable
 
 import pytest
-from pytest_mock import MockerFixture
 
 from tests.helpers import StubVideoFile, stream_at
-from ts2mp4.ffmpeg import FFmpegResult
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_source import Copy, EncodeVideo, StreamSource
 from ts2mp4.video_encoder import (
     StreamSourceForVideoEncoding,
     StreamSourcesForVideoEncoding,
-    _build_stream_sources,
-    encode_video_streams,
+    build_stream_sources_for_video_encoding,
 )
 from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
@@ -45,7 +42,9 @@ def mock_video_file_factory(tmp_path: Path) -> Callable[..., VideoFile]:
 
 
 @pytest.mark.unit
-def test_build_stream_sources_orders_by_stream_index(tmp_path: Path) -> None:
+def test_build_stream_sources_for_video_encoding_orders_by_stream_index(
+    tmp_path: Path,
+) -> None:
     """Emit videos by index, then audios by index, even if probe order differs."""
     # Arrange
     path = tmp_path / "test.ts"
@@ -63,7 +62,9 @@ def test_build_stream_sources_orders_by_stream_index(tmp_path: Path) -> None:
     )
 
     # Act
-    stream_sources = _build_stream_sources(input_file, crf=23, preset="medium")
+    stream_sources = build_stream_sources_for_video_encoding(
+        input_file, crf=23, preset="medium"
+    )
 
     # Assert
     assert [s.source_stream.index for s in stream_sources] == [0, 1, 2, 3]
@@ -76,7 +77,7 @@ def test_build_stream_sources_orders_by_stream_index(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
-def test_build_stream_sources_marks_video_encoded_and_audio_copied(
+def test_build_stream_sources_for_video_encoding_marks_video_encoded_and_audio_copied(
     mock_video_file_factory: Callable[..., VideoFile],
 ) -> None:
     """Mark video as encoded and audio as copied."""
@@ -84,7 +85,9 @@ def test_build_stream_sources_marks_video_encoded_and_audio_copied(
     input_file = mock_video_file_factory(video_streams=1, audio_streams=2)
 
     # Act
-    stream_sources = _build_stream_sources(input_file, crf=23, preset="medium")
+    stream_sources = build_stream_sources_for_video_encoding(
+        input_file, crf=23, preset="medium"
+    )
 
     # Assert
     assert isinstance(stream_sources, StreamSourcesForVideoEncoding)
@@ -98,7 +101,7 @@ def test_build_stream_sources_marks_video_encoded_and_audio_copied(
 
 
 @pytest.mark.unit
-def test_build_stream_sources_encodes_video_with_libx265_settings(
+def test_build_stream_sources_for_video_encoding_encodes_video_with_libx265_settings(
     mock_video_file_factory: Callable[..., VideoFile],
 ) -> None:
     """Encode video with libx265, the given crf and preset, bwdif and cfr."""
@@ -106,7 +109,9 @@ def test_build_stream_sources_encodes_video_with_libx265_settings(
     input_file = mock_video_file_factory(video_streams=1, audio_streams=1)
 
     # Act
-    stream_sources = _build_stream_sources(input_file, crf=23, preset="medium")
+    stream_sources = build_stream_sources_for_video_encoding(
+        input_file, crf=23, preset="medium"
+    )
 
     # Assert
     assert stream_sources[0].conversion == EncodeVideo(
@@ -181,43 +186,3 @@ def test_stream_sources_for_video_encoding_raises_on_invalid_sources(
     # Act & Assert
     with pytest.raises(ValueError, match=error_message):
         StreamSourcesForVideoEncoding(root=tuple(sources))
-
-
-@pytest.mark.unit
-def test_encode_video_streams_calls_ffmpeg_with_built_args(
-    mock_video_file_factory: Callable[..., VideoFile], mocker: MockerFixture
-) -> None:
-    """Build stream sources and args, then execute FFmpeg successfully."""
-    # Arrange
-    mock_video_file = mock_video_file_factory()
-    output_file = Path("output.mp4")
-    crf = 23
-    preset = "medium"
-
-    mock_build_args = mocker.patch(
-        "ts2mp4.video_encoder.build_ffmpeg_args",
-        return_value=["mock_arg"],
-    )
-    mock_execute_ffmpeg = mocker.patch("ts2mp4.video_encoder.execute_ffmpeg")
-    mock_execute_ffmpeg.return_value = FFmpegResult(stdout=b"", stderr="", returncode=0)
-    mock_build_stream_sources = mocker.patch(
-        "ts2mp4.video_encoder._build_stream_sources"
-    )
-
-    mocker.patch(
-        "ts2mp4.video_encoder.VideoEncodedFile",
-        return_value=mocker.MagicMock(spec=VideoFile, path=output_file),
-    )
-
-    # Act
-    encode_video_streams(mock_video_file, output_file, crf, preset)
-
-    # Assert
-    mock_build_stream_sources.assert_called_once_with(
-        mock_video_file, crf=crf, preset=preset
-    )
-    mock_build_args.assert_called_once_with(
-        stream_sources=mock_build_stream_sources.return_value,
-        output_path=output_file,
-    )
-    mock_execute_ffmpeg.assert_called_once_with(["mock_arg"])
