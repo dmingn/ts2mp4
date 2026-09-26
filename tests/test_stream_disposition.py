@@ -7,7 +7,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from tests.helpers import StubVideoFile
-from ts2mp4.ffprobe_schema import FFprobeFormat, FFprobeOutput
+from ts2mp4.ffprobe_schema import FFprobeFormat, FFprobeOutput, FFprobeStream
 from ts2mp4.stream_disposition import (
     build_disposition_args,
     get_default_stream_indices,
@@ -17,7 +17,7 @@ from ts2mp4.video_file import AudioStream, Stream, VideoStream
 
 
 class _StreamSpec(NamedTuple):
-    """Stream fields for one stream in disposition selection cases."""
+    """Probe fields for one stream in disposition selection cases."""
 
     codec_type: str
     stream_index: int
@@ -114,35 +114,27 @@ def test_get_default_stream_indices(
     source_path.touch()
     video_file = StubVideoFile(
         path=source_path,
-        stub_probe=FFprobeOutput(format=FFprobeFormat(duration=format_duration)),
-    )
-
-    streams: list[Stream] = []
-    for spec in stream_specs:
-        if spec.codec_type == "video":
-            streams.append(
-                VideoStream(
-                    file=video_file,
+        stub_probe=FFprobeOutput(
+            streams=tuple(
+                FFprobeStream(
+                    codec_type=spec.codec_type,
                     index=spec.stream_index,
                     width=spec.width,
                     height=spec.height,
                     duration=spec.duration,
                 )
-            )
-        else:
-            streams.append(
-                AudioStream(
-                    file=video_file, index=spec.stream_index, duration=spec.duration
-                )
-            )
-
+                for spec in stream_specs
+            ),
+            format=FFprobeFormat(duration=format_duration),
+        ),
+    )
     stream_sources = StreamSources(
         root=tuple(
             StreamSource(
                 source_stream=stream,
                 conversion_type=_conversion_type_for_stream(stream),
             )
-            for stream in streams
+            for stream in sorted(video_file.streams)
         )
     )
 
@@ -192,19 +184,36 @@ def test_get_default_stream_indices_uses_each_source_video_file_for_container_du
     path_a.touch()
     path_b.touch()
     file_a = StubVideoFile(
-        path=path_a, stub_probe=FFprobeOutput(format=FFprobeFormat(duration=100.0))
+        path=path_a,
+        stub_probe=FFprobeOutput(
+            format=FFprobeFormat(duration=100.0),
+            streams=(
+                FFprobeStream(
+                    index=0, codec_type="video", width=720, height=480, duration=100.0
+                ),
+                FFprobeStream(index=2, codec_type="audio", duration=100.0),
+            ),
+        ),
     )
     file_b = StubVideoFile(
-        path=path_b, stub_probe=FFprobeOutput(format=FFprobeFormat(duration=1000.0))
+        path=path_b,
+        stub_probe=FFprobeOutput(
+            format=FFprobeFormat(duration=1000.0),
+            streams=(
+                FFprobeStream(
+                    index=0,
+                    codec_type="video",
+                    width=1440,
+                    height=1080,
+                    duration=100.0,
+                ),
+            ),
+        ),
     )
 
-    low_res_video = VideoStream(
-        file=file_a, index=0, width=720, height=480, duration=100.0
-    )
-    high_res_video = VideoStream(
-        file=file_b, index=0, width=1440, height=1080, duration=100.0
-    )
-    audio = AudioStream(file=file_a, index=2, duration=100.0)
+    low_res_video = VideoStream(file=file_a, index=0)
+    high_res_video = VideoStream(file=file_b, index=0)
+    audio = AudioStream(file=file_a, index=2)
 
     stream_sources = StreamSources(
         root=(

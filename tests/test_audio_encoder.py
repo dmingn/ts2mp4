@@ -28,6 +28,37 @@ from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 _NO_MISMATCH_REPORT = IntegrityReport(mismatched_output_indices=frozenset())
 
 
+def _probed_audio_stream(
+    tmp_path: Path,
+    *,
+    codec_name: str | None = None,
+    sample_rate: int | None = None,
+    channels: int | None = None,
+    profile: str | None = None,
+    bit_rate: int | None = None,
+) -> AudioStream:
+    """Return the audio stream at index 1 of a file probed with the given fields."""
+    path = tmp_path / "audio.ts"
+    path.touch()
+    video_file = StubVideoFile(
+        path=path,
+        stub_probe=FFprobeOutput(
+            streams=(
+                FFprobeStream(
+                    index=1,
+                    codec_type="audio",
+                    codec_name=codec_name,
+                    sample_rate=sample_rate,
+                    channels=channels,
+                    profile=profile,
+                    bit_rate=bit_rate,
+                ),
+            )
+        ),
+    )
+    return AudioStream(file=video_file, index=1)
+
+
 @pytest.fixture
 def mock_original_video_file(tmp_path: Path) -> VideoFile:
     """Create a VideoFile for the original file with stubbed probe streams."""
@@ -177,13 +208,9 @@ def test_build_audio_encode_args(mocker: MockerFixture, tmp_path: Path) -> None:
     """Test that audio convert arguments are built correctly."""
     # Arrange
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
-    path = tmp_path / "audio.ts"
-    path.touch()
-    video_file = VideoFile(path=path)
     stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
-        source_stream=AudioStream(
-            file=video_file,
-            index=1,
+        source_stream=_probed_audio_stream(
+            tmp_path,
             codec_name="aac",
             sample_rate=48000,
             channels=2,
@@ -220,11 +247,8 @@ def test_build_audio_encode_args_with_libfdk_aac(
     """Test that libfdk_aac is used when available for audio conversion."""
     # Arrange
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=True)
-    path = tmp_path / "audio.ts"
-    path.touch()
-    video_file = VideoFile(path=path)
     stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
-        source_stream=AudioStream(file=video_file, index=1, codec_name="aac"),
+        source_stream=_probed_audio_stream(tmp_path, codec_name="aac"),
         conversion_type="encoded",
     )
 
@@ -243,11 +267,8 @@ def test_build_audio_encode_args_without_libfdk_aac(
     # Arrange
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     mock_logger_warning = mocker.patch("ts2mp4.audio_encoder.logger.warning")
-    path = tmp_path / "audio.ts"
-    path.touch()
-    video_file = VideoFile(path=path)
     stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
-        source_stream=AudioStream(file=video_file, index=1, codec_name="aac"),
+        source_stream=_probed_audio_stream(tmp_path, codec_name="aac"),
         conversion_type="encoded",
     )
 
@@ -268,11 +289,8 @@ def test_build_audio_encode_args_with_none_values(
     """Test that audio convert arguments are built correctly with minimal stream info."""
     # Arrange
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
-    path = tmp_path / "audio.ts"
-    path.touch()
-    video_file = VideoFile(path=path)
     stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
-        source_stream=AudioStream(file=video_file, index=1, codec_name="aac"),
+        source_stream=_probed_audio_stream(tmp_path, codec_name="aac"),
         conversion_type="encoded",
     )
 
@@ -289,11 +307,8 @@ def test_build_audio_encode_args_raises_for_unsupported_codec(
 ) -> None:
     """Test that an error is raised for unsupported audio codecs."""
     # Arrange
-    path = tmp_path / "audio.ts"
-    path.touch()
-    video_file = VideoFile(path=path)
     stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
-        source_stream=AudioStream(file=video_file, index=1, codec_name="mp3"),
+        source_stream=_probed_audio_stream(tmp_path, codec_name="mp3"),
         conversion_type="encoded",
     )
 

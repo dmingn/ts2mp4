@@ -35,55 +35,16 @@ def mixed_video_file(dummy_path: Path) -> VideoFile:
 
 
 @pytest.mark.unit
-def test_videofile_streams_copies_probe_metadata(dummy_path: Path) -> None:
-    """VideoFile.streams copies probed metadata into the stream fields."""
+def test_audiostream_channels_derives_from_probe(mixed_video_file: VideoFile) -> None:
+    """AudioStream.channels is read from the probed stream at this index."""
     # Arrange
-    video_file = StubVideoFile(
-        path=dummy_path,
-        stub_probe=FFprobeOutput(
-            streams=(
-                FFprobeStream(
-                    index=0, codec_type="video", duration=10.0, width=1920, height=1080
-                ),
-                FFprobeStream(
-                    index=1,
-                    codec_type="audio",
-                    duration=9.5,
-                    codec_name="aac",
-                    profile="LC",
-                    bit_rate=192000,
-                    channels=6,
-                    sample_rate=48000,
-                ),
-            )
-        ),
-    )
+    stream = AudioStream(file=mixed_video_file, index=3)
 
     # Act
-    streams = video_file.streams
+    channels = stream.channels
 
     # Assert
-    assert streams == frozenset(
-        {
-            VideoStream(
-                file=video_file,
-                index=0,
-                duration=10.0,
-                width=1920,
-                height=1080,
-            ),
-            AudioStream(
-                file=video_file,
-                index=1,
-                duration=9.5,
-                codec_name="aac",
-                profile="LC",
-                bit_rate=192000,
-                channels=6,
-                sample_rate=48000,
-            ),
-        }
-    )
+    assert channels == 6
 
 
 @pytest.mark.unit
@@ -97,6 +58,8 @@ def test_videofile_streams_maps_probe_output_to_domain_types(
     # Assert
     assert isinstance(stream_at(streams, 0), VideoStream)
     assert isinstance(stream_at(streams, 1), AudioStream)
+    assert stream_at(streams, 0).codec_type == "video"
+    assert stream_at(streams, 1).codec_type == "audio"
     other = stream_at(streams, 4)
     assert isinstance(other, OtherStream)
     assert other.codec_type == "subtitle"
