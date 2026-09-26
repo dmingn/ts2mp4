@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from tests.helpers import stream_at
+from tests.helpers import StubConvertedVideoFile, stream_at
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_source import (
     ConversionType,
@@ -120,25 +120,21 @@ def test_stream_sources_properties_are_empty_when_no_sources() -> None:
 def test_converted_videofile_rejects_mismatched_stream_counts(
     dummy_video_file: VideoFile,
     stream_source: StreamSource[VideoStream, ConversionType],
-    mocker: MockerFixture,
 ) -> None:
     """ConvertedVideoFile raises when stream_sources length mismatches streams."""
     # Arrange
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
-            streams=(
-                FFprobeStream(codec_type="video", index=0),
-                FFprobeStream(codec_type="audio", index=1, channels=2),
-            )
-        ),
-    )
     stream_sources = StreamSources(root=(stream_source,))
 
     # Act & Assert
     with pytest.raises(ValueError, match="Mismatch in stream counts"):
-        ConvertedVideoFile(
+        StubConvertedVideoFile[StreamSources](
             path=dummy_video_file.path,
+            stub_probe=FFprobeOutput(
+                streams=(
+                    FFprobeStream(codec_type="video", index=0),
+                    FFprobeStream(codec_type="audio", index=1, channels=2),
+                )
+            ),
             stream_sources=stream_sources,
         )
 
@@ -146,19 +142,9 @@ def test_converted_videofile_rejects_mismatched_stream_counts(
 @pytest.mark.unit
 def test_converted_videofile_rejects_when_output_indices_do_not_match_positions(
     dummy_video_file: VideoFile,
-    mocker: MockerFixture,
 ) -> None:
     """ConvertedVideoFile raises when output indices are not 0..n-1 for sources."""
     # Arrange
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
-            streams=(
-                FFprobeStream(codec_type="video", index=0),
-                FFprobeStream(codec_type="audio", index=2, channels=2),
-            )
-        ),
-    )
     stream_sources = StreamSources(
         root=(
             StreamSource(
@@ -174,8 +160,14 @@ def test_converted_videofile_rejects_when_output_indices_do_not_match_positions(
 
     # Act & Assert
     with pytest.raises(ValueError, match="do not match stream_sources positions"):
-        ConvertedVideoFile(
+        StubConvertedVideoFile[StreamSources](
             path=dummy_video_file.path,
+            stub_probe=FFprobeOutput(
+                streams=(
+                    FFprobeStream(codec_type="video", index=0),
+                    FFprobeStream(codec_type="audio", index=2, channels=2),
+                )
+            ),
             stream_sources=stream_sources,
         )
 
@@ -202,19 +194,13 @@ def test_streams_by_unique_index_rejects_duplicate_indices(
 def test_converted_videofile_stream_with_sources_pairs_output_and_source(
     dummy_video_file: VideoFile,
     stream_source: StreamSource[VideoStream, ConversionType],
-    mocker: MockerFixture,
 ) -> None:
     """ConvertedVideoFile.stream_with_sources pairs each output stream with its source."""
     # Arrange
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
-            streams=(FFprobeStream(codec_type="video", index=0),)
-        ),
-    )
     stream_sources = StreamSources(root=(stream_source,))
-    converted_file = ConvertedVideoFile[StreamSources](
+    converted_file = StubConvertedVideoFile[StreamSources](
         path=dummy_video_file.path,
+        stub_probe=FFprobeOutput(streams=(FFprobeStream(codec_type="video", index=0),)),
         stream_sources=stream_sources,
     )
 
@@ -232,7 +218,6 @@ def test_converted_videofile_stream_with_sources_pairs_output_and_source(
 @pytest.mark.unit
 def test_converted_videofile_stream_with_sources_raises_on_type_mismatch(
     dummy_video_file: VideoFile,
-    mocker: MockerFixture,
 ) -> None:
     """ConvertedVideoFile.stream_with_sources raises when stream and source types differ."""
     # Arrange
@@ -240,14 +225,9 @@ def test_converted_videofile_stream_with_sources_raises_on_type_mismatch(
         source_stream=AudioStream(file=dummy_video_file, index=0),
         conversion_type="copied",
     )
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
-            streams=(FFprobeStream(codec_type="video", index=0),)
-        ),
-    )
-    converted_file = ConvertedVideoFile[StreamSources](
+    converted_file = StubConvertedVideoFile[StreamSources](
         path=dummy_video_file.path,
+        stub_probe=FFprobeOutput(streams=(FFprobeStream(codec_type="video", index=0),)),
         stream_sources=StreamSources(root=(audio_stream_source,)),
     )
 
@@ -263,15 +243,6 @@ def test_converted_videofile_stream_with_sources_raises_when_output_index_missin
 ) -> None:
     """stream_with_sources raises when no output stream exists for a source position."""
     # Arrange
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
-            streams=(
-                FFprobeStream(codec_type="video", index=0),
-                FFprobeStream(codec_type="audio", index=1, channels=2),
-            )
-        ),
-    )
     stream_sources = StreamSources(
         root=(
             StreamSource(
@@ -284,8 +255,14 @@ def test_converted_videofile_stream_with_sources_raises_when_output_index_missin
             ),
         )
     )
-    converted_file = ConvertedVideoFile[StreamSources](
+    converted_file = StubConvertedVideoFile[StreamSources](
         path=dummy_video_file.path,
+        stub_probe=FFprobeOutput(
+            streams=(
+                FFprobeStream(codec_type="video", index=0),
+                FFprobeStream(codec_type="audio", index=1, channels=2),
+            )
+        ),
         stream_sources=stream_sources,
     )
     # Construction saw contiguous indices; simulate a gap only for pairing.

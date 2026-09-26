@@ -2,18 +2,18 @@
 
 from pathlib import Path
 from typing import NamedTuple
-from unittest.mock import MagicMock
 
 import pytest
 from pytest_mock import MockerFixture
 
+from tests.helpers import StubVideoFile
 from ts2mp4.ffprobe_schema import FFprobeFormat, FFprobeOutput
 from ts2mp4.stream_disposition import (
     build_disposition_args,
     get_default_stream_indices,
 )
 from ts2mp4.stream_source import ConversionType, StreamSource, StreamSources
-from ts2mp4.video_file import AudioStream, Stream, VideoFile, VideoStream
+from ts2mp4.video_file import AudioStream, Stream, VideoStream
 
 
 class _StreamSpec(NamedTuple):
@@ -24,18 +24,6 @@ class _StreamSpec(NamedTuple):
     width: int | None = None
     height: int | None = None
     duration: float | None = None
-
-
-def _patch_probe(
-    mocker: MockerFixture,
-    path_to_output: dict[Path, FFprobeOutput],
-) -> MagicMock:
-    """Patch probe_file to return FFprobeOutput based on file path."""
-
-    def _side_effect(path: Path) -> FFprobeOutput:
-        return path_to_output[path]
-
-    return mocker.patch("ts2mp4.video_file.probe_file", side_effect=_side_effect)
 
 
 def _conversion_type_for_stream(stream: Stream) -> ConversionType:
@@ -115,7 +103,6 @@ def _conversion_type_for_stream(stream: Stream) -> ConversionType:
     ],
 )
 def test_get_default_stream_indices(
-    mocker: MockerFixture,
     tmp_path: Path,
     stream_specs: tuple[_StreamSpec, ...],
     format_duration: float | None,
@@ -125,11 +112,9 @@ def test_get_default_stream_indices(
     # Arrange
     source_path = tmp_path / "input.ts"
     source_path.touch()
-    video_file = VideoFile(path=source_path)
-
-    _patch_probe(
-        mocker,
-        {source_path: FFprobeOutput(format=FFprobeFormat(duration=format_duration))},
+    video_file = StubVideoFile(
+        path=source_path,
+        stub_probe=FFprobeOutput(format=FFprobeFormat(duration=format_duration)),
     )
 
     streams: list[Stream] = []
@@ -195,7 +180,7 @@ def test_build_disposition_args_marks_only_defaults(mocker: MockerFixture) -> No
 
 @pytest.mark.unit
 def test_get_default_stream_indices_uses_each_source_video_file_for_container_duration(
-    mocker: MockerFixture, tmp_path: Path
+    tmp_path: Path,
 ) -> None:
     """Look up container duration from each source stream's own video file."""
     # Arrange
@@ -206,8 +191,12 @@ def test_get_default_stream_indices_uses_each_source_video_file_for_container_du
     path_b = tmp_path / "b.ts"
     path_a.touch()
     path_b.touch()
-    file_a = VideoFile(path=path_a)
-    file_b = VideoFile(path=path_b)
+    file_a = StubVideoFile(
+        path=path_a, stub_probe=FFprobeOutput(format=FFprobeFormat(duration=100.0))
+    )
+    file_b = StubVideoFile(
+        path=path_b, stub_probe=FFprobeOutput(format=FFprobeFormat(duration=1000.0))
+    )
 
     low_res_video = VideoStream(
         file=file_a, index=0, width=720, height=480, duration=100.0
@@ -217,13 +206,6 @@ def test_get_default_stream_indices_uses_each_source_video_file_for_container_du
     )
     audio = AudioStream(file=file_a, index=2, duration=100.0)
 
-    mock_probe_file = _patch_probe(
-        mocker,
-        {
-            path_a: FFprobeOutput(format=FFprobeFormat(duration=100.0)),
-            path_b: FFprobeOutput(format=FFprobeFormat(duration=1000.0)),
-        },
-    )
     stream_sources = StreamSources(
         root=(
             StreamSource(
@@ -246,7 +228,3 @@ def test_get_default_stream_indices_uses_each_source_video_file_for_container_du
 
     # Assert
     assert result == frozenset({0, 2})
-    # Each stream consults its own source file (not a single shared container).
-    probed_paths = [call.args[0] for call in mock_probe_file.call_args_list]
-    assert path_a in probed_paths
-    assert path_b in probed_paths

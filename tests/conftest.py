@@ -3,8 +3,8 @@
 from pathlib import Path
 
 import pytest
-from pytest_mock import MockerFixture
 
+from tests.helpers import StubVideoFile
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.video_file import VideoFile
 
@@ -55,14 +55,14 @@ def mp4_file(project_root: Path) -> Path:
 
 
 @pytest.fixture
-def mock_video_file(mocker: MockerFixture, tmp_path: Path) -> VideoFile:
+def mock_video_file(tmp_path: Path) -> VideoFile:
     """Mock VideoFile object for ts2mp4 tests."""
     dummy_file = tmp_path / "test.ts"
     dummy_file.touch()
 
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
+    return StubVideoFile(
+        path=dummy_file,
+        stub_probe=FFprobeOutput(
             streams=(
                 FFprobeStream(codec_type="video", index=0),
                 FFprobeStream(codec_type="audio", index=1, channels=2),
@@ -70,5 +70,3 @@ def mock_video_file(mocker: MockerFixture, tmp_path: Path) -> VideoFile:
             )
         ),
     )
-
-    return VideoFile(path=dummy_file)

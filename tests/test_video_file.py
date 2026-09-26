@@ -3,19 +3,26 @@
 from pathlib import Path
 
 import pytest
-from pytest_mock import MockerFixture
 
-from tests.helpers import stream_at
+from tests.helpers import StubVideoFile, stream_at
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.video_file import AudioStream, OtherStream, VideoFile, VideoStream
 
 
 @pytest.fixture
-def mixed_probe(mocker: MockerFixture) -> None:
-    """Stub probe_file with mixed video, audio, and other streams."""
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
+def dummy_path(tmp_path: Path) -> Path:
+    """Create an empty file to back a VideoFile."""
+    path = tmp_path / "test.ts"
+    path.touch()
+    return path
+
+
+@pytest.fixture
+def mixed_video_file(dummy_path: Path) -> VideoFile:
+    """Create a VideoFile with mixed video, audio, and other streams."""
+    return StubVideoFile(
+        path=dummy_path,
+        stub_probe=FFprobeOutput(
             streams=(
                 FFprobeStream(codec_type="video", index=0),
                 FFprobeStream(codec_type="audio", index=1, channels=2),
@@ -27,23 +34,13 @@ def mixed_probe(mocker: MockerFixture) -> None:
     )
 
 
-@pytest.fixture
-def dummy_video_file(tmp_path: Path) -> VideoFile:
-    """Create a dummy VideoFile instance."""
-    dummy_file = tmp_path / "test.ts"
-    dummy_file.touch()
-    return VideoFile(path=dummy_file)
-
-
 @pytest.mark.unit
-def test_videofile_streams_copies_probe_metadata(
-    mocker: MockerFixture, dummy_video_file: VideoFile
-) -> None:
+def test_videofile_streams_copies_probe_metadata(dummy_path: Path) -> None:
     """VideoFile.streams copies probed metadata into the stream fields."""
     # Arrange
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
+    video_file = StubVideoFile(
+        path=dummy_path,
+        stub_probe=FFprobeOutput(
             streams=(
                 FFprobeStream(
                     index=0, codec_type="video", duration=10.0, width=1920, height=1080
@@ -63,20 +60,20 @@ def test_videofile_streams_copies_probe_metadata(
     )
 
     # Act
-    streams = dummy_video_file.streams
+    streams = video_file.streams
 
     # Assert
     assert streams == frozenset(
         {
             VideoStream(
-                file=dummy_video_file,
+                file=video_file,
                 index=0,
                 duration=10.0,
                 width=1920,
                 height=1080,
             ),
             AudioStream(
-                file=dummy_video_file,
+                file=video_file,
                 index=1,
                 duration=9.5,
                 codec_name="aac",
@@ -91,11 +88,11 @@ def test_videofile_streams_copies_probe_metadata(
 
 @pytest.mark.unit
 def test_videofile_streams_maps_probe_output_to_domain_types(
-    mixed_probe: None, dummy_video_file: VideoFile
+    mixed_video_file: VideoFile,
 ) -> None:
     """VideoFile.streams maps probed entries to Video/Audio/OtherStream."""
     # Act
-    streams = dummy_video_file.streams
+    streams = mixed_video_file.streams
 
     # Assert
     assert isinstance(stream_at(streams, 0), VideoStream)
@@ -107,14 +104,14 @@ def test_videofile_streams_maps_probe_output_to_domain_types(
 
 @pytest.mark.unit
 def test_videofile_streams_binds_each_stream_to_the_file(
-    mixed_probe: None, dummy_video_file: VideoFile
+    mixed_video_file: VideoFile,
 ) -> None:
     """VideoFile.streams binds every domain stream to the owning file."""
     # Act
-    streams = dummy_video_file.streams
+    streams = mixed_video_file.streams
 
     # Assert
-    assert all(stream.file == dummy_video_file for stream in streams)
+    assert all(stream.file == mixed_video_file for stream in streams)
 
 
 @pytest.mark.unit
@@ -150,11 +147,11 @@ def test_basestream_sorts_by_file_path_then_index(tmp_path: Path) -> None:
 
 @pytest.mark.unit
 def test_videofile_valid_audio_streams_excludes_zero_channels(
-    mixed_probe: None, dummy_video_file: VideoFile
+    mixed_video_file: VideoFile,
 ) -> None:
     """VideoFile.valid_audio_streams excludes audio streams with channels <= 0."""
     # Act
-    valid_audio_streams = dummy_video_file.valid_audio_streams
+    valid_audio_streams = mixed_video_file.valid_audio_streams
 
     # Assert
     assert len(valid_audio_streams) == 2

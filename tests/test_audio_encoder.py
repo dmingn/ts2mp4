@@ -6,7 +6,7 @@ from typing import Callable, Literal, cast
 import pytest
 from pytest_mock import MockerFixture
 
-from tests.helpers import stream_at
+from tests.helpers import StubVideoFile, stream_at
 from ts2mp4.audio_encoder import (
     StreamSourceForAudioEncoding,
     StreamSourcesForAudioEncoding,
@@ -29,15 +29,14 @@ _NO_MISMATCH_REPORT = IntegrityReport(mismatched_output_indices=frozenset())
 
 
 @pytest.fixture
-def mock_original_video_file(mocker: MockerFixture, tmp_path: Path) -> VideoFile:
+def mock_original_video_file(tmp_path: Path) -> VideoFile:
     """Create a VideoFile for the original file with stubbed probe streams."""
     path = tmp_path / "original.ts"
     path.touch()
-    video_file = VideoFile(path=path)
 
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
+    return StubVideoFile(
+        path=path,
+        stub_probe=FFprobeOutput(
             streams=(
                 FFprobeStream(codec_type="video", index=0),
                 FFprobeStream(
@@ -49,7 +48,6 @@ def mock_original_video_file(mocker: MockerFixture, tmp_path: Path) -> VideoFile
             )
         ),
     )
-    return video_file
 
 
 @pytest.fixture

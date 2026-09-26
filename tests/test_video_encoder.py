@@ -6,7 +6,7 @@ from typing import Callable
 import pytest
 from pytest_mock import MockerFixture
 
-from tests.helpers import stream_at
+from tests.helpers import StubVideoFile, stream_at
 from ts2mp4.ffmpeg import FFmpegResult
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_source import StreamSource
@@ -21,9 +21,7 @@ from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
 
 @pytest.fixture
-def mock_video_file_factory(
-    mocker: MockerFixture, tmp_path: Path
-) -> Callable[..., VideoFile]:
+def mock_video_file_factory(tmp_path: Path) -> Callable[..., VideoFile]:
     """Create a factory for mock VideoFile objects with specific stream configurations."""
 
     def _factory(
@@ -40,27 +38,22 @@ def mock_video_file_factory(
                 FFprobeStream(codec_type="audio", index=video_streams + i, channels=2)
             )
 
-        mocker.patch(
-            "ts2mp4.video_file.probe_file",
-            return_value=FFprobeOutput(streams=tuple(probe_streams)),
+        return StubVideoFile(
+            path=dummy_file, stub_probe=FFprobeOutput(streams=tuple(probe_streams))
         )
-
-        return VideoFile(path=dummy_file)
 
     return _factory
 
 
 @pytest.mark.unit
-def test_build_stream_sources_orders_by_stream_index(
-    mocker: MockerFixture, tmp_path: Path
-) -> None:
+def test_build_stream_sources_orders_by_stream_index(tmp_path: Path) -> None:
     """Emit videos by index, then audios by index, even if probe order differs."""
     # Arrange
     path = tmp_path / "test.ts"
     path.touch()
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
+    input_file = StubVideoFile(
+        path=path,
+        stub_probe=FFprobeOutput(
             streams=[
                 FFprobeStream(codec_type="audio", index=2, channels=2),
                 FFprobeStream(codec_type="video", index=1),
@@ -69,7 +62,6 @@ def test_build_stream_sources_orders_by_stream_index(
             ]
         ),
     )
-    input_file = VideoFile(path=path)
 
     # Act
     stream_sources = _build_stream_sources(input_file)

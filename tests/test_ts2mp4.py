@@ -7,33 +7,12 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_integrity import IntegrityReport
 from ts2mp4.ts2mp4 import ts2mp4
 from ts2mp4.video_file import VideoFile
 
 _OK_REPORT = IntegrityReport(mismatched_output_indices=frozenset())
 _MISMATCH_REPORT = IntegrityReport(mismatched_output_indices=frozenset({1}))
-
-
-@pytest.fixture
-def mock_video_file(mocker: MockerFixture, tmp_path: Path) -> VideoFile:
-    """Mock VideoFile object for ts2mp4 tests."""
-    dummy_file = tmp_path / "test.ts"
-    dummy_file.touch()
-
-    mocker.patch(
-        "ts2mp4.video_file.probe_file",
-        return_value=FFprobeOutput(
-            streams=(
-                FFprobeStream(codec_type="video", index=0),
-                FFprobeStream(codec_type="audio", index=1, channels=2),
-                FFprobeStream(codec_type="audio", index=2, channels=6),
-            )
-        ),
-    )
-
-    return VideoFile(path=dummy_file)
 
 
 @pytest.mark.unit
