@@ -368,51 +368,34 @@ def test_encode_mismatched_audio_streams_integration(
         encode_mismatched_audio_streams(
             original_file=original_video_file,
             encoded_file=encoded_video_file,
-            integrity_report=_NO_MISMATCH_REPORT,
+            integrity_report=IntegrityReport(mismatched_output_indices=frozenset({1})),
             output_file=output_file,
         )
 
 
-@pytest.mark.integration
-def test_encode_mismatched_audio_streams_no_encoding_needed(
-    tmp_path: Path, ts_file: Path
+@pytest.mark.unit
+def test_encode_mismatched_audio_streams_raises_without_mismatch(
+    mocker: MockerFixture,
+    mock_original_video_file: VideoFile,
+    mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
+    tmp_path: Path,
 ) -> None:
-    """Test that the function returns None when no encoding is needed."""
+    """encode_mismatched_audio_streams rejects a report without mismatches."""
     # Arrange
-    original_video_file = VideoFile(path=ts_file)
-    original_streams = original_video_file.streams
+    mock_execute_ffmpeg = mocker.patch("ts2mp4.audio_encoder.execute_ffmpeg")
+    encoded_video_file = mock_video_encoded_file_factory(
+        mock_original_video_file, [0, 1, 2]
+    )
 
-    encoded_stream_sources = StreamSourcesForVideoEncoding(
-        root=tuple(
-            StreamSource(
-                source_stream=s,
-                conversion=(
-                    EncodeVideo(codec="libx265", crf=23, preset="medium")
-                    if isinstance(s, VideoStream)
-                    else Copy()
-                ),
-            )
-            for s in sorted(original_streams)
-            if isinstance(s, (VideoStream, AudioStream))
+    # Act & Assert
+    with pytest.raises(ValueError, match="must report at least one mismatch"):
+        encode_mismatched_audio_streams(
+            original_file=mock_original_video_file,
+            encoded_file=encoded_video_file,
+            integrity_report=_NO_MISMATCH_REPORT,
+            output_file=tmp_path / "output.mp4",
         )
-    )
-    encoded_video_file = VideoEncodedFile(
-        path=ts_file, stream_sources=encoded_stream_sources
-    )
-
-    output_file = tmp_path / "output.mp4"
-
-    # Act
-    result_video = encode_mismatched_audio_streams(
-        original_file=original_video_file,
-        encoded_file=encoded_video_file,
-        integrity_report=_NO_MISMATCH_REPORT,
-        output_file=output_file,
-    )
-
-    # Assert
-    assert result_video is None
-    assert not output_file.exists()
+    mock_execute_ffmpeg.assert_not_called()
 
 
 @pytest.mark.unit

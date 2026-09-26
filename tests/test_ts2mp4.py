@@ -145,7 +145,7 @@ def test_ts2mp4_propagates_runtime_error_from_check_integrity(
         "ts2mp4.ts2mp4.check_integrity",
         side_effect=RuntimeError("Stream type mismatch for stream index 1"),
     )
-    mocker.patch("ts2mp4.ts2mp4.encode_mismatched_audio_streams", return_value=None)
+    mocker.patch("ts2mp4.ts2mp4.encode_mismatched_audio_streams")
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="Stream type mismatch"):

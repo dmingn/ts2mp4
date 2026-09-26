@@ -1,7 +1,7 @@
 """Encodes mismatched audio streams that failed integrity checks."""
 
 from pathlib import Path
-from typing import Optional, Self
+from typing import Self
 
 from logzero import logger
 from pydantic import model_validator
@@ -184,7 +184,7 @@ def encode_mismatched_audio_streams(
     encoded_file: VideoEncodedFile,
     integrity_report: IntegrityReport,
     output_file: Path,
-) -> Optional[AudioEncodedFile]:
+) -> AudioEncodedFile:
     """Encode mismatched audio streams from an original file to a new output file.
 
     This function treats audio streams reported as mismatched in integrity_report
@@ -200,22 +200,25 @@ def encode_mismatched_audio_streams(
         encoded_file: The VideoEncodedFile object from encode_video_streams.
                       It contains the mapping between original and encoded streams.
         integrity_report: The IntegrityReport from check_integrity on encoded_file.
+                          It must report at least one mismatched stream.
         output_file: The path where the corrected output file will be saved.
 
     Returns
     -------
-        An AudioEncodedFile object if encoding was performed, otherwise None.
+        The AudioEncodedFile written to output_file.
+
+    Raises
+    ------
+        ValueError: If integrity_report reports no mismatched streams.
     """
+    if integrity_report.is_ok:
+        raise ValueError("integrity_report must report at least one mismatch.")
+
     stream_sources = _build_stream_sources_for_audio_encoding(
         original_file=original_file,
         encoded_file=encoded_file,
         integrity_report=integrity_report,
     )
-
-    # If all audio streams are to be copied, no encoding is needed.
-    if not any(isinstance(s.conversion, EncodeAudio) for s in stream_sources):
-        logger.info("No audio streams require encoding. Skipping.")
-        return None
 
     ffmpeg_args = build_ffmpeg_args(
         stream_sources=stream_sources,

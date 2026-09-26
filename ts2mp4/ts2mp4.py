@@ -48,33 +48,33 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
             integrity_report=video_encoded_integrity_report,
             output_file=temp_output_file,
         )
-        if audio_encoded_file:
-            logger.info(
-                f"Verifying copied stream integrity for {audio_encoded_file.path.name}"
-            )
-            audio_encoded_integrity_report = check_integrity(audio_encoded_file)
-            if not audio_encoded_integrity_report.is_ok:
-                raise RuntimeError(
-                    "Stream integrity check failed after audio encoding for output "
-                    f"streams at indices {sorted(audio_encoded_integrity_report.mismatched_output_indices)} "
-                    f"in {audio_encoded_file.path.name}"
-                )
-            logger.info(
-                "Copied stream integrity verified successfully. All MD5 hashes match."
-            )
 
-            quality_metrics = check_audio_quality(audio_encoded_file)
-            for stream_index, metrics in quality_metrics.items():
-                log_parts = []
-                if metrics.apsnr is not None:
-                    log_parts.append(f"APSNR={metrics.apsnr:.2f}dB")
-                if metrics.asdr is not None:
-                    log_parts.append(f"ASDR={metrics.asdr:.2f}dB")
-                if log_parts:
-                    logger.info(
-                        f"Audio quality for stream {stream_index}: {', '.join(log_parts)}"
-                    )
-            temp_output_file.replace(output_path)
-            logger.info(
-                f"Successfully encoded audio for {output_path.name} and replaced original."
+        logger.info(
+            f"Verifying copied stream integrity for {audio_encoded_file.path.name}"
+        )
+        audio_encoded_integrity_report = check_integrity(audio_encoded_file)
+        if not audio_encoded_integrity_report.is_ok:
+            raise RuntimeError(
+                "Stream integrity check failed after audio encoding for output "
+                f"streams at indices {sorted(audio_encoded_integrity_report.mismatched_output_indices)} "
+                f"in {audio_encoded_file.path.name}"
             )
+        logger.info(
+            "Copied stream integrity verified successfully. All MD5 hashes match."
+        )
+
+        quality_metrics = check_audio_quality(audio_encoded_file)
+        for stream_index, metrics in quality_metrics.items():
+            log_parts = []
+            if metrics.apsnr is not None:
+                log_parts.append(f"APSNR={metrics.apsnr:.2f}dB")
+            if metrics.asdr is not None:
+                log_parts.append(f"ASDR={metrics.asdr:.2f}dB")
+            if log_parts:
+                logger.info(
+                    f"Audio quality for stream {stream_index}: {', '.join(log_parts)}"
+                )
+        temp_output_file.replace(output_path)
+        logger.info(
+            f"Successfully encoded audio for {output_path.name} and replaced original."
+        )
