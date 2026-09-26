@@ -107,6 +107,27 @@ def test_stream_sources_source_video_files_collects_unique_files(
 
 
 @pytest.mark.unit
+def test_stream_sources_default_stream_indices_selects_from_source_streams(
+    mocker: MockerFixture, stream_sources: StreamSources
+) -> None:
+    """StreamSources.default_stream_indices selects among source streams in order."""
+    # Arrange
+    mock_get_default_stream_indices = mocker.patch(
+        "ts2mp4.stream_source.get_default_stream_indices",
+        return_value=frozenset({0, 1}),
+    )
+
+    # Act
+    default_stream_indices = stream_sources.default_stream_indices
+
+    # Assert
+    assert default_stream_indices == frozenset({0, 1})
+    mock_get_default_stream_indices.assert_called_once_with(
+        [source.source_stream for source in stream_sources]
+    )
+
+
+@pytest.mark.unit
 def test_stream_sources_properties_are_empty_when_no_sources() -> None:
     """StreamSources filter and file properties are empty for no sources."""
     # Arrange

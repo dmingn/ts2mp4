@@ -3,7 +3,6 @@
 from pathlib import Path
 from typing import assert_never
 
-from .stream_disposition import build_disposition_args
 from .stream_source import Conversion, Copy, EncodeAudio, EncodeVideo, StreamSources
 
 
@@ -60,6 +59,23 @@ def _codec_args(conversion: Conversion, output_index: int) -> list[str]:
             assert_never(unreachable)
 
 
+def _disposition_args(stream_sources: StreamSources) -> list[str]:
+    """Build -disposition arguments from ``stream_sources.default_stream_indices``.
+
+    The streams at those indices are set to default, and the default is
+    cleared on every other stream.
+    """
+    default_stream_indices = stream_sources.default_stream_indices
+    return [
+        arg
+        for i in range(len(stream_sources))
+        for arg in (
+            f"-disposition:{i}",
+            "default" if i in default_stream_indices else "0",
+        )
+    ]
+
+
 def build_ffmpeg_args(stream_sources: StreamSources, output_path: Path) -> list[str]:
     """Build FFmpeg arguments that write ``stream_sources`` to ``output_path``.
 
@@ -82,6 +98,6 @@ def build_ffmpeg_args(stream_sources: StreamSources, output_path: Path) -> list[
                 *_codec_args(source.conversion, i),
             )
         ]
-        + build_disposition_args(stream_sources)
+        + _disposition_args(stream_sources)
         + ["-f", "mp4", str(output_path)]
     )
