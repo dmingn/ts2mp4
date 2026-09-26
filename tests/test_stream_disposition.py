@@ -4,21 +4,10 @@ from pathlib import Path
 from typing import NamedTuple
 
 import pytest
-from pytest_mock import MockerFixture
 
 from tests.helpers import StubVideoFile
 from ts2mp4.ffprobe_schema import FFprobeFormat, FFprobeOutput, FFprobeStream
-from ts2mp4.stream_disposition import (
-    build_disposition_args,
-    get_default_stream_indices,
-)
-from ts2mp4.stream_source import (
-    Conversion,
-    Copy,
-    EncodeVideo,
-    StreamSource,
-    StreamSources,
-)
+from ts2mp4.stream_disposition import get_default_stream_indices
 from ts2mp4.video_file import AudioStream, Stream, VideoStream
 
 
@@ -30,13 +19,6 @@ class _StreamSpec(NamedTuple):
     width: int | None = None
     height: int | None = None
     duration: float | None = None
-
-
-def _conversion_for_stream(stream: Stream) -> Conversion:
-    """Return a conversion suitable for StreamSource construction in tests."""
-    if isinstance(stream, VideoStream):
-        return EncodeVideo(codec="libx265", crf=23, preset="medium")
-    return Copy()
 
 
 @pytest.mark.unit
@@ -134,46 +116,13 @@ def test_get_default_stream_indices(
             format=FFprobeFormat(duration=format_duration),
         ),
     )
-    stream_sources = StreamSources(
-        root=tuple(
-            StreamSource(
-                source_stream=stream,
-                conversion=_conversion_for_stream(stream),
-            )
-            for stream in sorted(video_file.streams)
-        )
-    )
+    streams = sorted(video_file.streams)
 
     # Act
-    result = get_default_stream_indices(stream_sources)
+    result = get_default_stream_indices(streams)
 
     # Assert
     assert result == expected
-
-
-@pytest.mark.unit
-def test_build_disposition_args_marks_only_defaults(mocker: MockerFixture) -> None:
-    """Build FFmpeg args that mark only the primary streams as default."""
-    # Arrange
-    stream_sources = mocker.MagicMock(spec=StreamSources)
-    stream_sources.__len__.return_value = 3
-    mocker.patch(
-        "ts2mp4.stream_disposition.get_default_stream_indices",
-        return_value=frozenset({0, 2}),
-    )
-
-    # Act
-    result = build_disposition_args(stream_sources)
-
-    # Assert
-    assert result == [
-        "-disposition:0",
-        "default",
-        "-disposition:1",
-        "0",
-        "-disposition:2",
-        "default",
-    ]
 
 
 @pytest.mark.unit
@@ -221,25 +170,10 @@ def test_get_default_stream_indices_uses_each_source_video_file_for_container_du
     high_res_video = VideoStream(file=file_b, index=0)
     audio = AudioStream(file=file_a, index=2)
 
-    stream_sources = StreamSources(
-        root=(
-            StreamSource(
-                source_stream=low_res_video,
-                conversion=Copy(),
-            ),
-            StreamSource(
-                source_stream=high_res_video,
-                conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
-            ),
-            StreamSource(
-                source_stream=audio,
-                conversion=Copy(),
-            ),
-        )
-    )
+    streams: list[Stream] = [low_res_video, high_res_video, audio]
 
     # Act
-    result = get_default_stream_indices(stream_sources)
+    result = get_default_stream_indices(streams)
 
     # Assert
     assert result == frozenset({0, 2})

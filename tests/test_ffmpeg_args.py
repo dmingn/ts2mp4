@@ -6,6 +6,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.ffmpeg_args import (
+    _disposition_args,
     _encode_audio_args,
     _encode_video_args,
     build_ffmpeg_args,
@@ -47,9 +48,11 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
         )
     )
 
-    mocker.patch(
-        "ts2mp4.ffmpeg_args.build_disposition_args",
-        return_value=["-disposition:0", "default"],
+    mocker.patch.object(
+        StreamSources,
+        "default_stream_indices",
+        new_callable=mocker.PropertyMock,
+        return_value=frozenset({0}),
     )
 
     output_path = Path("output.mp4")
@@ -78,9 +81,59 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
         "aac",
         "-disposition:0",
         "default",
+        "-disposition:1",
+        "0",
         "-f",
         "mp4",
         str(output_path),
+    ]
+
+
+@pytest.mark.unit
+def test_disposition_args_marks_only_default_streams(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    """_disposition_args sets default on default_stream_indices and clears the rest."""
+    # Arrange
+    path = tmp_path / "input.ts"
+    path.touch()
+    video_file = VideoFile(path=path)
+
+    stream_sources = StreamSources(
+        root=(
+            StreamSource(
+                source_stream=AudioStream(file=video_file, index=0),
+                conversion=Copy(),
+            ),
+            StreamSource(
+                source_stream=AudioStream(file=video_file, index=1),
+                conversion=Copy(),
+            ),
+            StreamSource(
+                source_stream=AudioStream(file=video_file, index=2),
+                conversion=Copy(),
+            ),
+        )
+    )
+
+    mocker.patch.object(
+        StreamSources,
+        "default_stream_indices",
+        new_callable=mocker.PropertyMock,
+        return_value=frozenset({0, 2}),
+    )
+
+    # Act
+    args = _disposition_args(stream_sources)
+
+    # Assert
+    assert args == [
+        "-disposition:0",
+        "default",
+        "-disposition:1",
+        "0",
+        "-disposition:2",
+        "default",
     ]
 
 

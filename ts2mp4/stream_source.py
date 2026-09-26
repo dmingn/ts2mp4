@@ -5,6 +5,7 @@ from typing import Generic, Iterator, Self, TypeGuard, TypeVar, assert_never
 
 from pydantic import BaseModel, ConfigDict, RootModel, model_validator
 
+from .stream_disposition import get_default_stream_indices
 from .video_file import (
     AudioStream,
     OtherStream,
@@ -126,6 +127,13 @@ class StreamSources(RootModel[tuple[StreamSource[Stream, Conversion], ...]]):
     def source_video_files(self) -> frozenset[VideoFile]:
         """Return a set of source video files for the stream sources."""
         return frozenset(stream.source_stream.file for stream in self.root)
+
+    @property
+    def default_stream_indices(self) -> frozenset[int]:
+        """Return the output stream indices to mark with disposition default."""
+        return get_default_stream_indices(
+            [source.source_stream for source in self.root]
+        )
 
 
 StreamSourcesT = TypeVar("StreamSourcesT", bound=StreamSources, covariant=True)

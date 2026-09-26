@@ -1,20 +1,13 @@
 """Selects which output streams receive the MP4 `default` disposition."""
 
-from .stream_source import (
-    Conversion,
-    StreamSource,
-    StreamSources,
-    is_audio_stream_source,
-    is_video_stream_source,
-)
-from .video_file import Stream, VideoStream
+from collections.abc import Sequence
+
+from .video_file import AudioStream, Stream, VideoStream
 
 DEFAULT_STREAM_DURATION_RATIO = 0.9
 
 
-def _spans_source_container(
-    source: StreamSource[Stream, Conversion],
-) -> bool:
+def _spans_source_container(stream: Stream) -> bool:
     """Return True if the stream spans most of its source container.
 
     When the container duration is unavailable, the stream is treated as a
@@ -23,8 +16,8 @@ def _spans_source_container(
     not treated as spanning — MPEG-TS remnants often lack end PTS and report
     no duration while the real program streams do.
     """
-    container_duration = source.source_stream.file.duration
-    stream_duration = source.source_stream.duration
+    container_duration = stream.file.duration
+    stream_duration = stream.duration
 
     if container_duration is None or container_duration <= 0:
         return True
@@ -34,26 +27,26 @@ def _spans_source_container(
     return stream_duration / container_duration >= DEFAULT_STREAM_DURATION_RATIO
 
 
-def _video_pixel_count(source: StreamSource[VideoStream, Conversion]) -> int:
-    """Return the pixel count of a video stream source, or 0 when unknown."""
-    width = source.source_stream.width or 0
-    height = source.source_stream.height or 0
+def _video_pixel_count(stream: VideoStream) -> int:
+    """Return the pixel count of a video stream, or 0 when unknown."""
+    width = stream.width or 0
+    height = stream.height or 0
     return width * height
 
 
-def get_default_stream_indices(stream_sources: StreamSources) -> frozenset[int]:
-    """Return the output stream indices to mark with disposition default.
+def get_default_stream_indices(streams: Sequence[Stream]) -> frozenset[int]:
+    """Return the positions in ``streams`` to mark with disposition default.
 
     For each of video and audio, the primary stream is the one that best spans
-    the source container. Among video streams that tie on that criterion, the
-    highest resolution wins. Ties are broken by the earlier output index.
+    its source container. Among video streams that tie on that criterion, the
+    highest resolution wins. Ties are broken by the earlier position.
     """
     default_stream_indices: set[int] = set()
 
-    video_candidates: list[tuple[int, StreamSource[VideoStream, Conversion]]] = [
-        (i, source)
-        for i, source in enumerate(stream_sources)
-        if is_video_stream_source(source)
+    video_candidates = [
+        (i, stream)
+        for i, stream in enumerate(streams)
+        if isinstance(stream, VideoStream)
     ]
     if video_candidates:
         best_video_index, _ = max(
@@ -67,9 +60,9 @@ def get_default_stream_indices(stream_sources: StreamSources) -> frozenset[int]:
         default_stream_indices.add(best_video_index)
 
     audio_candidates = [
-        (i, source)
-        for i, source in enumerate(stream_sources)
-        if is_audio_stream_source(source)
+        (i, stream)
+        for i, stream in enumerate(streams)
+        if isinstance(stream, AudioStream)
     ]
     if audio_candidates:
         best_audio_index, _ = max(
@@ -79,17 +72,3 @@ def get_default_stream_indices(stream_sources: StreamSources) -> frozenset[int]:
         default_stream_indices.add(best_audio_index)
 
     return frozenset(default_stream_indices)
-
-
-def build_disposition_args(stream_sources: StreamSources) -> list[str]:
-    """Build FFmpeg args marking only the primary video and audio stream as default."""
-    default_stream_indices = get_default_stream_indices(stream_sources)
-    args: list[str] = []
-    for i in range(len(stream_sources)):
-        args.extend(
-            [
-                f"-disposition:{i}",
-                "default" if i in default_stream_indices else "0",
-            ]
-        )
-    return args
