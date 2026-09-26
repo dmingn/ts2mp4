@@ -18,7 +18,13 @@ from ts2mp4.audio_encoder import (
 from ts2mp4.ffmpeg import execute_ffmpeg
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_integrity import IntegrityReport
-from ts2mp4.stream_source import StreamSource, StreamSources
+from ts2mp4.stream_source import (
+    Copy,
+    EncodeAudio,
+    EncodeVideo,
+    StreamSource,
+    StreamSources,
+)
 from ts2mp4.video_encoder import (
     StreamSourcesForVideoEncoding,
     VideoEncodedFile,
@@ -117,10 +123,10 @@ def mock_video_encoded_file_factory(
             root=tuple(
                 StreamSource(
                     source_stream=stream_at(original_streams, i),
-                    conversion_type=(
-                        "encoded"
+                    conversion=(
+                        EncodeVideo()
                         if isinstance(stream_at(original_streams, i), VideoStream)
-                        else "copied"
+                        else Copy()
                     ),
                 )
                 for i in encoded_streams_indices
@@ -153,7 +159,7 @@ def test_build_stream_sources_for_audio_encoding_no_mismatch(
 
     # Assert
     assert len(stream_sources) == 3
-    assert all(s.conversion_type == "copied" for s in stream_sources)
+    assert all(s.conversion == Copy() for s in stream_sources)
     assert all(
         s.source_stream.file.path == mock_encoded_video_file.path
         for s in stream_sources
@@ -180,7 +186,7 @@ def test_build_stream_sources_for_audio_encoding_with_mismatch(
 
     # Assert
     encoded_source_streams = [
-        s.source_stream for s in stream_sources if s.conversion_type == "encoded"
+        s.source_stream for s in stream_sources if isinstance(s.conversion, EncodeAudio)
     ]
     assert encoded_source_streams == [stream_at(mock_original_video_file.streams, 1)]
 
@@ -208,7 +214,7 @@ def test_build_audio_encode_args(mocker: MockerFixture, tmp_path: Path) -> None:
     """Test that audio convert arguments are built correctly."""
     # Arrange
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
-    stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
+    stream_source: StreamSource[AudioStream, EncodeAudio] = StreamSource(
         source_stream=_probed_audio_stream(
             tmp_path,
             codec_name="aac",
@@ -217,7 +223,7 @@ def test_build_audio_encode_args(mocker: MockerFixture, tmp_path: Path) -> None:
             profile="LC",
             bit_rate=192000,
         ),
-        conversion_type="encoded",
+        conversion=EncodeAudio(),
     )
 
     # Act
@@ -247,9 +253,9 @@ def test_build_audio_encode_args_with_libfdk_aac(
     """Test that libfdk_aac is used when available for audio conversion."""
     # Arrange
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=True)
-    stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
+    stream_source: StreamSource[AudioStream, EncodeAudio] = StreamSource(
         source_stream=_probed_audio_stream(tmp_path, codec_name="aac"),
-        conversion_type="encoded",
+        conversion=EncodeAudio(),
     )
 
     # Act
@@ -267,9 +273,9 @@ def test_build_audio_encode_args_without_libfdk_aac(
     # Arrange
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     mock_logger_warning = mocker.patch("ts2mp4.audio_encoder.logger.warning")
-    stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
+    stream_source: StreamSource[AudioStream, EncodeAudio] = StreamSource(
         source_stream=_probed_audio_stream(tmp_path, codec_name="aac"),
-        conversion_type="encoded",
+        conversion=EncodeAudio(),
     )
 
     # Act
@@ -289,9 +295,9 @@ def test_build_audio_encode_args_with_none_values(
     """Test that audio convert arguments are built correctly with minimal stream info."""
     # Arrange
     mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
-    stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
+    stream_source: StreamSource[AudioStream, EncodeAudio] = StreamSource(
         source_stream=_probed_audio_stream(tmp_path, codec_name="aac"),
-        conversion_type="encoded",
+        conversion=EncodeAudio(),
     )
 
     # Act
@@ -307,9 +313,9 @@ def test_build_audio_encode_args_raises_for_unsupported_codec(
 ) -> None:
     """Test that an error is raised for unsupported audio codecs."""
     # Arrange
-    stream_source: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
+    stream_source: StreamSource[AudioStream, EncodeAudio] = StreamSource(
         source_stream=_probed_audio_stream(tmp_path, codec_name="mp3"),
-        conversion_type="encoded",
+        conversion=EncodeAudio(),
     )
 
     # Act & Assert
@@ -350,11 +356,11 @@ def test_encode_mismatched_audio_streams_integration(
             root=(
                 StreamSource(
                     source_stream=stream_at(original_streams, 0),
-                    conversion_type="encoded",
+                    conversion=EncodeVideo(),
                 ),
                 StreamSource(
                     source_stream=stream_at(original_streams, 1),
-                    conversion_type="copied",
+                    conversion=Copy(),
                 ),
             )
         ),
@@ -385,7 +391,7 @@ def test_encode_mismatched_audio_streams_no_encoding_needed(
         root=tuple(
             StreamSource(
                 source_stream=s,
-                conversion_type=("encoded" if isinstance(s, VideoStream) else "copied"),
+                conversion=(EncodeVideo() if isinstance(s, VideoStream) else Copy()),
             )
             for s in sorted(original_streams)
             if isinstance(s, (VideoStream, AudioStream))
@@ -424,17 +430,17 @@ def test_build_ffmpeg_args_from_stream_sources(
     dummy_encoded_file.touch()
     encoded_file = VideoFile(path=dummy_encoded_file)
 
-    ss1: StreamSource[VideoStream, Literal["copied"]] = StreamSource(
+    ss1: StreamSource[VideoStream, Copy] = StreamSource(
         source_stream=VideoStream(file=encoded_file, index=0),
-        conversion_type="copied",
+        conversion=Copy(),
     )
-    ss2: StreamSource[AudioStream, Literal["copied"]] = StreamSource(
+    ss2: StreamSource[AudioStream, Copy] = StreamSource(
         source_stream=AudioStream(file=encoded_file, index=1),
-        conversion_type="copied",
+        conversion=Copy(),
     )
-    ss3: StreamSource[AudioStream, Literal["encoded"]] = StreamSource(
+    ss3: StreamSource[AudioStream, EncodeAudio] = StreamSource(
         source_stream=AudioStream(file=original_file, index=2),
-        conversion_type="encoded",
+        conversion=EncodeAudio(),
     )
 
     stream_sources = StreamSourcesForAudioEncoding(root=(ss1, ss2, ss3))
@@ -513,11 +519,11 @@ def test_stream_sources_for_audio_encoding_validation_success(
 
     valid_sources: list[StreamSourceForAudioEncoding] = [
         StreamSource(
-            conversion_type="copied",
+            conversion=Copy(),
             source_stream=VideoStream(file=encoded_file, index=0),
         ),
         StreamSource(
-            conversion_type="encoded",
+            conversion=EncodeAudio(),
             source_stream=AudioStream(file=original_file, index=1),
         ),
     ]
@@ -570,15 +576,15 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
 
     sources: list[StreamSourceForAudioEncoding] = [
         StreamSource(
-            conversion_type="copied",
+            conversion=Copy(),
             source_stream=VideoStream(file=encoded_file, index=0),
         ),
         StreamSource(
-            conversion_type="copied",
+            conversion=Copy(),
             source_stream=AudioStream(file=encoded_file, index=1),
         ),
         StreamSource(
-            conversion_type="encoded",
+            conversion=EncodeAudio(),
             source_stream=AudioStream(file=original_file, index=2),
         ),
     ]
@@ -590,14 +596,14 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
             source_stream=VideoStream(
                 file=original_file, index=sources[0].source_stream.index
             ),
-            conversion_type=sources[0].conversion_type,
+            conversion=sources[0].conversion,
         )
     elif modifier == "no_audio":
         sources = [s for s in sources if not isinstance(s.source_stream, AudioStream)]
     elif modifier == "copied_audio_from_original":
         sources.append(
             StreamSource(
-                conversion_type="copied",
+                conversion=Copy(),
                 source_stream=AudioStream(file=original_file, index=3),
             )
         )
@@ -606,14 +612,14 @@ def test_stream_sources_for_audio_encoding_value_validation_failures(
             source_stream=AudioStream(
                 file=encoded_file, index=sources[2].source_stream.index
             ),
-            conversion_type=sources[2].conversion_type,
+            conversion=sources[2].conversion,
         )
     elif modifier == "only_encoded":
         sources = [sources[2]]
     elif modifier == "encoded_from_multiple":
         sources.append(
             StreamSource(
-                conversion_type="encoded",
+                conversion=EncodeAudio(),
                 source_stream=AudioStream(file=another_original, index=3),
             )
         )
@@ -678,7 +684,7 @@ def test_build_stream_sources_for_audio_encoding_stream_type_mismatch_raises_err
             root=tuple(
                 StreamSource(
                     source_stream=stream_at(original_streams, i),
-                    conversion_type="copied",
+                    conversion=Copy(),
                 )
                 for i in range(len(initial_streams))
             )

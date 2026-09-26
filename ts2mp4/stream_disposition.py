@@ -1,7 +1,7 @@
 """Selects which output streams receive the MP4 `default` disposition."""
 
 from .stream_source import (
-    ConversionType,
+    Conversion,
     StreamSource,
     StreamSources,
     is_audio_stream_source,
@@ -13,7 +13,7 @@ DEFAULT_STREAM_DURATION_RATIO = 0.9
 
 
 def _spans_source_container(
-    source: StreamSource[Stream, ConversionType],
+    source: StreamSource[Stream, Conversion],
 ) -> bool:
     """Return True if the stream spans most of its source container.
 
@@ -34,7 +34,7 @@ def _spans_source_container(
     return stream_duration / container_duration >= DEFAULT_STREAM_DURATION_RATIO
 
 
-def _video_pixel_count(source: StreamSource[VideoStream, ConversionType]) -> int:
+def _video_pixel_count(source: StreamSource[VideoStream, Conversion]) -> int:
     """Return the pixel count of a video stream source, or 0 when unknown."""
     width = source.source_stream.width or 0
     height = source.source_stream.height or 0
@@ -50,7 +50,7 @@ def get_default_stream_indices(stream_sources: StreamSources) -> frozenset[int]:
     """
     default_stream_indices: set[int] = set()
 
-    video_candidates: list[tuple[int, StreamSource[VideoStream, ConversionType]]] = [
+    video_candidates: list[tuple[int, StreamSource[VideoStream, Conversion]]] = [
         (i, source)
         for i, source in enumerate(stream_sources)
         if is_video_stream_source(source)

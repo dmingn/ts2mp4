@@ -15,8 +15,10 @@ from ts2mp4.quality_check import (
     parse_audio_quality_metrics,
 )
 from ts2mp4.stream_source import (
-    ConversionType,
+    Conversion,
     ConvertedVideoFile,
+    Copy,
+    EncodeAudio,
     StreamSource,
     StreamSources,
     StreamWithSource,
@@ -98,16 +100,16 @@ async def test_get_audio_quality_metrics_returns_metrics_for_encoded_audio(
     stream2 = VideoStream(file=converted_video, index=1)
     stream3 = AudioStream(file=converted_video, index=2)
 
-    source1: StreamSource[AudioStream, ConversionType] = StreamSource(
-        conversion_type="encoded",
+    source1: StreamSource[AudioStream, Conversion] = StreamSource(
+        conversion=EncodeAudio(),
         source_stream=AudioStream(file=original_file, index=0),
     )
-    source2: StreamSource[VideoStream, ConversionType] = StreamSource(
-        conversion_type="copied",
+    source2: StreamSource[VideoStream, Conversion] = StreamSource(
+        conversion=Copy(),
         source_stream=VideoStream(file=original_file, index=1),
     )
-    source3: StreamSource[AudioStream, ConversionType] = StreamSource(
-        conversion_type="encoded",
+    source3: StreamSource[AudioStream, Conversion] = StreamSource(
+        conversion=EncodeAudio(),
         source_stream=AudioStream(file=original_file, index=1),
     )
 
@@ -159,12 +161,12 @@ async def test_get_audio_quality_metrics_skips_failed_stream(
     stream1 = AudioStream(file=converted_video, index=0)
     stream2 = AudioStream(file=converted_video, index=2)
 
-    source1: StreamSource[AudioStream, ConversionType] = StreamSource(
-        conversion_type="encoded",
+    source1: StreamSource[AudioStream, Conversion] = StreamSource(
+        conversion=EncodeAudio(),
         source_stream=AudioStream(file=original_file, index=0),
     )
-    source2: StreamSource[AudioStream, ConversionType] = StreamSource(
-        conversion_type="encoded",
+    source2: StreamSource[AudioStream, Conversion] = StreamSource(
+        conversion=EncodeAudio(),
         source_stream=AudioStream(file=original_file, index=1),
     )
 
@@ -209,8 +211,8 @@ async def test_get_audio_quality_metrics_returns_empty_when_no_metrics_parsed(
     converted_video = VideoFile(path=output_file)
 
     stream1 = AudioStream(file=converted_video, index=0)
-    source1: StreamSource[AudioStream, ConversionType] = StreamSource(
-        conversion_type="encoded",
+    source1: StreamSource[AudioStream, Conversion] = StreamSource(
+        conversion=EncodeAudio(),
         source_stream=AudioStream(file=original_file, index=0),
     )
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
@@ -248,16 +250,16 @@ async def test_get_audio_quality_metrics_returns_positive_metrics_for_real_file(
     """Return positive APSNR/ASDR for each valid audio stream of a real file."""
     # Arrange
     video_file = VideoFile(path=ts_file)
-    stream_sources: list[StreamSource[Stream, ConversionType]] = []
+    stream_sources: list[StreamSource[Stream, Conversion]] = []
     for stream in sorted(video_file.streams):
         if isinstance(stream, AudioStream):
-            conversion_type: ConversionType = "encoded"
+            conversion: Conversion = EncodeAudio()
         else:
-            conversion_type = "copied"
+            conversion = Copy()
         stream_sources.append(
             StreamSource(
                 source_stream=stream,
-                conversion_type=conversion_type,
+                conversion=conversion,
             )
         )
 

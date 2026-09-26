@@ -4,18 +4,23 @@ Output is consumed by audio_encoder when copied audio fails integrity checks.
 """
 
 from pathlib import Path
-from typing import Literal, Self
+from typing import Self
 
 from pydantic import model_validator
 
 from .ffmpeg import execute_ffmpeg
 from .stream_disposition import build_disposition_args
-from .stream_source import ConvertedVideoFile, StreamSource, StreamSources
+from .stream_source import (
+    ConvertedVideoFile,
+    Copy,
+    EncodeVideo,
+    StreamSource,
+    StreamSources,
+)
 from .video_file import AudioStream, VideoFile, VideoStream
 
 StreamSourceForVideoEncoding = (
-    StreamSource[VideoStream, Literal["encoded"]]
-    | StreamSource[AudioStream, Literal["copied"]]
+    StreamSource[VideoStream, EncodeVideo] | StreamSource[AudioStream, Copy]
 )
 
 
@@ -59,14 +64,14 @@ def _build_stream_sources(input_file: VideoFile) -> StreamSourcesForVideoEncodin
     video_sources: list[StreamSourceForVideoEncoding] = [
         StreamSource(
             source_stream=stream,
-            conversion_type="encoded",
+            conversion=EncodeVideo(),
         )
         for stream in sorted(input_file.valid_video_streams)
     ]
     audio_sources: list[StreamSourceForVideoEncoding] = [
         StreamSource(
             source_stream=stream,
-            conversion_type="copied",
+            conversion=Copy(),
         )
         for stream in sorted(input_file.valid_audio_streams)
     ]

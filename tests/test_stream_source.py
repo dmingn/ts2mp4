@@ -8,8 +8,10 @@ from pytest_mock import MockerFixture
 from tests.helpers import StubConvertedVideoFile, stream_at
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_source import (
-    ConversionType,
+    Conversion,
     ConvertedVideoFile,
+    Copy,
+    EncodeVideo,
     StreamSource,
     StreamSources,
     StreamWithSource,
@@ -29,11 +31,11 @@ def dummy_video_file(tmp_path: Path) -> VideoFile:
 @pytest.fixture
 def stream_source(
     dummy_video_file: VideoFile,
-) -> StreamSource[VideoStream, ConversionType]:
+) -> StreamSource[VideoStream, Conversion]:
     """Create a dummy StreamSource instance."""
     return StreamSource(
         source_stream=VideoStream(file=dummy_video_file, index=0),
-        conversion_type="copied",
+        conversion=Copy(),
     )
 
 
@@ -51,15 +53,15 @@ def stream_sources(tmp_path: Path) -> StreamSources:
         root=(
             StreamSource(
                 source_stream=VideoStream(file=file_a, index=0),
-                conversion_type="encoded",
+                conversion=EncodeVideo(),
             ),
             StreamSource(
                 source_stream=AudioStream(file=file_a, index=1),
-                conversion_type="copied",
+                conversion=Copy(),
             ),
             StreamSource(
                 source_stream=AudioStream(file=file_b, index=0),
-                conversion_type="copied",
+                conversion=Copy(),
             ),
         )
     )
@@ -119,7 +121,7 @@ def test_stream_sources_properties_are_empty_when_no_sources() -> None:
 @pytest.mark.unit
 def test_converted_videofile_rejects_mismatched_stream_counts(
     dummy_video_file: VideoFile,
-    stream_source: StreamSource[VideoStream, ConversionType],
+    stream_source: StreamSource[VideoStream, Conversion],
 ) -> None:
     """ConvertedVideoFile raises when stream_sources length mismatches streams."""
     # Arrange
@@ -149,11 +151,11 @@ def test_converted_videofile_rejects_when_output_indices_do_not_match_positions(
         root=(
             StreamSource(
                 source_stream=VideoStream(file=dummy_video_file, index=0),
-                conversion_type="encoded",
+                conversion=EncodeVideo(),
             ),
             StreamSource(
                 source_stream=AudioStream(file=dummy_video_file, index=1),
-                conversion_type="copied",
+                conversion=Copy(),
             ),
         )
     )
@@ -193,7 +195,7 @@ def test_streams_by_unique_index_rejects_duplicate_indices(
 @pytest.mark.unit
 def test_converted_videofile_stream_with_sources_pairs_output_and_source(
     dummy_video_file: VideoFile,
-    stream_source: StreamSource[VideoStream, ConversionType],
+    stream_source: StreamSource[VideoStream, Conversion],
 ) -> None:
     """ConvertedVideoFile.stream_with_sources pairs each output stream with its source."""
     # Arrange
@@ -221,9 +223,9 @@ def test_converted_videofile_stream_with_sources_raises_on_type_mismatch(
 ) -> None:
     """ConvertedVideoFile.stream_with_sources raises when stream and source types differ."""
     # Arrange
-    audio_stream_source: StreamSource[AudioStream, ConversionType] = StreamSource(
+    audio_stream_source: StreamSource[AudioStream, Conversion] = StreamSource(
         source_stream=AudioStream(file=dummy_video_file, index=0),
-        conversion_type="copied",
+        conversion=Copy(),
     )
     converted_file = StubConvertedVideoFile[StreamSources](
         path=dummy_video_file.path,
@@ -247,11 +249,11 @@ def test_converted_videofile_stream_with_sources_raises_when_output_index_missin
         root=(
             StreamSource(
                 source_stream=VideoStream(file=dummy_video_file, index=0),
-                conversion_type="encoded",
+                conversion=EncodeVideo(),
             ),
             StreamSource(
                 source_stream=AudioStream(file=dummy_video_file, index=1),
-                conversion_type="copied",
+                conversion=Copy(),
             ),
         )
     )
