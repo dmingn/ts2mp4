@@ -3,12 +3,8 @@
 from logzero import logger
 from pydantic import BaseModel, ConfigDict
 
-from .conversion_plan import (
-    ConvertedVideoFile,
-    Copy,
-    FileConversionPlan,
-    StreamWithConversionPlan,
-)
+from .conversion_plan import Copy, FileConversionPlan
+from .converted_video_file import ConvertedVideoFile, StreamWithConversionPlan
 from .hashing import get_stream_md5
 from .video_file import AudioStream, Stream, VideoStream
 

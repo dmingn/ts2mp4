@@ -3,7 +3,8 @@
 from pathlib import Path
 from typing import TypeVar
 
-from .conversion_plan import ConvertedVideoFile, FileConversionPlan
+from .conversion_plan import FileConversionPlan
+from .converted_video_file import ConvertedVideoFile
 from .ffmpeg import execute_ffmpeg
 from .ffmpeg_args import build_ffmpeg_args
 

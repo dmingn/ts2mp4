@@ -11,8 +11,8 @@ from .conversion_plan import (
     EncodeAudio,
     FileConversionPlan,
     StreamConversionPlan,
-    streams_by_unique_index,
 )
+from .converted_video_file import streams_by_unique_index
 from .ffmpeg import is_libfdk_aac_available
 from .stream_integrity import IntegrityReport
 from .video_encoder import VideoEncodedFile

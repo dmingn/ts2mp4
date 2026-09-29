@@ -6,7 +6,8 @@ from typing import AsyncIterable, NamedTuple, Optional
 
 from logzero import logger
 
-from .conversion_plan import ConvertedVideoFile, EncodeAudio, FileConversionPlan
+from .conversion_plan import EncodeAudio, FileConversionPlan
+from .converted_video_file import ConvertedVideoFile
 from .ffmpeg import FFmpegProcessError, execute_ffmpeg_stderr_streamed
 
 

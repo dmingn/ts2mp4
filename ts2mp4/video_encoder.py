@@ -4,13 +4,8 @@ from typing import Self
 
 from pydantic import model_validator
 
-from .conversion_plan import (
-    ConvertedVideoFile,
-    Copy,
-    EncodeVideo,
-    FileConversionPlan,
-    StreamConversionPlan,
-)
+from .conversion_plan import Copy, EncodeVideo, FileConversionPlan, StreamConversionPlan
+from .converted_video_file import ConvertedVideoFile
 from .video_file import AudioStream, VideoFile, VideoStream
 
 StreamConversionPlanForVideoEncoding = (

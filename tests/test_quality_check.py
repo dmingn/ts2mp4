@@ -9,13 +9,12 @@ from pytest_mock import MockerFixture
 
 from ts2mp4.conversion_plan import (
     ConversionMethod,
-    ConvertedVideoFile,
     Copy,
     EncodeAudio,
     FileConversionPlan,
     StreamConversionPlan,
-    StreamWithConversionPlan,
 )
+from ts2mp4.converted_video_file import ConvertedVideoFile, StreamWithConversionPlan
 from ts2mp4.ffmpeg import FFmpegProcessError
 from ts2mp4.quality_check import (
     AudioQualityMetrics,
