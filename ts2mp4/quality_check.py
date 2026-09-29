@@ -75,14 +75,20 @@ async def get_audio_quality_metrics(
     """
     quality_metrics: dict[int, AudioQualityMetrics] = {}
 
-    for stream_with_source in converted_file.stream_with_sources:
-        if not isinstance(stream_with_source.source.conversion_method, EncodeAudio):
+    for stream_with_conversion_plan in converted_file.streams_with_conversion_plans:
+        if not isinstance(
+            stream_with_conversion_plan.conversion_plan.conversion_method, EncodeAudio
+        ):
             continue
 
-        original_file = stream_with_source.source.source_stream.file.path
+        original_file = (
+            stream_with_conversion_plan.conversion_plan.source_stream.file.path
+        )
         re_encoded_file = converted_file.path
-        original_stream_index = stream_with_source.source.source_stream.index
-        re_encoded_stream_index = stream_with_source.stream.index
+        original_stream_index = (
+            stream_with_conversion_plan.conversion_plan.source_stream.index
+        )
+        re_encoded_stream_index = stream_with_conversion_plan.stream.index
 
         command = [
             "-hide_banner",

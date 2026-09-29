@@ -62,11 +62,11 @@ class StreamConversionPlan(BaseModel, Generic[StreamT, ConversionMethodT]):
     model_config = ConfigDict(frozen=True)
 
 
-class StreamWithSource(BaseModel, Generic[StreamT]):
-    """A class representing a stream with its source."""
+class StreamWithConversionPlan(BaseModel, Generic[StreamT]):
+    """An output stream paired with the plan that made it."""
 
     stream: StreamT
-    source: StreamConversionPlan[StreamT, ConversionMethod]
+    conversion_plan: StreamConversionPlan[StreamT, ConversionMethod]
 
     model_config = ConfigDict(frozen=True)
 
@@ -192,14 +192,14 @@ class ConvertedVideoFile(VideoFile, Generic[FileConversionPlanT]):
         return self
 
     @property
-    def stream_with_sources(
+    def streams_with_conversion_plans(
         self,
     ) -> Iterator[
-        StreamWithSource[VideoStream]
-        | StreamWithSource[AudioStream]
-        | StreamWithSource[OtherStream]
+        StreamWithConversionPlan[VideoStream]
+        | StreamWithConversionPlan[AudioStream]
+        | StreamWithConversionPlan[OtherStream]
     ]:
-        """Return pairs of output streams and their sources.
+        """Return pairs of output streams and their conversion plans.
 
         Each ``file_conversion_plan`` position ``i`` is paired with the output stream
         whose ``index`` is ``i``.
@@ -219,18 +219,18 @@ class ConvertedVideoFile(VideoFile, Generic[FileConversionPlanT]):
                         raise RuntimeError(
                             f"Stream type mismatch for stream index {stream.index}"
                         )
-                    yield StreamWithSource(stream=stream, source=plan)
+                    yield StreamWithConversionPlan(stream=stream, conversion_plan=plan)
                 case AudioStream():
                     if not is_audio_stream_plan(plan):
                         raise RuntimeError(
                             f"Stream type mismatch for stream index {stream.index}"
                         )
-                    yield StreamWithSource(stream=stream, source=plan)
+                    yield StreamWithConversionPlan(stream=stream, conversion_plan=plan)
                 case OtherStream():
                     if not is_other_stream_plan(plan):
                         raise RuntimeError(
                             f"Stream type mismatch for stream index {stream.index}"
                         )
-                    yield StreamWithSource(stream=stream, source=plan)
+                    yield StreamWithConversionPlan(stream=stream, conversion_plan=plan)
                 case _:
                     assert_never(stream)

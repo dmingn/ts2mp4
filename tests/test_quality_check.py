@@ -21,7 +21,7 @@ from ts2mp4.stream_source import (
     EncodeAudio,
     FileConversionPlan,
     StreamConversionPlan,
-    StreamWithSource,
+    StreamWithConversionPlan,
 )
 from ts2mp4.video_file import AudioStream, Stream, VideoFile, VideoStream
 
@@ -114,10 +114,10 @@ async def test_get_audio_quality_metrics_returns_metrics_for_encoded_audio(
     )
 
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
-    mock_converted_file.stream_with_sources = [
-        StreamWithSource(stream=stream1, source=plan1),
-        StreamWithSource(stream=stream2, source=plan2),
-        StreamWithSource(stream=stream3, source=plan3),
+    mock_converted_file.streams_with_conversion_plans = [
+        StreamWithConversionPlan(stream=stream1, conversion_plan=plan1),
+        StreamWithConversionPlan(stream=stream2, conversion_plan=plan2),
+        StreamWithConversionPlan(stream=stream3, conversion_plan=plan3),
     ]
     mock_converted_file.path = output_file
 
@@ -171,9 +171,9 @@ async def test_get_audio_quality_metrics_skips_failed_stream(
     )
 
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
-    mock_converted_file.stream_with_sources = [
-        StreamWithSource(stream=stream1, source=plan1),
-        StreamWithSource(stream=stream2, source=plan2),
+    mock_converted_file.streams_with_conversion_plans = [
+        StreamWithConversionPlan(stream=stream1, conversion_plan=plan1),
+        StreamWithConversionPlan(stream=stream2, conversion_plan=plan2),
     ]
     mock_converted_file.path = output_file
 
@@ -216,8 +216,8 @@ async def test_get_audio_quality_metrics_returns_empty_when_no_metrics_parsed(
         source_stream=AudioStream(file=original_file, index=0),
     )
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
-    mock_converted_file.stream_with_sources = [
-        StreamWithSource(stream=stream1, source=plan1)
+    mock_converted_file.streams_with_conversion_plans = [
+        StreamWithConversionPlan(stream=stream1, conversion_plan=plan1)
     ]
     mock_converted_file.path = output_file
 

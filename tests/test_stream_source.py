@@ -14,7 +14,7 @@ from ts2mp4.stream_source import (
     EncodeVideo,
     FileConversionPlan,
     StreamConversionPlan,
-    StreamWithSource,
+    StreamWithConversionPlan,
     streams_by_unique_index,
 )
 from ts2mp4.video_file import AudioStream, Stream, VideoFile, VideoStream
@@ -214,11 +214,11 @@ def test_streams_by_unique_index_rejects_duplicate_indices(
 
 
 @pytest.mark.unit
-def test_converted_videofile_stream_with_sources_pairs_output_and_source(
+def test_converted_videofile_streams_with_conversion_plans_pairs_output_and_source(
     dummy_video_file: VideoFile,
     stream_conversion_plan: StreamConversionPlan[VideoStream, ConversionMethod],
 ) -> None:
-    """ConvertedVideoFile.stream_with_sources pairs each output stream with its source."""
+    """ConvertedVideoFile.streams_with_conversion_plans pairs each output stream with its plan."""
     # Arrange
     file_conversion_plan = FileConversionPlan(root=(stream_conversion_plan,))
     converted_file = StubConvertedVideoFile[FileConversionPlan](
@@ -228,21 +228,21 @@ def test_converted_videofile_stream_with_sources_pairs_output_and_source(
     )
 
     # Act
-    items = list(converted_file.stream_with_sources)
+    items = list(converted_file.streams_with_conversion_plans)
 
     # Assert
     assert len(items) == 1
     item = items[0]
-    assert isinstance(item, StreamWithSource)
+    assert isinstance(item, StreamWithConversionPlan)
     assert item.stream == stream_at(converted_file.streams, 0)
-    assert item.source == stream_conversion_plan
+    assert item.conversion_plan == stream_conversion_plan
 
 
 @pytest.mark.unit
-def test_converted_videofile_stream_with_sources_raises_on_type_mismatch(
+def test_converted_videofile_streams_with_conversion_plans_raises_on_type_mismatch(
     dummy_video_file: VideoFile,
 ) -> None:
-    """ConvertedVideoFile.stream_with_sources raises when stream and source types differ."""
+    """ConvertedVideoFile.streams_with_conversion_plans raises when stream and source types differ."""
     # Arrange
     audio_stream_plan: StreamConversionPlan[AudioStream, ConversionMethod] = (
         StreamConversionPlan(
@@ -258,15 +258,15 @@ def test_converted_videofile_stream_with_sources_raises_on_type_mismatch(
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="Stream type mismatch for stream index 0"):
-        list(converted_file.stream_with_sources)
+        list(converted_file.streams_with_conversion_plans)
 
 
 @pytest.mark.unit
-def test_converted_videofile_stream_with_sources_raises_when_output_index_missing(
+def test_converted_videofile_streams_with_conversion_plans_raises_when_output_index_missing(
     dummy_video_file: VideoFile,
     mocker: MockerFixture,
 ) -> None:
-    """stream_with_sources raises when no output stream exists for a source position."""
+    """streams_with_conversion_plans raises when no output stream exists for a plan position."""
     # Arrange
     file_conversion_plan = FileConversionPlan(
         root=(
@@ -305,4 +305,4 @@ def test_converted_videofile_stream_with_sources_raises_when_output_index_missin
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="No output stream with index 1"):
-        list(converted_file.stream_with_sources)
+        list(converted_file.streams_with_conversion_plans)
