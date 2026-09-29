@@ -18,8 +18,8 @@ from ts2mp4.stream_source import (
     Copy,
     EncodeAudio,
     EncodeVideo,
+    FileConversionPlan,
     StreamConversionPlan,
-    StreamSources,
     StreamWithSource,
 )
 from ts2mp4.video_file import AudioStream, OtherStream, VideoFile, VideoStream
@@ -137,7 +137,7 @@ def mock_converted_video_file(
     mock_converted_file = cast(MagicMock, mocker.MagicMock(spec=ConvertedVideoFile))
     mock_converted_file.path = output_video_file.path
     mock_converted_file.streams = output_streams
-    mock_converted_file.stream_sources = StreamSources(
+    mock_converted_file.file_conversion_plan = FileConversionPlan(
         root=(
             StreamConversionPlan(
                 source_stream=next(s for s in input_streams if s.index == 0),
@@ -157,7 +157,7 @@ def mock_converted_video_file(
                 stream=next(s for s in output_streams if s.index == i),
                 source=plan,
             )
-            for i, plan in enumerate(mock_converted_file.stream_sources)
+            for i, plan in enumerate(mock_converted_file.file_conversion_plan)
         ]
     )
 
@@ -262,12 +262,14 @@ def test_check_integrity_skips_non_copied_streams(
     mock_compare_stream_hashes = mocker.patch(
         "ts2mp4.stream_integrity.compare_stream_hashes"
     )
-    stream_sources = list(mock_converted_video_file.stream_sources)
-    stream_sources[1] = StreamConversionPlan(
-        source_stream=stream_sources[1].source_stream,
+    file_conversion_plan = list(mock_converted_video_file.file_conversion_plan)
+    file_conversion_plan[1] = StreamConversionPlan(
+        source_stream=file_conversion_plan[1].source_stream,
         conversion_method=EncodeAudio(codec="aac"),
     )
-    mock_converted_video_file.stream_sources = StreamSources(root=tuple(stream_sources))
+    mock_converted_video_file.file_conversion_plan = FileConversionPlan(
+        root=tuple(file_conversion_plan)
+    )
     type(mock_converted_video_file).stream_with_sources = mocker.PropertyMock(
         return_value=[
             StreamWithSource(
@@ -276,7 +278,7 @@ def test_check_integrity_skips_non_copied_streams(
                 ),
                 source=plan,
             )
-            for i, plan in enumerate(mock_converted_video_file.stream_sources)
+            for i, plan in enumerate(mock_converted_video_file.file_conversion_plan)
         ]
     )
 
@@ -308,7 +310,7 @@ def test_check_integrity_raises_for_unsupported_stream_type(
                 ),
                 source=plan,
             )
-            for i, plan in enumerate(mock_converted_video_file.stream_sources)
+            for i, plan in enumerate(mock_converted_video_file.file_conversion_plan)
         ]
     )
 

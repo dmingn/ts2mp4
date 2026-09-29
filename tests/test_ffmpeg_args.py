@@ -15,8 +15,8 @@ from ts2mp4.stream_source import (
     Copy,
     EncodeAudio,
     EncodeVideo,
+    FileConversionPlan,
     StreamConversionPlan,
-    StreamSources,
 )
 from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
@@ -35,7 +35,7 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
     original_path.touch()
     original_file = VideoFile(path=original_path)
 
-    stream_sources = StreamSources(
+    file_conversion_plan = FileConversionPlan(
         root=(
             StreamConversionPlan(
                 source_stream=VideoStream(file=encoded_file, index=0),
@@ -49,7 +49,7 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
     )
 
     mocker.patch.object(
-        StreamSources,
+        FileConversionPlan,
         "default_stream_indices",
         new_callable=mocker.PropertyMock,
         return_value=frozenset({0}),
@@ -58,7 +58,7 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
     output_path = Path("output.mp4")
 
     # Act
-    args = build_ffmpeg_args(stream_sources, output_path)
+    args = build_ffmpeg_args(file_conversion_plan, output_path)
 
     # Assert
     assert args == [
@@ -99,7 +99,7 @@ def test_disposition_args_marks_only_default_streams(
     path.touch()
     video_file = VideoFile(path=path)
 
-    stream_sources = StreamSources(
+    file_conversion_plan = FileConversionPlan(
         root=(
             StreamConversionPlan(
                 source_stream=AudioStream(file=video_file, index=0),
@@ -117,14 +117,14 @@ def test_disposition_args_marks_only_default_streams(
     )
 
     mocker.patch.object(
-        StreamSources,
+        FileConversionPlan,
         "default_stream_indices",
         new_callable=mocker.PropertyMock,
         return_value=frozenset({0, 2}),
     )
 
     # Act
-    args = _disposition_args(stream_sources)
+    args = _disposition_args(file_conversion_plan)
 
     # Assert
     assert args == [

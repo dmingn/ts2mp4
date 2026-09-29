@@ -7,7 +7,7 @@ from typing import AsyncIterable, NamedTuple, Optional
 from logzero import logger
 
 from .ffmpeg import FFmpegProcessError, execute_ffmpeg_stderr_streamed
-from .stream_source import ConvertedVideoFile, EncodeAudio, StreamSources
+from .stream_source import ConvertedVideoFile, EncodeAudio, FileConversionPlan
 
 
 class AudioQualityMetrics(NamedTuple):
@@ -61,7 +61,7 @@ async def parse_audio_quality_metrics(
 
 
 async def get_audio_quality_metrics(
-    converted_file: ConvertedVideoFile[StreamSources],
+    converted_file: ConvertedVideoFile[FileConversionPlan],
 ) -> dict[int, AudioQualityMetrics]:
     """Calculate audio quality metrics for all converted audio streams.
 
@@ -114,7 +114,7 @@ async def get_audio_quality_metrics(
 
 
 def check_audio_quality(
-    converted_file: ConvertedVideoFile[StreamSources],
+    converted_file: ConvertedVideoFile[FileConversionPlan],
 ) -> dict[int, AudioQualityMetrics]:
     """Get audio quality metrics in a synchronous context."""
     return asyncio.run(get_audio_quality_metrics(converted_file))

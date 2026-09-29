@@ -19,8 +19,8 @@ from ts2mp4.stream_source import (
     ConvertedVideoFile,
     Copy,
     EncodeAudio,
+    FileConversionPlan,
     StreamConversionPlan,
-    StreamSources,
     StreamWithSource,
 )
 from ts2mp4.video_file import AudioStream, Stream, VideoFile, VideoStream
@@ -250,21 +250,22 @@ async def test_get_audio_quality_metrics_returns_positive_metrics_for_real_file(
     """Return positive APSNR/ASDR for each valid audio stream of a real file."""
     # Arrange
     video_file = VideoFile(path=ts_file)
-    stream_sources: list[StreamConversionPlan[Stream, ConversionMethod]] = []
+    file_conversion_plan: list[StreamConversionPlan[Stream, ConversionMethod]] = []
     for stream in sorted(video_file.streams):
         if isinstance(stream, AudioStream):
             conversion_method: ConversionMethod = EncodeAudio(codec="aac")
         else:
             conversion_method = Copy()
-        stream_sources.append(
+        file_conversion_plan.append(
             StreamConversionPlan(
                 source_stream=stream,
                 conversion_method=conversion_method,
             )
         )
 
-    converted_file = ConvertedVideoFile[StreamSources](
-        path=ts_file, stream_sources=StreamSources(root=tuple(stream_sources))
+    converted_file = ConvertedVideoFile[FileConversionPlan](
+        path=ts_file,
+        file_conversion_plan=FileConversionPlan(root=tuple(file_conversion_plan)),
     )
 
     # Act

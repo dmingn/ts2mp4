@@ -4,7 +4,12 @@ from logzero import logger
 from pydantic import BaseModel, ConfigDict
 
 from .hashing import get_stream_md5
-from .stream_source import ConvertedVideoFile, Copy, StreamSources, StreamWithSource
+from .stream_source import (
+    ConvertedVideoFile,
+    Copy,
+    FileConversionPlan,
+    StreamWithSource,
+)
 from .video_file import AudioStream, Stream, VideoStream
 
 
@@ -76,7 +81,7 @@ def _stream_matches_source(stream_with_source: StreamWithSource[Stream]) -> bool
 
 
 def check_integrity(
-    converted_file: ConvertedVideoFile[StreamSources],
+    converted_file: ConvertedVideoFile[FileConversionPlan],
 ) -> IntegrityReport:
     """Compare every copied stream in a converted file against its source.
 

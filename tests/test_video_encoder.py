@@ -9,9 +9,9 @@ from tests.helpers import StubVideoFile, stream_at
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_source import Copy, EncodeVideo, StreamConversionPlan
 from ts2mp4.video_encoder import (
+    FileConversionPlanForVideoEncoding,
     StreamConversionPlanForVideoEncoding,
-    StreamSourcesForVideoEncoding,
-    build_stream_sources_for_video_encoding,
+    build_file_conversion_plan_for_video_encoding,
 )
 from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
@@ -42,7 +42,7 @@ def mock_video_file_factory(tmp_path: Path) -> Callable[..., VideoFile]:
 
 
 @pytest.mark.unit
-def test_build_stream_sources_for_video_encoding_orders_by_stream_index(
+def test_build_file_conversion_plan_for_video_encoding_orders_by_stream_index(
     tmp_path: Path,
 ) -> None:
     """Emit videos by index, then audios by index, even if probe order differs."""
@@ -62,13 +62,13 @@ def test_build_stream_sources_for_video_encoding_orders_by_stream_index(
     )
 
     # Act
-    stream_sources = build_stream_sources_for_video_encoding(
+    file_conversion_plan = build_file_conversion_plan_for_video_encoding(
         input_file, crf=23, preset="medium"
     )
 
     # Assert
-    assert [s.source_stream.index for s in stream_sources] == [0, 1, 2, 3]
-    assert [type(s.conversion_method) for s in stream_sources] == [
+    assert [s.source_stream.index for s in file_conversion_plan] == [0, 1, 2, 3]
+    assert [type(s.conversion_method) for s in file_conversion_plan] == [
         EncodeVideo,
         EncodeVideo,
         Copy,
@@ -77,7 +77,7 @@ def test_build_stream_sources_for_video_encoding_orders_by_stream_index(
 
 
 @pytest.mark.unit
-def test_build_stream_sources_for_video_encoding_marks_video_encoded_and_audio_copied(
+def test_build_file_conversion_plan_for_video_encoding_marks_video_encoded_and_audio_copied(
     mock_video_file_factory: Callable[..., VideoFile],
 ) -> None:
     """Mark video as encoded and audio as copied."""
@@ -85,23 +85,23 @@ def test_build_stream_sources_for_video_encoding_marks_video_encoded_and_audio_c
     input_file = mock_video_file_factory(video_streams=1, audio_streams=2)
 
     # Act
-    stream_sources = build_stream_sources_for_video_encoding(
+    file_conversion_plan = build_file_conversion_plan_for_video_encoding(
         input_file, crf=23, preset="medium"
     )
 
     # Assert
-    assert isinstance(stream_sources, StreamSourcesForVideoEncoding)
-    assert len(stream_sources) == 3
-    assert isinstance(stream_sources[0].source_stream, VideoStream)
-    assert isinstance(stream_sources[0].conversion_method, EncodeVideo)
-    assert isinstance(stream_sources[1].source_stream, AudioStream)
-    assert stream_sources[1].conversion_method == Copy()
-    assert isinstance(stream_sources[2].source_stream, AudioStream)
-    assert stream_sources[2].conversion_method == Copy()
+    assert isinstance(file_conversion_plan, FileConversionPlanForVideoEncoding)
+    assert len(file_conversion_plan) == 3
+    assert isinstance(file_conversion_plan[0].source_stream, VideoStream)
+    assert isinstance(file_conversion_plan[0].conversion_method, EncodeVideo)
+    assert isinstance(file_conversion_plan[1].source_stream, AudioStream)
+    assert file_conversion_plan[1].conversion_method == Copy()
+    assert isinstance(file_conversion_plan[2].source_stream, AudioStream)
+    assert file_conversion_plan[2].conversion_method == Copy()
 
 
 @pytest.mark.unit
-def test_build_stream_sources_for_video_encoding_encodes_video_with_libx265_settings(
+def test_build_file_conversion_plan_for_video_encoding_encodes_video_with_libx265_settings(
     mock_video_file_factory: Callable[..., VideoFile],
 ) -> None:
     """Encode video with libx265, the given crf and preset, bwdif and cfr."""
@@ -109,12 +109,12 @@ def test_build_stream_sources_for_video_encoding_encodes_video_with_libx265_sett
     input_file = mock_video_file_factory(video_streams=1, audio_streams=1)
 
     # Act
-    stream_sources = build_stream_sources_for_video_encoding(
+    file_conversion_plan = build_file_conversion_plan_for_video_encoding(
         input_file, crf=23, preset="medium"
     )
 
     # Assert
-    assert stream_sources[0].conversion_method == EncodeVideo(
+    assert file_conversion_plan[0].conversion_method == EncodeVideo(
         codec="libx265",
         crf=23,
         preset="medium",
@@ -139,7 +139,7 @@ def test_build_stream_sources_for_video_encoding_encodes_video_with_libx265_sett
         ),
         pytest.param(
             "multiple_sources",
-            "All stream sources must originate from the same VideoFile.",
+            "All source streams must originate from the same VideoFile.",
             id="multiple_sources",
         ),
         pytest.param(
@@ -149,12 +149,12 @@ def test_build_stream_sources_for_video_encoding_encodes_video_with_libx265_sett
         ),
     ],
 )
-def test_stream_sources_for_video_encoding_raises_on_invalid_plans(
+def test_file_conversion_plan_for_video_encoding_raises_on_invalid_plans(
     mock_video_file_factory: Callable[..., VideoFile],
     modifier: str,
     error_message: str,
 ) -> None:
-    """Raise ValueError when StreamSourcesForVideoEncoding validation fails."""
+    """Raise ValueError when FileConversionPlanForVideoEncoding validation fails."""
     # Arrange
     video_file = mock_video_file_factory()
     plans: list[StreamConversionPlanForVideoEncoding] = [
@@ -185,4 +185,4 @@ def test_stream_sources_for_video_encoding_raises_on_invalid_plans(
 
     # Act & Assert
     with pytest.raises(ValueError, match=error_message):
-        StreamSourcesForVideoEncoding(root=tuple(plans))
+        FileConversionPlanForVideoEncoding(root=tuple(plans))

@@ -4,11 +4,11 @@ from pathlib import Path
 
 from logzero import logger
 
-from .audio_encoder import build_stream_sources_for_audio_encoding
+from .audio_encoder import build_file_conversion_plan_for_audio_encoding
 from .conversion import execute_conversion
 from .quality_check import check_audio_quality
 from .stream_integrity import check_integrity
-from .video_encoder import build_stream_sources_for_video_encoding
+from .video_encoder import build_file_conversion_plan_for_video_encoding
 from .video_file import VideoFile
 
 
@@ -29,7 +29,9 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
 
     """
     video_encoded_file = execute_conversion(
-        build_stream_sources_for_video_encoding(input_file, crf=crf, preset=preset),
+        build_file_conversion_plan_for_video_encoding(
+            input_file, crf=crf, preset=preset
+        ),
         output_path,
     )
 
@@ -47,7 +49,7 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
         logger.info("Attempting to encode mismatched audio streams.")
         temp_output_file = output_path.with_suffix(output_path.suffix + ".temp")
         audio_encoded_file = execute_conversion(
-            build_stream_sources_for_audio_encoding(
+            build_file_conversion_plan_for_audio_encoding(
                 original_file=input_file,
                 encoded_file=video_encoded_file,
                 integrity_report=video_encoded_integrity_report,

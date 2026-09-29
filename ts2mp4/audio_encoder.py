@@ -1,4 +1,4 @@
-"""Builds the stream sources that re-encode audio streams failing integrity checks."""
+"""Builds the file conversion plan that re-encodes audio streams failing integrity checks."""
 
 from typing import Self
 
@@ -11,8 +11,8 @@ from .stream_source import (
     AudioConversionMethod,
     Copy,
     EncodeAudio,
+    FileConversionPlan,
     StreamConversionPlan,
-    StreamSources,
     streams_by_unique_index,
 )
 from .video_encoder import VideoEncodedFile
@@ -24,8 +24,8 @@ StreamConversionPlanForAudioEncoding = (
 )
 
 
-class StreamSourcesForAudioEncoding(StreamSources):
-    """Represents the stream sources for audio encoding."""
+class FileConversionPlanForAudioEncoding(FileConversionPlan):
+    """Represents the file conversion plan for audio encoding."""
 
     root: tuple[StreamConversionPlanForAudioEncoding, ...]
 
@@ -70,12 +70,12 @@ class StreamSourcesForAudioEncoding(StreamSources):
         return self
 
 
-def build_stream_sources_for_audio_encoding(
+def build_file_conversion_plan_for_audio_encoding(
     original_file: VideoFile,
     encoded_file: VideoEncodedFile,
     integrity_report: IntegrityReport,
-) -> StreamSourcesForAudioEncoding:
-    """Build the stream sources that fix mismatched audio streams.
+) -> FileConversionPlanForAudioEncoding:
+    """Build the file conversion plan that fixes mismatched audio streams.
 
     Video streams and matching audio streams are copied from ``encoded_file``.
     Audio streams reported as mismatched in ``integrity_report`` are encoded
@@ -97,11 +97,11 @@ def build_stream_sources_for_audio_encoding(
         raise ValueError("integrity_report must report at least one mismatch.")
 
     # Source streams are guaranteed to be unique for a video-encoded file.
-    # stream_sources position i corresponds to output stream index i.
+    # file_conversion_plan position i corresponds to output stream index i.
     streams_by_index = streams_by_unique_index(encoded_file.streams)
     original_encoded_stream_mapping = {
         plan.source_stream.index: streams_by_index[i]
-        for i, plan in enumerate(encoded_file.stream_sources)
+        for i, plan in enumerate(encoded_file.file_conversion_plan)
     }
 
     plans: list[StreamConversionPlanForAudioEncoding] = []
@@ -155,7 +155,7 @@ def build_stream_sources_for_audio_encoding(
                     )
                 )
 
-    return StreamSourcesForAudioEncoding(root=tuple(plans))
+    return FileConversionPlanForAudioEncoding(root=tuple(plans))
 
 
 _FFMPEG_AAC_PROFILES = {"LC": "aac_low"}

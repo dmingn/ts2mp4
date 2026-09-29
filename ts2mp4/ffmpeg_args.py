@@ -1,4 +1,4 @@
-"""Builds FFmpeg arguments from stream sources."""
+"""Builds FFmpeg arguments from a file conversion plan."""
 
 from pathlib import Path
 from typing import assert_never
@@ -8,7 +8,7 @@ from .stream_source import (
     Copy,
     EncodeAudio,
     EncodeVideo,
-    StreamSources,
+    FileConversionPlan,
 )
 
 
@@ -65,16 +65,16 @@ def _codec_args(conversion_method: ConversionMethod, output_index: int) -> list[
             assert_never(unreachable)
 
 
-def _disposition_args(stream_sources: StreamSources) -> list[str]:
-    """Build -disposition arguments from ``stream_sources.default_stream_indices``.
+def _disposition_args(file_conversion_plan: FileConversionPlan) -> list[str]:
+    """Build -disposition arguments from ``file_conversion_plan.default_stream_indices``.
 
     The streams at those indices are set to default, and the default is
     cleared on every other stream.
     """
-    default_stream_indices = stream_sources.default_stream_indices
+    default_stream_indices = file_conversion_plan.default_stream_indices
     return [
         arg
-        for i in range(len(stream_sources))
+        for i in range(len(file_conversion_plan))
         for arg in (
             f"-disposition:{i}",
             "default" if i in default_stream_indices else "0",
@@ -82,13 +82,17 @@ def _disposition_args(stream_sources: StreamSources) -> list[str]:
     ]
 
 
-def build_ffmpeg_args(stream_sources: StreamSources, output_path: Path) -> list[str]:
-    """Build FFmpeg arguments that write ``stream_sources`` to ``output_path``.
+def build_ffmpeg_args(
+    file_conversion_plan: FileConversionPlan, output_path: Path
+) -> list[str]:
+    """Build FFmpeg arguments that write ``file_conversion_plan`` to ``output_path``.
 
-    Output stream ``i`` is mapped from ``stream_sources[i]``. Each distinct
+    Output stream ``i`` is mapped from ``file_conversion_plan[i]``. Each distinct
     source file becomes one input, in order of first appearance.
     """
-    input_files = list(dict.fromkeys(s.source_stream.file for s in stream_sources))
+    input_files = list(
+        dict.fromkeys(s.source_stream.file for s in file_conversion_plan)
+    )
     input_index_by_file = {file: i for i, file in enumerate(input_files)}
 
     return (
@@ -96,7 +100,7 @@ def build_ffmpeg_args(stream_sources: StreamSources, output_path: Path) -> list[
         + [arg for file in input_files for arg in ("-i", str(file.path))]
         + [
             arg
-            for i, plan in enumerate(stream_sources)
+            for i, plan in enumerate(file_conversion_plan)
             for arg in (
                 "-map",
                 f"{input_index_by_file[plan.source_stream.file]}:"
@@ -104,6 +108,6 @@ def build_ffmpeg_args(stream_sources: StreamSources, output_path: Path) -> list[
                 *_codec_args(plan.conversion_method, i),
             )
         ]
-        + _disposition_args(stream_sources)
+        + _disposition_args(file_conversion_plan)
         + ["-f", "mp4", str(output_path)]
     )

@@ -1,4 +1,4 @@
-"""Stream source and converted video file models."""
+"""Conversion plan and converted video file models."""
 
 from collections.abc import Iterable
 from typing import Generic, Iterator, Self, TypeGuard, TypeVar, assert_never
@@ -92,7 +92,7 @@ def is_other_stream_plan(
     return isinstance(plan.source_stream, OtherStream)
 
 
-class StreamSources(
+class FileConversionPlan(
     RootModel[tuple[StreamConversionPlan[Stream, ConversionMethod], ...]]
 ):
     """A tuple of StreamConversionPlan objects."""
@@ -127,7 +127,7 @@ class StreamSources(
 
     @property
     def source_video_files(self) -> frozenset[VideoFile]:
-        """Return a set of source video files for the stream sources."""
+        """Return a set of source video files for the plan."""
         return frozenset(plan.source_stream.file for plan in self.root)
 
     @property
@@ -136,7 +136,9 @@ class StreamSources(
         return get_default_stream_indices([plan.source_stream for plan in self.root])
 
 
-StreamSourcesT = TypeVar("StreamSourcesT", bound=StreamSources, covariant=True)
+FileConversionPlanT = TypeVar(
+    "FileConversionPlanT", bound=FileConversionPlan, covariant=True
+)
 
 
 def streams_by_unique_index(streams: Iterable[Stream]) -> dict[int, Stream]:
@@ -149,28 +151,28 @@ def streams_by_unique_index(streams: Iterable[Stream]) -> dict[int, Stream]:
     return streams_by_index
 
 
-class ConvertedVideoFile(VideoFile, Generic[StreamSourcesT]):
+class ConvertedVideoFile(VideoFile, Generic[FileConversionPlanT]):
     """A class representing a converted video file.
 
     This class extends VideoFile to include information about how each stream
-    in the converted file was created. The ``stream_sources`` tuple contains
-    ``StreamConversionPlan`` objects, where the position in the tuple corresponds to
+    in the converted file was created. ``file_conversion_plan`` contains
+    ``StreamConversionPlan`` objects, where the position of each corresponds to
     the stream's index in the converted video file. Each ``StreamConversionPlan``
     object describes which original stream was used to generate that stream
     in the converted file, and how it was created (copied or encoded).
     """
 
-    stream_sources: StreamSourcesT
+    file_conversion_plan: FileConversionPlanT
 
     model_config = ConfigDict(frozen=True)
 
     @model_validator(mode="after")
-    def validate_stream_sources(self) -> Self:
-        """Require one source per output stream, paired by matching index."""
-        if len(self.stream_sources) != len(self.streams):
+    def validate_file_conversion_plan(self) -> Self:
+        """Require one plan per output stream, paired by matching index."""
+        if len(self.file_conversion_plan) != len(self.streams):
             raise ValueError(
                 f"Mismatch in stream counts for {self.path.name}: "
-                f"{len(self.stream_sources)} sources, "
+                f"{len(self.file_conversion_plan)} plans, "
                 f"{len(self.streams)} output streams."
             )
 
@@ -179,12 +181,12 @@ class ConvertedVideoFile(VideoFile, Generic[StreamSourcesT]):
         except ValueError as e:
             raise ValueError(f"Invalid streams for {self.path.name}: {e}") from e
 
-        expected_indices = set(range(len(self.stream_sources)))
+        expected_indices = set(range(len(self.file_conversion_plan)))
         actual_indices = set(streams_by_index)
         if actual_indices != expected_indices:
             raise ValueError(
                 f"Output stream indices {sorted(actual_indices)} do not match "
-                f"stream_sources positions {sorted(expected_indices)} "
+                f"file_conversion_plan positions {sorted(expected_indices)} "
                 f"for {self.path.name}."
             )
         return self
@@ -199,17 +201,17 @@ class ConvertedVideoFile(VideoFile, Generic[StreamSourcesT]):
     ]:
         """Return pairs of output streams and their sources.
 
-        Each ``stream_sources`` position ``i`` is paired with the output stream
+        Each ``file_conversion_plan`` position ``i`` is paired with the output stream
         whose ``index`` is ``i``.
         """
         streams_by_index = streams_by_unique_index(self.streams)
-        for index, plan in enumerate(self.stream_sources):
+        for index, plan in enumerate(self.file_conversion_plan):
             try:
                 stream = streams_by_index[index]
             except KeyError as e:
                 raise RuntimeError(
                     f"No output stream with index {index} for {self.path.name}; "
-                    f"stream_sources position {index} requires a matching output index."
+                    f"file_conversion_plan position {index} requires a matching output index."
                 ) from e
             match stream:
                 case VideoStream():
