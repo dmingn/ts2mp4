@@ -7,13 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.ffmpeg import FFmpegProcessError
-from ts2mp4.stream_integrity import (
-    IntegrityReport,
-    check_integrity,
-    compare_stream_hashes,
-)
-from ts2mp4.stream_source import (
+from ts2mp4.conversion_plan import (
     ConvertedVideoFile,
     Copy,
     EncodeAudio,
@@ -21,6 +15,12 @@ from ts2mp4.stream_source import (
     FileConversionPlan,
     StreamConversionPlan,
     StreamWithConversionPlan,
+)
+from ts2mp4.ffmpeg import FFmpegProcessError
+from ts2mp4.stream_integrity import (
+    IntegrityReport,
+    check_integrity,
+    compare_stream_hashes,
 )
 from ts2mp4.video_file import AudioStream, OtherStream, VideoFile, VideoStream
 

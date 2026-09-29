@@ -3,9 +3,9 @@
 from pathlib import Path
 from typing import TypeVar
 
+from .conversion_plan import ConvertedVideoFile, FileConversionPlan
 from .ffmpeg import execute_ffmpeg
 from .ffmpeg_args import build_ffmpeg_args
-from .stream_source import ConvertedVideoFile, FileConversionPlan
 
 _FileConversionPlanT = TypeVar("_FileConversionPlanT", bound=FileConversionPlan)
 

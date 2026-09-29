@@ -7,14 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.ffmpeg import FFmpegProcessError
-from ts2mp4.quality_check import (
-    AudioQualityMetrics,
-    check_audio_quality,
-    get_audio_quality_metrics,
-    parse_audio_quality_metrics,
-)
-from ts2mp4.stream_source import (
+from ts2mp4.conversion_plan import (
     ConversionMethod,
     ConvertedVideoFile,
     Copy,
@@ -22,6 +15,13 @@ from ts2mp4.stream_source import (
     FileConversionPlan,
     StreamConversionPlan,
     StreamWithConversionPlan,
+)
+from ts2mp4.ffmpeg import FFmpegProcessError
+from ts2mp4.quality_check import (
+    AudioQualityMetrics,
+    check_audio_quality,
+    get_audio_quality_metrics,
+    parse_audio_quality_metrics,
 )
 from ts2mp4.video_file import AudioStream, Stream, VideoFile, VideoStream
 

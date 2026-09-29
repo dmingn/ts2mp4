@@ -5,18 +5,18 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from ts2mp4.ffmpeg_args import (
-    _disposition_args,
-    _encode_audio_args,
-    _encode_video_args,
-    build_ffmpeg_args,
-)
-from ts2mp4.stream_source import (
+from ts2mp4.conversion_plan import (
     Copy,
     EncodeAudio,
     EncodeVideo,
     FileConversionPlan,
     StreamConversionPlan,
+)
+from ts2mp4.ffmpeg_args import (
+    _disposition_args,
+    _encode_audio_args,
+    _encode_video_args,
+    build_ffmpeg_args,
 )
 from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 

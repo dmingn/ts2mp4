@@ -6,8 +6,8 @@ from typing import AsyncIterable, NamedTuple, Optional
 
 from logzero import logger
 
+from .conversion_plan import ConvertedVideoFile, EncodeAudio, FileConversionPlan
 from .ffmpeg import FFmpegProcessError, execute_ffmpeg_stderr_streamed
-from .stream_source import ConvertedVideoFile, EncodeAudio, FileConversionPlan
 
 
 class AudioQualityMetrics(NamedTuple):

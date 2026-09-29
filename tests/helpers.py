@@ -4,8 +4,8 @@ from typing import Generic
 
 from pydantic import BaseModel
 
+from ts2mp4.conversion_plan import ConvertedVideoFile, FileConversionPlanT
 from ts2mp4.ffprobe_schema import FFprobeOutput
-from ts2mp4.stream_source import ConvertedVideoFile, FileConversionPlanT
 from ts2mp4.video_file import Stream, VideoFile
 
 

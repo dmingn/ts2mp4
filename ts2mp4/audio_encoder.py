@@ -5,9 +5,7 @@ from typing import Self
 from logzero import logger
 from pydantic import model_validator
 
-from .ffmpeg import is_libfdk_aac_available
-from .stream_integrity import IntegrityReport
-from .stream_source import (
+from .conversion_plan import (
     AudioConversionMethod,
     Copy,
     EncodeAudio,
@@ -15,6 +13,8 @@ from .stream_source import (
     StreamConversionPlan,
     streams_by_unique_index,
 )
+from .ffmpeg import is_libfdk_aac_available
+from .stream_integrity import IntegrityReport
 from .video_encoder import VideoEncodedFile
 from .video_file import AudioStream, VideoFile, VideoStream
 

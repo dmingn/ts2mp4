@@ -13,16 +13,16 @@ from ts2mp4.audio_encoder import (
     _build_encode_audio_for,
     build_file_conversion_plan_for_audio_encoding,
 )
-from ts2mp4.ffmpeg import execute_ffmpeg
-from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
-from ts2mp4.stream_integrity import IntegrityReport
-from ts2mp4.stream_source import (
+from ts2mp4.conversion_plan import (
     Copy,
     EncodeAudio,
     EncodeVideo,
     FileConversionPlan,
     StreamConversionPlan,
 )
+from ts2mp4.ffmpeg import execute_ffmpeg
+from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
+from ts2mp4.stream_integrity import IntegrityReport
 from ts2mp4.video_encoder import (
     FileConversionPlanForVideoEncoding,
     VideoEncodedFile,

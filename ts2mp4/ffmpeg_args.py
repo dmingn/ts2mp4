@@ -3,7 +3,7 @@
 from pathlib import Path
 from typing import assert_never
 
-from .stream_source import (
+from .conversion_plan import (
     ConversionMethod,
     Copy,
     EncodeAudio,

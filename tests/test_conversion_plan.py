@@ -1,4 +1,4 @@
-"""Unit tests for the StreamConversionPlan module."""
+"""Unit tests for the conversion_plan module."""
 
 from pathlib import Path
 
@@ -6,8 +6,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from tests.helpers import StubConvertedVideoFile, stream_at
-from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
-from ts2mp4.stream_source import (
+from ts2mp4.conversion_plan import (
     ConversionMethod,
     ConvertedVideoFile,
     Copy,
@@ -17,6 +16,7 @@ from ts2mp4.stream_source import (
     StreamWithConversionPlan,
     streams_by_unique_index,
 )
+from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.video_file import AudioStream, Stream, VideoFile, VideoStream
 
 
@@ -113,7 +113,7 @@ def test_file_conversion_plan_default_stream_indices_selects_from_source_streams
     """FileConversionPlan.default_stream_indices selects among source streams in order."""
     # Arrange
     mock_get_default_stream_indices = mocker.patch(
-        "ts2mp4.stream_source.get_default_stream_indices",
+        "ts2mp4.conversion_plan.get_default_stream_indices",
         return_value=frozenset({0, 1}),
     )
 

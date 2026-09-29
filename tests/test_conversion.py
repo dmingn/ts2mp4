@@ -6,7 +6,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.conversion import execute_conversion
-from ts2mp4.stream_source import FileConversionPlan
+from ts2mp4.conversion_plan import FileConversionPlan
 
 
 @pytest.mark.unit

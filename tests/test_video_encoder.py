@@ -6,8 +6,8 @@ from typing import Callable
 import pytest
 
 from tests.helpers import StubVideoFile, stream_at
+from ts2mp4.conversion_plan import Copy, EncodeVideo, StreamConversionPlan
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
-from ts2mp4.stream_source import Copy, EncodeVideo, StreamConversionPlan
 from ts2mp4.video_encoder import (
     FileConversionPlanForVideoEncoding,
     StreamConversionPlanForVideoEncoding,

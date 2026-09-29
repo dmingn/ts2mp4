@@ -4,7 +4,7 @@ from typing import Self
 
 from pydantic import model_validator
 
-from .stream_source import (
+from .conversion_plan import (
     ConvertedVideoFile,
     Copy,
     EncodeVideo,
