@@ -1,34 +1,30 @@
-"""Builds the stream sources for encoding video from TS to MP4."""
+"""Builds the file conversion plan for encoding video from TS to MP4."""
 
 from typing import Self
 
 from pydantic import model_validator
 
-from .stream_source import (
-    ConvertedVideoFile,
-    Copy,
-    EncodeVideo,
-    StreamSource,
-    StreamSources,
-)
+from .conversion_plan import Copy, EncodeVideo, FileConversionPlan, StreamConversionPlan
+from .converted_video_file import ConvertedVideoFile
 from .video_file import AudioStream, VideoFile, VideoStream
 
-StreamSourceForVideoEncoding = (
-    StreamSource[VideoStream, EncodeVideo] | StreamSource[AudioStream, Copy]
+StreamConversionPlanForVideoEncoding = (
+    StreamConversionPlan[VideoStream, EncodeVideo]
+    | StreamConversionPlan[AudioStream, Copy]
 )
 
 
-class StreamSourcesForVideoEncoding(StreamSources):
-    """Represents the stream sources for video encoding."""
+class FileConversionPlanForVideoEncoding(FileConversionPlan):
+    """Represents the file conversion plan for video encoding."""
 
-    root: tuple[StreamSourceForVideoEncoding, ...]
+    root: tuple[StreamConversionPlanForVideoEncoding, ...]
 
     @model_validator(mode="after")
     def validate_stream_presence(self) -> Self:
         """Validate the presence of at least one video and one audio stream."""
-        if not self.video_stream_sources:
+        if not self.video_stream_plans:
             raise ValueError("At least one video stream is required.")
-        if not self.audio_stream_sources:
+        if not self.audio_stream_plans:
             raise ValueError("At least one audio stream is required.")
         return self
 
@@ -37,21 +33,21 @@ class StreamSourcesForVideoEncoding(StreamSources):
         """Validate that all streams come from the same file and are unique."""
         if len(self.source_video_files) != 1:
             raise ValueError(
-                "All stream sources must originate from the same VideoFile."
+                "All source streams must originate from the same VideoFile."
             )
         if len({s.source_stream.index for s in self.root}) < len(self.root):
             raise ValueError("Source streams must be unique.")
         return self
 
 
-VideoEncodedFile = ConvertedVideoFile[StreamSourcesForVideoEncoding]
+VideoEncodedFile = ConvertedVideoFile[FileConversionPlanForVideoEncoding]
 """Represents a ConvertedVideoFile after video stream encoding."""
 
 
-def build_stream_sources_for_video_encoding(
+def build_file_conversion_plan_for_video_encoding(
     input_file: VideoFile, crf: int, preset: str
-) -> StreamSourcesForVideoEncoding:
-    """Build the stream sources that encode video and copy audio from TS to MP4."""
+) -> FileConversionPlanForVideoEncoding:
+    """Build the file conversion plan that encodes video and copies audio from TS to MP4."""
     encode_video = EncodeVideo(
         codec="libx265",
         crf=crf,
@@ -60,19 +56,19 @@ def build_stream_sources_for_video_encoding(
         fps_mode="cfr",
     )
 
-    video_sources: list[StreamSourceForVideoEncoding] = [
-        StreamSource(
+    video_plans: list[StreamConversionPlanForVideoEncoding] = [
+        StreamConversionPlan(
             source_stream=stream,
-            conversion=encode_video,
+            conversion_method=encode_video,
         )
         for stream in sorted(input_file.valid_video_streams)
     ]
-    audio_sources: list[StreamSourceForVideoEncoding] = [
-        StreamSource(
+    audio_plans: list[StreamConversionPlanForVideoEncoding] = [
+        StreamConversionPlan(
             source_stream=stream,
-            conversion=Copy(),
+            conversion_method=Copy(),
         )
         for stream in sorted(input_file.valid_audio_streams)
     ]
 
-    return StreamSourcesForVideoEncoding(root=tuple(video_sources + audio_sources))
+    return FileConversionPlanForVideoEncoding(root=tuple(video_plans + audio_plans))

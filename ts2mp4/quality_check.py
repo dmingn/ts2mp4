@@ -6,8 +6,9 @@ from typing import AsyncIterable, NamedTuple, Optional
 
 from logzero import logger
 
+from .conversion_plan import EncodeAudio, FileConversionPlan
+from .converted_video_file import ConvertedVideoFile
 from .ffmpeg import FFmpegProcessError, execute_ffmpeg_stderr_streamed
-from .stream_source import ConvertedVideoFile, EncodeAudio, StreamSources
 
 
 class AudioQualityMetrics(NamedTuple):
@@ -61,7 +62,7 @@ async def parse_audio_quality_metrics(
 
 
 async def get_audio_quality_metrics(
-    converted_file: ConvertedVideoFile[StreamSources],
+    converted_file: ConvertedVideoFile[FileConversionPlan],
 ) -> dict[int, AudioQualityMetrics]:
     """Calculate audio quality metrics for all converted audio streams.
 
@@ -75,14 +76,20 @@ async def get_audio_quality_metrics(
     """
     quality_metrics: dict[int, AudioQualityMetrics] = {}
 
-    for stream_with_source in converted_file.stream_with_sources:
-        if not isinstance(stream_with_source.source.conversion, EncodeAudio):
+    for stream_with_conversion_plan in converted_file.streams_with_conversion_plans:
+        if not isinstance(
+            stream_with_conversion_plan.conversion_plan.conversion_method, EncodeAudio
+        ):
             continue
 
-        original_file = stream_with_source.source.source_stream.file.path
+        original_file = (
+            stream_with_conversion_plan.conversion_plan.source_stream.file.path
+        )
         re_encoded_file = converted_file.path
-        original_stream_index = stream_with_source.source.source_stream.index
-        re_encoded_stream_index = stream_with_source.stream.index
+        original_stream_index = (
+            stream_with_conversion_plan.conversion_plan.source_stream.index
+        )
+        re_encoded_stream_index = stream_with_conversion_plan.stream.index
 
         command = [
             "-hide_banner",
@@ -114,7 +121,7 @@ async def get_audio_quality_metrics(
 
 
 def check_audio_quality(
-    converted_file: ConvertedVideoFile[StreamSources],
+    converted_file: ConvertedVideoFile[FileConversionPlan],
 ) -> dict[int, AudioQualityMetrics]:
     """Get audio quality metrics in a synchronous context."""
     return asyncio.run(get_audio_quality_metrics(converted_file))

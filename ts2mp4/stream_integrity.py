@@ -3,8 +3,9 @@
 from logzero import logger
 from pydantic import BaseModel, ConfigDict
 
+from .conversion_plan import Copy, FileConversionPlan
+from .converted_video_file import ConvertedVideoFile, StreamWithConversionPlan
 from .hashing import get_stream_md5
-from .stream_source import ConvertedVideoFile, Copy, StreamSources, StreamWithSource
 from .video_file import AudioStream, Stream, VideoStream
 
 
@@ -60,10 +61,12 @@ def compare_stream_hashes(
     return True
 
 
-def _stream_matches_source(stream_with_source: StreamWithSource[Stream]) -> bool:
+def _stream_matches_source(
+    stream_with_conversion_plan: StreamWithConversionPlan[Stream],
+) -> bool:
     """Return True if an output stream matches its source stream."""
-    stream = stream_with_source.stream
-    source_stream = stream_with_source.source.source_stream
+    stream = stream_with_conversion_plan.stream
+    source_stream = stream_with_conversion_plan.conversion_plan.source_stream
 
     if not isinstance(stream, (AudioStream, VideoStream)) or not isinstance(
         source_stream, (AudioStream, VideoStream)
@@ -76,7 +79,7 @@ def _stream_matches_source(stream_with_source: StreamWithSource[Stream]) -> bool
 
 
 def check_integrity(
-    converted_file: ConvertedVideoFile[StreamSources],
+    converted_file: ConvertedVideoFile[FileConversionPlan],
 ) -> IntegrityReport:
     """Compare every copied stream in a converted file against its source.
 
@@ -90,9 +93,11 @@ def check_integrity(
     """
     return IntegrityReport(
         mismatched_output_indices=frozenset(
-            stream_with_source.stream.index
-            for stream_with_source in converted_file.stream_with_sources
-            if isinstance(stream_with_source.source.conversion, Copy)
-            and not _stream_matches_source(stream_with_source)
+            stream_with_conversion_plan.stream.index
+            for stream_with_conversion_plan in converted_file.streams_with_conversion_plans
+            if isinstance(
+                stream_with_conversion_plan.conversion_plan.conversion_method, Copy
+            )
+            and not _stream_matches_source(stream_with_conversion_plan)
         )
     )

@@ -5,18 +5,18 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
+from ts2mp4.conversion_plan import (
+    Copy,
+    EncodeAudio,
+    EncodeVideo,
+    FileConversionPlan,
+    StreamConversionPlan,
+)
 from ts2mp4.ffmpeg_args import (
     _disposition_args,
     _encode_audio_args,
     _encode_video_args,
     build_ffmpeg_args,
-)
-from ts2mp4.stream_source import (
-    Copy,
-    EncodeAudio,
-    EncodeVideo,
-    StreamSource,
-    StreamSources,
 )
 from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
@@ -25,7 +25,7 @@ from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
     mocker: MockerFixture, tmp_path: Path
 ) -> None:
-    """build_ffmpeg_args maps each source from its input file in output order."""
+    """build_ffmpeg_args maps each plan from its input file in output order."""
     # Arrange
     encoded_path = tmp_path / "encoded.mp4"
     encoded_path.touch()
@@ -35,21 +35,21 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
     original_path.touch()
     original_file = VideoFile(path=original_path)
 
-    stream_sources = StreamSources(
+    file_conversion_plan = FileConversionPlan(
         root=(
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=VideoStream(file=encoded_file, index=0),
-                conversion=Copy(),
+                conversion_method=Copy(),
             ),
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=AudioStream(file=original_file, index=2),
-                conversion=EncodeAudio(codec="aac"),
+                conversion_method=EncodeAudio(codec="aac"),
             ),
         )
     )
 
     mocker.patch.object(
-        StreamSources,
+        FileConversionPlan,
         "default_stream_indices",
         new_callable=mocker.PropertyMock,
         return_value=frozenset({0}),
@@ -58,7 +58,7 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
     output_path = Path("output.mp4")
 
     # Act
-    args = build_ffmpeg_args(stream_sources, output_path)
+    args = build_ffmpeg_args(file_conversion_plan, output_path)
 
     # Assert
     assert args == [
@@ -99,32 +99,32 @@ def test_disposition_args_marks_only_default_streams(
     path.touch()
     video_file = VideoFile(path=path)
 
-    stream_sources = StreamSources(
+    file_conversion_plan = FileConversionPlan(
         root=(
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=AudioStream(file=video_file, index=0),
-                conversion=Copy(),
+                conversion_method=Copy(),
             ),
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=AudioStream(file=video_file, index=1),
-                conversion=Copy(),
+                conversion_method=Copy(),
             ),
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=AudioStream(file=video_file, index=2),
-                conversion=Copy(),
+                conversion_method=Copy(),
             ),
         )
     )
 
     mocker.patch.object(
-        StreamSources,
+        FileConversionPlan,
         "default_stream_indices",
         new_callable=mocker.PropertyMock,
         return_value=frozenset({0, 2}),
     )
 
     # Act
-    args = _disposition_args(stream_sources)
+    args = _disposition_args(file_conversion_plan)
 
     # Assert
     assert args == [
@@ -141,7 +141,7 @@ def test_disposition_args_marks_only_default_streams(
 def test_encode_audio_args_includes_all_set_options() -> None:
     """_encode_audio_args emits every set option for the output stream."""
     # Arrange
-    conversion = EncodeAudio(
+    conversion_method = EncodeAudio(
         codec="aac",
         sample_rate=48000,
         channels=2,
@@ -150,7 +150,7 @@ def test_encode_audio_args_includes_all_set_options() -> None:
     )
 
     # Act
-    args = _encode_audio_args(conversion, 1)
+    args = _encode_audio_args(conversion_method, 1)
 
     # Assert
     assert args == [
@@ -171,10 +171,10 @@ def test_encode_audio_args_includes_all_set_options() -> None:
 def test_encode_audio_args_omits_unset_options() -> None:
     """_encode_audio_args omits options that are None."""
     # Arrange
-    conversion = EncodeAudio(codec="aac")
+    conversion_method = EncodeAudio(codec="aac")
 
     # Act
-    args = _encode_audio_args(conversion, 1)
+    args = _encode_audio_args(conversion_method, 1)
 
     # Assert
     assert args == ["-codec:1", "aac"]
@@ -184,7 +184,7 @@ def test_encode_audio_args_omits_unset_options() -> None:
 def test_encode_video_args_includes_all_set_options() -> None:
     """_encode_video_args emits every set option for the output stream."""
     # Arrange
-    conversion = EncodeVideo(
+    conversion_method = EncodeVideo(
         codec="libx265",
         crf=23,
         preset="medium",
@@ -193,7 +193,7 @@ def test_encode_video_args_includes_all_set_options() -> None:
     )
 
     # Act
-    args = _encode_video_args(conversion, 0)
+    args = _encode_video_args(conversion_method, 0)
 
     # Assert
     assert args == [
@@ -214,10 +214,10 @@ def test_encode_video_args_includes_all_set_options() -> None:
 def test_encode_video_args_omits_unset_options() -> None:
     """_encode_video_args omits options that are None."""
     # Arrange
-    conversion = EncodeVideo(codec="libx265", crf=23, preset="medium")
+    conversion_method = EncodeVideo(codec="libx265", crf=23, preset="medium")
 
     # Act
-    args = _encode_video_args(conversion, 0)
+    args = _encode_video_args(conversion_method, 0)
 
     # Assert
     assert args == ["-codec:0", "libx265", "-crf:0", "23", "-preset:0", "medium"]

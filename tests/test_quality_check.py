@@ -7,21 +7,20 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
+from ts2mp4.conversion_plan import (
+    ConversionMethod,
+    Copy,
+    EncodeAudio,
+    FileConversionPlan,
+    StreamConversionPlan,
+)
+from ts2mp4.converted_video_file import ConvertedVideoFile, StreamWithConversionPlan
 from ts2mp4.ffmpeg import FFmpegProcessError
 from ts2mp4.quality_check import (
     AudioQualityMetrics,
     check_audio_quality,
     get_audio_quality_metrics,
     parse_audio_quality_metrics,
-)
-from ts2mp4.stream_source import (
-    Conversion,
-    ConvertedVideoFile,
-    Copy,
-    EncodeAudio,
-    StreamSource,
-    StreamSources,
-    StreamWithSource,
 )
 from ts2mp4.video_file import AudioStream, Stream, VideoFile, VideoStream
 
@@ -100,24 +99,24 @@ async def test_get_audio_quality_metrics_returns_metrics_for_encoded_audio(
     stream2 = VideoStream(file=converted_video, index=1)
     stream3 = AudioStream(file=converted_video, index=2)
 
-    source1: StreamSource[AudioStream, Conversion] = StreamSource(
-        conversion=EncodeAudio(codec="aac"),
+    plan1: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
+        conversion_method=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=0),
     )
-    source2: StreamSource[VideoStream, Conversion] = StreamSource(
-        conversion=Copy(),
+    plan2: StreamConversionPlan[VideoStream, ConversionMethod] = StreamConversionPlan(
+        conversion_method=Copy(),
         source_stream=VideoStream(file=original_file, index=1),
     )
-    source3: StreamSource[AudioStream, Conversion] = StreamSource(
-        conversion=EncodeAudio(codec="aac"),
+    plan3: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
+        conversion_method=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=1),
     )
 
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
-    mock_converted_file.stream_with_sources = [
-        StreamWithSource(stream=stream1, source=source1),
-        StreamWithSource(stream=stream2, source=source2),
-        StreamWithSource(stream=stream3, source=source3),
+    mock_converted_file.streams_with_conversion_plans = [
+        StreamWithConversionPlan(stream=stream1, conversion_plan=plan1),
+        StreamWithConversionPlan(stream=stream2, conversion_plan=plan2),
+        StreamWithConversionPlan(stream=stream3, conversion_plan=plan3),
     ]
     mock_converted_file.path = output_file
 
@@ -161,19 +160,19 @@ async def test_get_audio_quality_metrics_skips_failed_stream(
     stream1 = AudioStream(file=converted_video, index=0)
     stream2 = AudioStream(file=converted_video, index=2)
 
-    source1: StreamSource[AudioStream, Conversion] = StreamSource(
-        conversion=EncodeAudio(codec="aac"),
+    plan1: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
+        conversion_method=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=0),
     )
-    source2: StreamSource[AudioStream, Conversion] = StreamSource(
-        conversion=EncodeAudio(codec="aac"),
+    plan2: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
+        conversion_method=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=1),
     )
 
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
-    mock_converted_file.stream_with_sources = [
-        StreamWithSource(stream=stream1, source=source1),
-        StreamWithSource(stream=stream2, source=source2),
+    mock_converted_file.streams_with_conversion_plans = [
+        StreamWithConversionPlan(stream=stream1, conversion_plan=plan1),
+        StreamWithConversionPlan(stream=stream2, conversion_plan=plan2),
     ]
     mock_converted_file.path = output_file
 
@@ -211,13 +210,13 @@ async def test_get_audio_quality_metrics_returns_empty_when_no_metrics_parsed(
     converted_video = VideoFile(path=output_file)
 
     stream1 = AudioStream(file=converted_video, index=0)
-    source1: StreamSource[AudioStream, Conversion] = StreamSource(
-        conversion=EncodeAudio(codec="aac"),
+    plan1: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
+        conversion_method=EncodeAudio(codec="aac"),
         source_stream=AudioStream(file=original_file, index=0),
     )
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
-    mock_converted_file.stream_with_sources = [
-        StreamWithSource(stream=stream1, source=source1)
+    mock_converted_file.streams_with_conversion_plans = [
+        StreamWithConversionPlan(stream=stream1, conversion_plan=plan1)
     ]
     mock_converted_file.path = output_file
 
@@ -250,21 +249,22 @@ async def test_get_audio_quality_metrics_returns_positive_metrics_for_real_file(
     """Return positive APSNR/ASDR for each valid audio stream of a real file."""
     # Arrange
     video_file = VideoFile(path=ts_file)
-    stream_sources: list[StreamSource[Stream, Conversion]] = []
+    file_conversion_plan: list[StreamConversionPlan[Stream, ConversionMethod]] = []
     for stream in sorted(video_file.streams):
         if isinstance(stream, AudioStream):
-            conversion: Conversion = EncodeAudio(codec="aac")
+            conversion_method: ConversionMethod = EncodeAudio(codec="aac")
         else:
-            conversion = Copy()
-        stream_sources.append(
-            StreamSource(
+            conversion_method = Copy()
+        file_conversion_plan.append(
+            StreamConversionPlan(
                 source_stream=stream,
-                conversion=conversion,
+                conversion_method=conversion_method,
             )
         )
 
-    converted_file = ConvertedVideoFile[StreamSources](
-        path=ts_file, stream_sources=StreamSources(root=tuple(stream_sources))
+    converted_file = ConvertedVideoFile[FileConversionPlan](
+        path=ts_file,
+        file_conversion_plan=FileConversionPlan(root=tuple(file_conversion_plan)),
     )
 
     # Act

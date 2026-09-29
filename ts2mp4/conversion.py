@@ -1,19 +1,22 @@
-"""Runs FFmpeg to write stream sources into a converted video file."""
+"""Runs FFmpeg to write a file conversion plan into a converted video file."""
 
 from pathlib import Path
 from typing import TypeVar
 
+from .conversion_plan import FileConversionPlan
+from .converted_video_file import ConvertedVideoFile
 from .ffmpeg import execute_ffmpeg
 from .ffmpeg_args import build_ffmpeg_args
-from .stream_source import ConvertedVideoFile, StreamSources
 
-_StreamSourcesT = TypeVar("_StreamSourcesT", bound=StreamSources)
+_FileConversionPlanT = TypeVar("_FileConversionPlanT", bound=FileConversionPlan)
 
 
 def execute_conversion(
-    stream_sources: _StreamSourcesT, output_path: Path
-) -> ConvertedVideoFile[_StreamSourcesT]:
-    """Write ``stream_sources`` to ``output_path`` and return the converted file."""
-    execute_ffmpeg(build_ffmpeg_args(stream_sources, output_path))
+    file_conversion_plan: _FileConversionPlanT, output_path: Path
+) -> ConvertedVideoFile[_FileConversionPlanT]:
+    """Write ``file_conversion_plan`` to ``output_path`` and return the converted file."""
+    execute_ffmpeg(build_ffmpeg_args(file_conversion_plan, output_path))
 
-    return ConvertedVideoFile(path=output_path, stream_sources=stream_sources)
+    return ConvertedVideoFile(
+        path=output_path, file_conversion_plan=file_conversion_plan
+    )

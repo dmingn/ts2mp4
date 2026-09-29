@@ -7,20 +7,19 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
+from ts2mp4.conversion_plan import (
+    Copy,
+    EncodeAudio,
+    EncodeVideo,
+    FileConversionPlan,
+    StreamConversionPlan,
+)
+from ts2mp4.converted_video_file import ConvertedVideoFile, StreamWithConversionPlan
 from ts2mp4.ffmpeg import FFmpegProcessError
 from ts2mp4.stream_integrity import (
     IntegrityReport,
     check_integrity,
     compare_stream_hashes,
-)
-from ts2mp4.stream_source import (
-    ConvertedVideoFile,
-    Copy,
-    EncodeAudio,
-    EncodeVideo,
-    StreamSource,
-    StreamSources,
-    StreamWithSource,
 )
 from ts2mp4.video_file import AudioStream, OtherStream, VideoFile, VideoStream
 
@@ -137,27 +136,27 @@ def mock_converted_video_file(
     mock_converted_file = cast(MagicMock, mocker.MagicMock(spec=ConvertedVideoFile))
     mock_converted_file.path = output_video_file.path
     mock_converted_file.streams = output_streams
-    mock_converted_file.stream_sources = StreamSources(
+    mock_converted_file.file_conversion_plan = FileConversionPlan(
         root=(
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=next(s for s in input_streams if s.index == 0),
-                conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
+                conversion_method=EncodeVideo(codec="libx265", crf=23, preset="medium"),
             ),
-            StreamSource(
+            StreamConversionPlan(
                 source_stream=next(s for s in input_streams if s.index == 1),
-                conversion=Copy(),
+                conversion_method=Copy(),
             ),
         )
     )
 
     # MagicMock doesn't automatically handle properties that are generators
-    type(mock_converted_file).stream_with_sources = mocker.PropertyMock(
+    type(mock_converted_file).streams_with_conversion_plans = mocker.PropertyMock(
         return_value=[
-            StreamWithSource(
+            StreamWithConversionPlan(
                 stream=next(s for s in output_streams if s.index == i),
-                source=source,
+                conversion_plan=plan,
             )
-            for i, source in enumerate(mock_converted_file.stream_sources)
+            for i, plan in enumerate(mock_converted_file.file_conversion_plan)
         ]
     )
 
@@ -214,27 +213,29 @@ def test_check_integrity_reports_only_mismatched_output_indices(
     # that reporting the source index instead of the output index fails.
     mock_converted_file = cast(MagicMock, mocker.MagicMock(spec=ConvertedVideoFile))
     mock_converted_file.path = output_video_file.path
-    type(mock_converted_file).stream_with_sources = mocker.PropertyMock(
+    type(mock_converted_file).streams_with_conversion_plans = mocker.PropertyMock(
         return_value=[
-            StreamWithSource(
+            StreamWithConversionPlan(
                 stream=VideoStream(file=output_video_file, index=0),
-                source=StreamSource(
+                conversion_plan=StreamConversionPlan(
                     source_stream=VideoStream(file=input_video_file, index=0),
-                    conversion=EncodeVideo(codec="libx265", crf=23, preset="medium"),
+                    conversion_method=EncodeVideo(
+                        codec="libx265", crf=23, preset="medium"
+                    ),
                 ),
             ),
-            StreamWithSource(
+            StreamWithConversionPlan(
                 stream=AudioStream(file=output_video_file, index=1),
-                source=StreamSource(
+                conversion_plan=StreamConversionPlan(
                     source_stream=AudioStream(file=input_video_file, index=2),
-                    conversion=Copy(),
+                    conversion_method=Copy(),
                 ),
             ),
-            StreamWithSource(
+            StreamWithConversionPlan(
                 stream=AudioStream(file=output_video_file, index=2),
-                source=StreamSource(
+                conversion_plan=StreamConversionPlan(
                     source_stream=AudioStream(file=input_video_file, index=1),
-                    conversion=Copy(),
+                    conversion_method=Copy(),
                 ),
             ),
         ]
@@ -260,21 +261,23 @@ def test_check_integrity_skips_non_copied_streams(
     mock_compare_stream_hashes = mocker.patch(
         "ts2mp4.stream_integrity.compare_stream_hashes"
     )
-    stream_sources = list(mock_converted_video_file.stream_sources)
-    stream_sources[1] = StreamSource(
-        source_stream=stream_sources[1].source_stream,
-        conversion=EncodeAudio(codec="aac"),
+    file_conversion_plan = list(mock_converted_video_file.file_conversion_plan)
+    file_conversion_plan[1] = StreamConversionPlan(
+        source_stream=file_conversion_plan[1].source_stream,
+        conversion_method=EncodeAudio(codec="aac"),
     )
-    mock_converted_video_file.stream_sources = StreamSources(root=tuple(stream_sources))
-    type(mock_converted_video_file).stream_with_sources = mocker.PropertyMock(
+    mock_converted_video_file.file_conversion_plan = FileConversionPlan(
+        root=tuple(file_conversion_plan)
+    )
+    type(mock_converted_video_file).streams_with_conversion_plans = mocker.PropertyMock(
         return_value=[
-            StreamWithSource(
+            StreamWithConversionPlan(
                 stream=next(
                     s for s in mock_converted_video_file.streams if s.index == i
                 ),
-                source=source,
+                conversion_plan=plan,
             )
-            for i, source in enumerate(mock_converted_video_file.stream_sources)
+            for i, plan in enumerate(mock_converted_video_file.file_conversion_plan)
         ]
     )
 
@@ -298,15 +301,15 @@ def test_check_integrity_raises_for_unsupported_stream_type(
         OtherStream(file=output_video_file, index=1) if stream.index == 1 else stream
         for stream in mock_converted_video_file.streams
     )
-    type(mock_converted_video_file).stream_with_sources = mocker.PropertyMock(
+    type(mock_converted_video_file).streams_with_conversion_plans = mocker.PropertyMock(
         return_value=[
-            StreamWithSource(
+            StreamWithConversionPlan(
                 stream=next(
                     s for s in mock_converted_video_file.streams if s.index == i
                 ),
-                source=source,
+                conversion_plan=plan,
             )
-            for i, source in enumerate(mock_converted_video_file.stream_sources)
+            for i, plan in enumerate(mock_converted_video_file.file_conversion_plan)
         ]
     )
 
