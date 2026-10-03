@@ -85,7 +85,10 @@ def is_other_stream_plan(
 class FileConversionPlan(
     RootModel[tuple[StreamConversionPlan[Stream, ConversionMethod], ...]]
 ):
-    """A tuple of StreamConversionPlan objects."""
+    """The StreamConversionPlan for each output stream of one file.
+
+    The plan at position ``i`` describes output stream ``i``.
+    """
 
     model_config = ConfigDict(frozen=True)
 
