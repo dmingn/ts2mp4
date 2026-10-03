@@ -83,7 +83,7 @@ def ts2mp4(
             "Copied stream integrity verified successfully. All MD5 hashes match."
         )
 
-        quality_metrics = check_audio_quality(audio_encoded_file)
+        quality_metrics = check_audio_quality(audio_encoded_file, ffmpeg_runner)
         for stream_index, metrics in quality_metrics.items():
             log_parts = []
             if metrics.apsnr is not None:

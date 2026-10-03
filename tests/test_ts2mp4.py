@@ -354,7 +354,7 @@ def test_ts2mp4_checks_audio_quality_of_audio_encoded_file(
 
     # Assert
     audio_fallback_mocks.check_audio_quality.assert_called_once_with(
-        audio_fallback_mocks.audio_encoded_file
+        audio_fallback_mocks.audio_encoded_file, _FFMPEG_RUNNER
     )
 
 
