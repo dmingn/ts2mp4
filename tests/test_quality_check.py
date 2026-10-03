@@ -1,5 +1,6 @@
 """Unit and integration tests for the quality_check module."""
 
+import asyncio
 import math
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -391,7 +392,8 @@ async def test_get_audio_quality_metrics_reports_each_channel_layout_segment(
     # Arrange
     ffmpeg_runner = SubprocessFFmpegRunner()
     original_file = VideoFile(path=mixed_surround_ts_file)
-    converted_file = execute_conversion(
+    converted_file = await asyncio.to_thread(
+        execute_conversion,
         FileConversionPlan(
             root=(
                 StreamConversionPlan(

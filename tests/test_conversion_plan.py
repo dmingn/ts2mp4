@@ -5,12 +5,14 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
+from tests.helpers import StubVideoFile
 from ts2mp4.conversion_plan import (
     Copy,
     EncodeVideo,
     FileConversionPlan,
     StreamConversionPlan,
 )
+from ts2mp4.ffprobe_schema import FFprobeFormat, FFprobeOutput, FFprobeStream
 from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
 
@@ -79,6 +81,49 @@ def test_file_conversion_plan_source_video_files_collects_unique_files(
     # Assert
     assert len(source_files) == 2
     assert all(isinstance(f, VideoFile) for f in source_files)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("durations", "expected"),
+    [
+        pytest.param((100.0, None, 200.0), 200.0, id="longest_known"),
+        pytest.param((None,), None, id="none_known"),
+    ],
+)
+def test_file_conversion_plan_max_source_duration(
+    tmp_path: Path, durations: tuple[float | None, ...], expected: float | None
+) -> None:
+    """FileConversionPlan.max_source_duration returns the longest known source duration."""
+    # Arrange
+    paths = [tmp_path / f"input{i}.ts" for i in range(len(durations))]
+    for path in paths:
+        path.touch()
+
+    file_conversion_plan = FileConversionPlan(
+        root=tuple(
+            StreamConversionPlan(
+                source_stream=VideoStream(
+                    file=StubVideoFile(
+                        path=path,
+                        stub_probe=FFprobeOutput(
+                            streams=(FFprobeStream(index=0, codec_type="video"),),
+                            format=FFprobeFormat(duration=duration),
+                        ),
+                    ),
+                    index=0,
+                ),
+                conversion_method=Copy(),
+            )
+            for path, duration in zip(paths, durations)
+        )
+    )
+
+    # Act
+    result = file_conversion_plan.max_source_duration
+
+    # Assert
+    assert result == expected
 
 
 @pytest.mark.unit

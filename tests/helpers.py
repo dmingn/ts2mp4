@@ -19,11 +19,13 @@ class FakeFFmpegRunner:
         self,
         stdout: bytes = b"",
         stderr_lines: Sequence[str] = (),
+        out_seconds: Sequence[float] = (),
         error: Exception | None = None,
     ) -> None:
-        """Return ``stdout`` and ``stderr_lines`` from every call, or raise ``error``."""
+        """Return the fixed output from every call, or raise ``error``."""
         self.stdout = stdout
         self.stderr_lines = tuple(stderr_lines)
+        self.out_seconds = tuple(out_seconds)
         self.error = error
         self.calls: list[list[str]] = []
 
@@ -53,6 +55,15 @@ class FakeFFmpegRunner:
 
         for line in self.stderr_lines:
             yield line
+
+    async def stream_out_seconds(self, args: list[str]) -> AsyncIterator[float]:
+        """Record ``args`` and yield the fixed output seconds."""
+        self.calls.append(args)
+        if self.error is not None:
+            raise self.error
+
+        for out_seconds in self.out_seconds:
+            yield out_seconds
 
 
 def stream_at(streams: frozenset[Stream], index: int) -> Stream:

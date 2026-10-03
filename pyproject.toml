@@ -7,6 +7,7 @@ requires-python = ">=3.12"
 dependencies = [
     "logzero>=1.7.0",
     "pydantic>=2.5.3",
+    "tqdm>=4.70.1",
     "typer>=0.16.0",
 ]
 
@@ -22,6 +23,7 @@ dev = [
     "pytest-asyncio>=0.23.7",
     "pytest-mock>=3.16.0",
     "ruff>=0.16.9",
+    "types-tqdm>=4.70.0.20260906",
 ]
 
 [tool.hatch.version]

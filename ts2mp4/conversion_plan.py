@@ -125,6 +125,18 @@ class FileConversionPlan(
         return frozenset(plan.source_stream.file for plan in self.root)
 
     @property
+    def max_source_duration(self) -> float | None:
+        """Return the longest known duration among the source video files."""
+        return max(
+            (
+                duration
+                for file in self.source_video_files
+                if (duration := file.duration) is not None
+            ),
+            default=None,
+        )
+
+    @property
     def default_stream_indices(self) -> frozenset[int]:
         """Return the output stream indices to mark with disposition default."""
         return get_default_stream_indices([plan.source_stream for plan in self.root])
