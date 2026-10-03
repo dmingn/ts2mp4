@@ -11,6 +11,7 @@ import typer
 from logzero import logger
 
 from ts2mp4 import _get_ts2mp4_version
+from ts2mp4.ffmpeg import SubprocessFFmpegRunner
 from ts2mp4.ts2mp4 import ts2mp4
 from ts2mp4.video_file import VideoFile
 
@@ -97,7 +98,11 @@ def main(
 
         video_file = VideoFile(path=ts_resolved)
         ts2mp4(
-            input_file=video_file, output_path=mp4_part, crf=crf, preset=preset.value
+            input_file=video_file,
+            output_path=mp4_part,
+            crf=crf,
+            preset=preset.value,
+            ffmpeg_runner=SubprocessFFmpegRunner(),
         )
 
         logger.info("Conversion Status: Success")

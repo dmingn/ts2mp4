@@ -7,12 +7,14 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
+from tests.helpers import FakeFFmpegRunner
 from ts2mp4.stream_integrity import IntegrityReport
 from ts2mp4.ts2mp4 import ts2mp4
 from ts2mp4.video_file import VideoFile
 
 _OK_REPORT = IntegrityReport(mismatched_output_indices=frozenset())
 _MISMATCH_REPORT = IntegrityReport(mismatched_output_indices=frozenset({1}))
+_FFMPEG_RUNNER = FakeFFmpegRunner()
 
 
 @pytest.mark.unit
@@ -33,7 +35,7 @@ def test_ts2mp4_builds_video_file_conversion_plan_with_given_parameters(
     mocker.patch("ts2mp4.ts2mp4.check_integrity", return_value=_OK_REPORT)
 
     # Act
-    ts2mp4(mock_video_file, output_file, crf, preset)
+    ts2mp4(mock_video_file, output_file, crf, preset, _FFMPEG_RUNNER)
 
     # Assert
     mock_build_video_file_conversion_plan.assert_called_once_with(
@@ -57,11 +59,17 @@ def test_ts2mp4_converts_video_file_conversion_plan_to_output(
     mocker.patch("ts2mp4.ts2mp4.check_integrity", return_value=_OK_REPORT)
 
     # Act
-    ts2mp4(mock_video_file, output_file, crf=23, preset="medium")
+    ts2mp4(
+        mock_video_file,
+        output_file,
+        crf=23,
+        preset="medium",
+        ffmpeg_runner=_FFMPEG_RUNNER,
+    )
 
     # Assert
     mock_execute_conversion.assert_called_once_with(
-        mock_build_video_file_conversion_plan.return_value, output_file
+        mock_build_video_file_conversion_plan.return_value, output_file, _FFMPEG_RUNNER
     )
 
 
@@ -88,7 +96,7 @@ def test_ts2mp4_checks_integrity_of_video_encoded_file(
     )
 
     # Act
-    ts2mp4(mock_video_file, output_file, crf, preset)
+    ts2mp4(mock_video_file, output_file, crf, preset, _FFMPEG_RUNNER)
 
     # Assert
     mock_check_integrity.assert_called_once_with(mock_output_video_file_instance)
@@ -112,7 +120,7 @@ def test_ts2mp4_skips_audio_encoding_when_integrity_is_ok(
     )
 
     # Act
-    ts2mp4(mock_video_file, output_file, crf, preset)
+    ts2mp4(mock_video_file, output_file, crf, preset, _FFMPEG_RUNNER)
 
     # Assert
     mock_build_audio_file_conversion_plan.assert_not_called()
@@ -137,7 +145,7 @@ def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="ffmpeg failed with return code 1"):
-        ts2mp4(mock_video_file, output_file, crf, preset)
+        ts2mp4(mock_video_file, output_file, crf, preset, _FFMPEG_RUNNER)
 
 
 @pytest.mark.unit
@@ -159,7 +167,7 @@ def test_ts2mp4_does_not_check_integrity_on_ffmpeg_failure(
 
     # Act & Assert
     with pytest.raises(RuntimeError):
-        ts2mp4(mock_video_file, output_file, crf, preset)
+        ts2mp4(mock_video_file, output_file, crf, preset, _FFMPEG_RUNNER)
 
     mock_check_integrity.assert_not_called()
 
@@ -184,7 +192,7 @@ def test_ts2mp4_propagates_runtime_error_from_check_integrity(
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="Stream type mismatch"):
-        ts2mp4(mock_video_file, output_file, crf, preset)
+        ts2mp4(mock_video_file, output_file, crf, preset, _FFMPEG_RUNNER)
 
 
 class _AudioFallbackMocks(NamedTuple):
@@ -236,7 +244,13 @@ def test_ts2mp4_builds_audio_file_conversion_plan_on_integrity_failure(
     output_file = Path("output.mp4")
 
     # Act
-    ts2mp4(mock_video_file, output_file, crf=23, preset="medium")
+    ts2mp4(
+        mock_video_file,
+        output_file,
+        crf=23,
+        preset="medium",
+        ffmpeg_runner=_FFMPEG_RUNNER,
+    )
 
     # Assert
     audio_fallback_mocks.build_audio_file_conversion_plan.assert_called_once_with(
@@ -255,12 +269,19 @@ def test_ts2mp4_converts_audio_file_conversion_plan_to_temp_file(
     output_file = Path("output.mp4")
 
     # Act
-    ts2mp4(mock_video_file, output_file, crf=23, preset="medium")
+    ts2mp4(
+        mock_video_file,
+        output_file,
+        crf=23,
+        preset="medium",
+        ffmpeg_runner=_FFMPEG_RUNNER,
+    )
 
     # Assert
     audio_fallback_mocks.execute_conversion.assert_called_with(
         audio_fallback_mocks.build_audio_file_conversion_plan.return_value,
         Path("output.mp4.temp"),
+        _FFMPEG_RUNNER,
     )
 
 
@@ -273,7 +294,13 @@ def test_ts2mp4_checks_integrity_of_audio_encoded_file(
     output_file = Path("output.mp4")
 
     # Act
-    ts2mp4(mock_video_file, output_file, crf=23, preset="medium")
+    ts2mp4(
+        mock_video_file,
+        output_file,
+        crf=23,
+        preset="medium",
+        ffmpeg_runner=_FFMPEG_RUNNER,
+    )
 
     # Assert
     audio_fallback_mocks.check_integrity.assert_called_with(
@@ -297,7 +324,13 @@ def test_ts2mp4_raises_when_audio_encoded_file_fails_integrity(
     with pytest.raises(
         RuntimeError, match="Stream integrity check failed after audio encoding"
     ):
-        ts2mp4(mock_video_file, output_file, crf=23, preset="medium")
+        ts2mp4(
+            mock_video_file,
+            output_file,
+            crf=23,
+            preset="medium",
+            ffmpeg_runner=_FFMPEG_RUNNER,
+        )
 
 
 @pytest.mark.unit
@@ -309,7 +342,13 @@ def test_ts2mp4_checks_audio_quality_of_audio_encoded_file(
     output_file = Path("output.mp4")
 
     # Act
-    ts2mp4(mock_video_file, output_file, crf=23, preset="medium")
+    ts2mp4(
+        mock_video_file,
+        output_file,
+        crf=23,
+        preset="medium",
+        ffmpeg_runner=_FFMPEG_RUNNER,
+    )
 
     # Assert
     audio_fallback_mocks.check_audio_quality.assert_called_once_with(
@@ -326,7 +365,13 @@ def test_ts2mp4_replaces_output_with_audio_encoded_file(
     output_file = Path("output.mp4")
 
     # Act
-    ts2mp4(mock_video_file, output_file, crf=23, preset="medium")
+    ts2mp4(
+        mock_video_file,
+        output_file,
+        crf=23,
+        preset="medium",
+        ffmpeg_runner=_FFMPEG_RUNNER,
+    )
 
     # Assert
     audio_fallback_mocks.replace.assert_called_once_with(output_file)
@@ -346,4 +391,10 @@ def test_ts2mp4_raises_on_audio_encode_failure(
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="Encode failed"):
-        ts2mp4(mock_video_file, output_file, crf=23, preset="medium")
+        ts2mp4(
+            mock_video_file,
+            output_file,
+            crf=23,
+            preset="medium",
+            ffmpeg_runner=_FFMPEG_RUNNER,
+        )

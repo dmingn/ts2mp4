@@ -6,13 +6,20 @@ from logzero import logger
 
 from .audio_encoder import build_file_conversion_plan_for_audio_encoding
 from .conversion import execute_conversion
+from .ffmpeg import FFmpegRunner
 from .quality_check import check_audio_quality
 from .stream_integrity import check_integrity
 from .video_encoder import build_file_conversion_plan_for_video_encoding
 from .video_file import VideoFile
 
 
-def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> None:
+def ts2mp4(
+    input_file: VideoFile,
+    output_path: Path,
+    crf: int,
+    preset: str,
+    ffmpeg_runner: FFmpegRunner,
+) -> None:
     """Convert a Transport Stream (TS) file to MP4 format using FFmpeg.
 
     This function orchestrates the video conversion process, including video
@@ -26,6 +33,7 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
             values result in higher quality and larger file sizes.
         preset: The encoding preset for FFmpeg. This affects the compression
             speed and efficiency (e.g., 'medium', 'fast', 'slow').
+        ffmpeg_runner: The FFmpegRunner used to run ffmpeg.
 
     """
     video_encoded_file = execute_conversion(
@@ -33,6 +41,7 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
             input_file, crf=crf, preset=preset
         ),
         output_path,
+        ffmpeg_runner,
     )
 
     logger.info(f"Verifying copied stream integrity for {video_encoded_file.path.name}")
@@ -55,6 +64,7 @@ def ts2mp4(input_file: VideoFile, output_path: Path, crf: int, preset: str) -> N
                 integrity_report=video_encoded_integrity_report,
             ),
             temp_output_file,
+            ffmpeg_runner,
         )
 
         logger.info(

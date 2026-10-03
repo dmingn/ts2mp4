@@ -5,17 +5,19 @@ from typing import TypeVar
 
 from .conversion_plan import FileConversionPlan
 from .converted_video_file import ConvertedVideoFile
-from .ffmpeg import execute_ffmpeg
+from .ffmpeg import FFmpegRunner
 from .ffmpeg_args import build_ffmpeg_args
 
 _FileConversionPlanT = TypeVar("_FileConversionPlanT", bound=FileConversionPlan)
 
 
 def execute_conversion(
-    file_conversion_plan: _FileConversionPlanT, output_path: Path
+    file_conversion_plan: _FileConversionPlanT,
+    output_path: Path,
+    ffmpeg_runner: FFmpegRunner,
 ) -> ConvertedVideoFile[_FileConversionPlanT]:
     """Write ``file_conversion_plan`` to ``output_path`` and return the converted file."""
-    execute_ffmpeg(build_ffmpeg_args(file_conversion_plan, output_path))
+    ffmpeg_runner.run(build_ffmpeg_args(file_conversion_plan, output_path))
 
     return ConvertedVideoFile(
         path=output_path, file_conversion_plan=file_conversion_plan

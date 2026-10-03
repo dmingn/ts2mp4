@@ -4,7 +4,7 @@ import asyncio
 import functools
 import subprocess
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, AsyncIterator, Literal, NamedTuple
+from typing import AsyncGenerator, AsyncIterator, Literal, NamedTuple, Protocol
 
 from logzero import logger
 
@@ -167,6 +167,40 @@ async def _stream_stderr(
             line_str = line_bytes.decode("utf-8", errors="replace")
             logger.info(line_str.strip())
             yield line_str
+
+
+class FFmpegRunner(Protocol):
+    """Runs ffmpeg with the given arguments."""
+
+    def run(self, args: list[str]) -> FFmpegResult:
+        """Run ffmpeg and return its result."""
+        ...
+
+    def stream_stdout(self, args: list[str]) -> AsyncIterator[bytes]:
+        """Run ffmpeg and yield its stdout in chunks."""
+        ...
+
+    def stream_stderr(self, args: list[str]) -> AsyncIterator[str]:
+        """Run ffmpeg and yield its stderr line by line."""
+        ...
+
+
+class SubprocessFFmpegRunner:
+    """Runs ffmpeg as a subprocess."""
+
+    def run(self, args: list[str]) -> FFmpegResult:
+        """Run ffmpeg and return its result."""
+        return _run_command("ffmpeg", args)
+
+    async def stream_stdout(self, args: list[str]) -> AsyncIterator[bytes]:
+        """Run ffmpeg and yield its stdout in chunks."""
+        async for chunk in _stream_stdout("ffmpeg", args):
+            yield chunk
+
+    async def stream_stderr(self, args: list[str]) -> AsyncIterator[str]:
+        """Run ffmpeg and yield its stderr line by line."""
+        async for line in _stream_stderr("ffmpeg", args):
+            yield line
 
 
 def execute_ffmpeg(args: list[str]) -> FFmpegResult:
