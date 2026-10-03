@@ -3,6 +3,7 @@
 import asyncio
 import functools
 import subprocess
+from collections.abc import Hashable
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, AsyncIterator, Literal, NamedTuple, Protocol
 
@@ -169,8 +170,11 @@ async def _stream_stderr(
             yield line_str
 
 
-class FFmpegRunner(Protocol):
-    """Runs ffmpeg with the given arguments."""
+class FFmpegRunner(Hashable, Protocol):
+    """Runs ffmpeg with the given arguments.
+
+    Runners are hashable so that results can be cached per runner.
+    """
 
     def run(self, args: list[str]) -> FFmpegResult:
         """Run ffmpeg and return its result."""

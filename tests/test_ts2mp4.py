@@ -99,7 +99,9 @@ def test_ts2mp4_checks_integrity_of_video_encoded_file(
     ts2mp4(mock_video_file, output_file, crf, preset, _FFMPEG_RUNNER)
 
     # Assert
-    mock_check_integrity.assert_called_once_with(mock_output_video_file_instance)
+    mock_check_integrity.assert_called_once_with(
+        mock_output_video_file_instance, _FFMPEG_RUNNER
+    )
 
 
 @pytest.mark.unit
@@ -304,7 +306,7 @@ def test_ts2mp4_checks_integrity_of_audio_encoded_file(
 
     # Assert
     audio_fallback_mocks.check_integrity.assert_called_with(
-        audio_fallback_mocks.audio_encoded_file
+        audio_fallback_mocks.audio_encoded_file, _FFMPEG_RUNNER
     )
 
 

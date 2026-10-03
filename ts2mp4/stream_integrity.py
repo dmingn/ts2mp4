@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict
 
 from .conversion_plan import Copy, FileConversionPlan
 from .converted_video_file import ConvertedVideoFile, StreamWithConversionPlan
+from .ffmpeg import FFmpegRunner
 from .hashing import get_stream_md5
 from .video_file import AudioStream, Stream, VideoStream
 
@@ -25,6 +26,7 @@ class IntegrityReport(BaseModel):
 def compare_stream_hashes(
     stream_a: VideoStream | AudioStream,
     stream_b: VideoStream | AudioStream,
+    ffmpeg_runner: FFmpegRunner,
 ) -> bool:
     """Check the integrity of two streams by comparing MD5 hashes.
 
@@ -34,7 +36,7 @@ def compare_stream_hashes(
         False otherwise.
     """
     try:
-        md5_a = get_stream_md5(stream_a)
+        md5_a = get_stream_md5(stream_a, ffmpeg_runner)
     except RuntimeError as e:
         logger.warning(
             f"Failed to get MD5 for stream at index {stream_a.index} "
@@ -43,7 +45,7 @@ def compare_stream_hashes(
         return False
 
     try:
-        md5_b = get_stream_md5(stream_b)
+        md5_b = get_stream_md5(stream_b, ffmpeg_runner)
     except RuntimeError as e:
         logger.warning(
             f"Failed to get MD5 for stream at index {stream_b.index} "
@@ -63,6 +65,7 @@ def compare_stream_hashes(
 
 def _stream_matches_source(
     stream_with_conversion_plan: StreamWithConversionPlan[Stream],
+    ffmpeg_runner: FFmpegRunner,
 ) -> bool:
     """Return True if an output stream matches its source stream."""
     stream = stream_with_conversion_plan.stream
@@ -75,17 +78,19 @@ def _stream_matches_source(
             "Stream integrity check for non-audio/video streams is not implemented."
         )
 
-    return compare_stream_hashes(source_stream, stream)
+    return compare_stream_hashes(source_stream, stream, ffmpeg_runner)
 
 
 def check_integrity(
     converted_file: ConvertedVideoFile[FileConversionPlan],
+    ffmpeg_runner: FFmpegRunner,
 ) -> IntegrityReport:
     """Compare every copied stream in a converted file against its source.
 
     Args:
     ----
         converted_file: The ConvertedVideoFile object.
+        ffmpeg_runner: The FFmpegRunner used to hash the streams.
 
     Returns
     -------
@@ -98,6 +103,6 @@ def check_integrity(
             if isinstance(
                 stream_with_conversion_plan.conversion_plan.conversion_method, Copy
             )
-            and not _stream_matches_source(stream_with_conversion_plan)
+            and not _stream_matches_source(stream_with_conversion_plan, ffmpeg_runner)
         )
     )

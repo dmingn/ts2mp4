@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
+from tests.helpers import FakeFFmpegRunner
 from ts2mp4.conversion_plan import (
     Copy,
     EncodeAudio,
@@ -22,6 +23,8 @@ from ts2mp4.stream_integrity import (
     compare_stream_hashes,
 )
 from ts2mp4.video_file import AudioStream, OtherStream, VideoFile, VideoStream
+
+_FFMPEG_RUNNER = FakeFFmpegRunner()
 
 
 @pytest.fixture
@@ -54,6 +57,7 @@ def test_compare_stream_hashes_returns_true_when_hashes_match(
     result = compare_stream_hashes(
         AudioStream(file=input_video_file, index=1),
         AudioStream(file=output_video_file, index=1),
+        _FFMPEG_RUNNER,
     )
 
     # Assert
@@ -76,6 +80,7 @@ def test_compare_stream_hashes_returns_false_when_hashes_differ(
     result = compare_stream_hashes(
         AudioStream(file=input_video_file, index=1),
         AudioStream(file=output_video_file, index=1),
+        _FFMPEG_RUNNER,
     )
 
     # Assert
@@ -107,6 +112,7 @@ def test_compare_stream_hashes_returns_false_when_hashing_fails(
     result = compare_stream_hashes(
         AudioStream(file=input_video_file, index=1),
         AudioStream(file=output_video_file, index=1),
+        _FFMPEG_RUNNER,
     )
 
     # Assert
@@ -195,7 +201,7 @@ def test_check_integrity_reports_no_mismatch_when_hashes_match(
     mocker.patch("ts2mp4.stream_integrity.compare_stream_hashes", return_value=True)
 
     # Act
-    report = check_integrity(mock_converted_video_file)
+    report = check_integrity(mock_converted_video_file, _FFMPEG_RUNNER)
 
     # Assert
     assert report == IntegrityReport(mismatched_output_indices=frozenset())
@@ -242,11 +248,13 @@ def test_check_integrity_reports_only_mismatched_output_indices(
     )
     mocker.patch(
         "ts2mp4.stream_integrity.compare_stream_hashes",
-        side_effect=lambda source_stream, _stream: source_stream.index == 2,
+        side_effect=lambda source_stream, _stream, _ffmpeg_runner: (
+            source_stream.index == 2
+        ),
     )
 
     # Act
-    report = check_integrity(mock_converted_file)
+    report = check_integrity(mock_converted_file, _FFMPEG_RUNNER)
 
     # Assert
     assert report == IntegrityReport(mismatched_output_indices=frozenset({2}))
@@ -282,7 +290,7 @@ def test_check_integrity_skips_non_copied_streams(
     )
 
     # Act
-    check_integrity(mock_converted_video_file)
+    check_integrity(mock_converted_video_file, _FFMPEG_RUNNER)
 
     # Assert
     mock_compare_stream_hashes.assert_not_called()
@@ -318,4 +326,4 @@ def test_check_integrity_raises_for_unsupported_stream_type(
         NotImplementedError,
         match="Stream integrity check for non-audio/video streams is not implemented.",
     ):
-        check_integrity(mock_converted_video_file)
+        check_integrity(mock_converted_video_file, _FFMPEG_RUNNER)

@@ -45,7 +45,7 @@ def ts2mp4(
     )
 
     logger.info(f"Verifying copied stream integrity for {video_encoded_file.path.name}")
-    video_encoded_integrity_report = check_integrity(video_encoded_file)
+    video_encoded_integrity_report = check_integrity(video_encoded_file, ffmpeg_runner)
     if video_encoded_integrity_report.is_ok:
         logger.info(
             "Copied stream integrity verified successfully. All MD5 hashes match."
@@ -70,7 +70,9 @@ def ts2mp4(
         logger.info(
             f"Verifying copied stream integrity for {audio_encoded_file.path.name}"
         )
-        audio_encoded_integrity_report = check_integrity(audio_encoded_file)
+        audio_encoded_integrity_report = check_integrity(
+            audio_encoded_file, ffmpeg_runner
+        )
         if not audio_encoded_integrity_report.is_ok:
             raise RuntimeError(
                 "Stream integrity check failed after audio encoding for output "
