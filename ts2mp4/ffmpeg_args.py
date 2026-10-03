@@ -94,7 +94,7 @@ def build_ffmpeg_args(
     decoded streams of an input when one of them ends midway.
     """
     return (
-        ["-hide_banner", "-nostats", "-fflags", "+discardcorrupt", "-y"]
+        ["-hide_banner", "-nostats", "-y"]
         + [
             arg
             for plan in file_conversion_plan

@@ -64,8 +64,6 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
     assert args == [
         "-hide_banner",
         "-nostats",
-        "-fflags",
-        "+discardcorrupt",
         "-y",
         "-i",
         str(encoded_path),
