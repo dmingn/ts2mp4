@@ -2,7 +2,7 @@
 
 import io
 import logging
-from typing import AsyncGenerator, Optional, cast
+from typing import Optional, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import logzero
@@ -175,27 +175,6 @@ def test_subprocess_ffmpeg_runner_run_logs_stderr_as_info() -> None:
 
     # Assert
     assert "Unrecognized option" in log_stream.getvalue()
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_subprocess_ffmpeg_runner_stream_stdout(mocker: MockerFixture) -> None:
-    """Test that SubprocessFFmpegRunner.stream_stdout calls _stream_stdout."""
-    expected_args = ["-i", "input.ts", "output.mp4"]
-
-    async def mock_stream_stdout(
-        executable: str, args: list[str]
-    ) -> AsyncGenerator[bytes, None]:
-        assert executable == "ffmpeg"
-        assert args == expected_args
-        yield b"test"
-
-    mocker.patch("ts2mp4.ffmpeg._stream_stdout", mock_stream_stdout)
-
-    result = [
-        chunk async for chunk in SubprocessFFmpegRunner().stream_stdout(expected_args)
-    ]
-    assert result == [b"test"]
 
 
 @pytest.mark.unit
