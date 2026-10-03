@@ -6,7 +6,7 @@ from logzero import logger
 
 from .audio_encoder import build_file_conversion_plan_for_audio_encoding
 from .conversion import execute_conversion
-from .ffmpeg import FFmpegRunner
+from .ffmpeg import FFmpegRunner, is_libfdk_aac_available
 from .quality_check import check_audio_quality
 from .stream_integrity import check_integrity
 from .video_encoder import build_file_conversion_plan_for_video_encoding
@@ -62,6 +62,7 @@ def ts2mp4(
                 original_file=input_file,
                 encoded_file=video_encoded_file,
                 integrity_report=video_encoded_integrity_report,
+                libfdk_aac_available=is_libfdk_aac_available(ffmpeg_runner),
             ),
             temp_output_file,
             ffmpeg_runner,

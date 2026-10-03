@@ -12,7 +12,6 @@ from .conversion_plan import (
     FileConversionPlan,
     StreamConversionPlan,
 )
-from .ffmpeg import is_libfdk_aac_available
 from .stream_integrity import IntegrityReport
 from .video_encoder import VideoEncodedFile
 from .video_file import AudioStream, VideoFile, VideoStream
@@ -73,6 +72,7 @@ def build_file_conversion_plan_for_audio_encoding(
     original_file: VideoFile,
     encoded_file: VideoEncodedFile,
     integrity_report: IntegrityReport,
+    libfdk_aac_available: bool,
 ) -> FileConversionPlanForAudioEncoding:
     """Build the file conversion plan that fixes mismatched audio streams.
 
@@ -87,6 +87,7 @@ def build_file_conversion_plan_for_audio_encoding(
                       It contains the mapping between original and encoded streams.
         integrity_report: The IntegrityReport from check_integrity on encoded_file.
                           It must report at least one mismatched stream.
+        libfdk_aac_available: Whether ffmpeg can encode with libfdk_aac.
 
     Raises
     ------
@@ -150,7 +151,9 @@ def build_file_conversion_plan_for_audio_encoding(
                 plans.append(
                     StreamConversionPlan(
                         source_stream=original_stream,
-                        conversion_method=_build_encode_audio_for(original_stream),
+                        conversion_method=_build_encode_audio_for(
+                            original_stream, libfdk_aac_available
+                        ),
                     )
                 )
 
@@ -160,18 +163,21 @@ def build_file_conversion_plan_for_audio_encoding(
 _FFMPEG_AAC_PROFILES = {"LC": "aac_low"}
 
 
-def _build_encode_audio_for(stream: AudioStream) -> EncodeAudio:
+def _build_encode_audio_for(
+    stream: AudioStream, libfdk_aac_available: bool
+) -> EncodeAudio:
     """Return an EncodeAudio that re-encodes ``stream`` with its own settings.
 
     The sample rate, channel count, profile and bit rate are taken from
-    ``stream``. The encoder is libfdk_aac when available, otherwise aac.
+    ``stream``. The encoder is libfdk_aac if ``libfdk_aac_available``,
+    otherwise aac.
     """
     if stream.codec_name != "aac":
         raise NotImplementedError(
             "Encoding is currently only supported for aac audio codec."
         )
 
-    if is_libfdk_aac_available():
+    if libfdk_aac_available:
         codec = "libfdk_aac"
     else:
         logger.warning(

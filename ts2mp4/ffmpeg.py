@@ -276,13 +276,17 @@ def execute_ffprobe(args: list[str]) -> FFmpegResult:
 
 
 @functools.cache
-def is_libfdk_aac_available() -> bool:
+def is_libfdk_aac_available(ffmpeg_runner: FFmpegRunner) -> bool:
     """Check if libfdk_aac is available in ffmpeg.
+
+    Args:
+    ----
+        ffmpeg_runner: The FFmpegRunner used to list the encoders.
 
     Returns
     -------
         True if libfdk_aac is available, False otherwise.
 
     """
-    result = execute_ffmpeg(["-encoders"])
+    result = ffmpeg_runner.run(["-encoders"])
     return b"libfdk_aac" in result.stdout

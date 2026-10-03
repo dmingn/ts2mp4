@@ -9,9 +9,9 @@ import logzero
 import pytest
 from pytest_mock import MockerFixture
 
+from tests.helpers import FakeFFmpegRunner
 from ts2mp4.ffmpeg import (
     FFmpegProcessError,
-    FFmpegResult,
     _run_command,
     _stream_stdout,
     execute_ffmpeg,
@@ -64,34 +64,30 @@ class MockAsyncProcess:
         (b"... libfdk_aac ...", True),
     ],
 )
-def test_is_libfdk_aac_available(
-    mocker: MockerFixture, ffmpeg_output: bytes, expected: bool
-) -> None:
+def test_is_libfdk_aac_available(ffmpeg_output: bytes, expected: bool) -> None:
     """Test that is_libfdk_aac_available returns the correct value."""
-    is_libfdk_aac_available.cache_clear()
-    mock_execute_ffmpeg = mocker.patch("ts2mp4.ffmpeg.execute_ffmpeg")
-    mock_execute_ffmpeg.return_value = FFmpegResult(
-        stdout=ffmpeg_output, stderr="", returncode=0
-    )
+    # Arrange
+    ffmpeg_runner = FakeFFmpegRunner(stdout=ffmpeg_output)
 
-    assert is_libfdk_aac_available() is expected
+    # Act
+    result = is_libfdk_aac_available(ffmpeg_runner)
+
+    # Assert
+    assert result is expected
 
 
 @pytest.mark.unit
-def test_is_libfdk_aac_available_caching(mocker: MockerFixture) -> None:
+def test_is_libfdk_aac_available_caching() -> None:
     """Test that is_libfdk_aac_available caches results."""
-    is_libfdk_aac_available.cache_clear()
-    mock_execute_ffmpeg = mocker.patch(
-        "ts2mp4.ffmpeg.execute_ffmpeg",
-        return_value=FFmpegResult(stdout=b"libfdk_aac", stderr="", returncode=0),
-    )
+    # Arrange
+    ffmpeg_runner = FakeFFmpegRunner(stdout=b"libfdk_aac")
 
-    # Call twice
-    is_libfdk_aac_available()
-    is_libfdk_aac_available()
+    # Act
+    is_libfdk_aac_available(ffmpeg_runner)
+    is_libfdk_aac_available(ffmpeg_runner)
 
-    # Assert that execute_ffmpeg was only called once
-    mock_execute_ffmpeg.assert_called_once()
+    # Assert
+    assert len(ffmpeg_runner.calls) == 1
 
 
 @pytest.mark.integration

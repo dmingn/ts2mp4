@@ -259,6 +259,7 @@ def test_ts2mp4_builds_audio_file_conversion_plan_on_integrity_failure(
         original_file=mock_video_file,
         encoded_file=audio_fallback_mocks.video_encoded_file,
         integrity_report=_MISMATCH_REPORT,
+        libfdk_aac_available=False,
     )
 
 

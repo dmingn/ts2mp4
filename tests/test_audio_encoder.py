@@ -148,19 +148,20 @@ def test_build_file_conversion_plan_for_audio_encoding_raises_without_mismatch(
     # Act & Assert
     with pytest.raises(ValueError, match="must report at least one mismatch"):
         build_file_conversion_plan_for_audio_encoding(
-            mock_original_video_file, mock_encoded_video_file, _NO_MISMATCH_REPORT
+            mock_original_video_file,
+            mock_encoded_video_file,
+            _NO_MISMATCH_REPORT,
+            libfdk_aac_available=False,
         )
 
 
 @pytest.mark.unit
 def test_build_file_conversion_plan_for_audio_encoding_copies_matching_streams(
-    mocker: MockerFixture,
     mock_original_video_file: VideoFile,
     mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
     """Streams not reported as mismatched are copied from the encoded file."""
     # Arrange
-    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     mock_encoded_video_file = mock_video_encoded_file_factory(
         mock_original_video_file, [0, 1, 2]
     )
@@ -168,7 +169,10 @@ def test_build_file_conversion_plan_for_audio_encoding_copies_matching_streams(
 
     # Act
     file_conversion_plan = build_file_conversion_plan_for_audio_encoding(
-        mock_original_video_file, mock_encoded_video_file, integrity_report
+        mock_original_video_file,
+        mock_encoded_video_file,
+        integrity_report,
+        libfdk_aac_available=False,
     )
 
     # Assert
@@ -187,13 +191,11 @@ def test_build_file_conversion_plan_for_audio_encoding_copies_matching_streams(
 
 @pytest.mark.unit
 def test_build_file_conversion_plan_for_audio_encoding_with_mismatch(
-    mocker: MockerFixture,
     mock_original_video_file: VideoFile,
     mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
     """Tests that the plan for a mismatched output stream encodes from the original."""
     # Arrange
-    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     # Output stream 1 comes from original stream 2, and output 2 from original 1.
     mock_encoded_video_file = mock_video_encoded_file_factory(
         mock_original_video_file, [0, 2, 1]
@@ -202,7 +204,10 @@ def test_build_file_conversion_plan_for_audio_encoding_with_mismatch(
 
     # Act
     file_conversion_plan = build_file_conversion_plan_for_audio_encoding(
-        mock_original_video_file, mock_encoded_video_file, integrity_report
+        mock_original_video_file,
+        mock_encoded_video_file,
+        integrity_report,
+        libfdk_aac_available=False,
     )
 
     # Assert
@@ -216,13 +221,11 @@ def test_build_file_conversion_plan_for_audio_encoding_with_mismatch(
 
 @pytest.mark.unit
 def test_build_file_conversion_plan_for_audio_encoding_missing_stream_raises_error(
-    mocker: MockerFixture,
     mock_original_video_file: VideoFile,
     mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
     """Tests that a missing stream raises a RuntimeError."""
     # Arrange
-    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     mock_encoded_video_file = mock_video_encoded_file_factory(
         mock_original_video_file, [0, 1]
     )
@@ -231,17 +234,17 @@ def test_build_file_conversion_plan_for_audio_encoding_missing_stream_raises_err
     # Act & Assert
     with pytest.raises(RuntimeError, match="is missing a required stream"):
         build_file_conversion_plan_for_audio_encoding(
-            mock_original_video_file, mock_encoded_video_file, integrity_report
+            mock_original_video_file,
+            mock_encoded_video_file,
+            integrity_report,
+            libfdk_aac_available=False,
         )
 
 
 @pytest.mark.unit
-def test_build_encode_audio_for_takes_settings_from_stream(
-    mocker: MockerFixture, tmp_path: Path
-) -> None:
+def test_build_encode_audio_for_takes_settings_from_stream(tmp_path: Path) -> None:
     """_build_encode_audio_for takes sample rate, channels and bit rate from the stream."""
     # Arrange
-    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     stream = _probed_audio_stream(
         tmp_path,
         codec_name="aac",
@@ -251,7 +254,7 @@ def test_build_encode_audio_for_takes_settings_from_stream(
     )
 
     # Act
-    conversion_method = _build_encode_audio_for(stream)
+    conversion_method = _build_encode_audio_for(stream, libfdk_aac_available=False)
 
     # Assert
     assert conversion_method == EncodeAudio(
@@ -263,16 +266,13 @@ def test_build_encode_audio_for_takes_settings_from_stream(
 
 
 @pytest.mark.unit
-def test_build_encode_audio_for_maps_lc_profile_to_aac_low(
-    mocker: MockerFixture, tmp_path: Path
-) -> None:
+def test_build_encode_audio_for_maps_lc_profile_to_aac_low(tmp_path: Path) -> None:
     """_build_encode_audio_for maps the probed LC profile to FFmpeg's aac_low."""
     # Arrange
-    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     stream = _probed_audio_stream(tmp_path, codec_name="aac", profile="LC")
 
     # Act
-    conversion_method = _build_encode_audio_for(stream)
+    conversion_method = _build_encode_audio_for(stream, libfdk_aac_available=False)
 
     # Assert
     assert conversion_method.profile == "aac_low"
@@ -280,15 +280,14 @@ def test_build_encode_audio_for_maps_lc_profile_to_aac_low(
 
 @pytest.mark.unit
 def test_build_encode_audio_for_uses_libfdk_aac_when_available(
-    mocker: MockerFixture, tmp_path: Path
+    tmp_path: Path,
 ) -> None:
     """_build_encode_audio_for selects libfdk_aac when it is available."""
     # Arrange
-    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=True)
     stream = _probed_audio_stream(tmp_path, codec_name="aac")
 
     # Act
-    conversion_method = _build_encode_audio_for(stream)
+    conversion_method = _build_encode_audio_for(stream, libfdk_aac_available=True)
 
     # Assert
     assert conversion_method.codec == "libfdk_aac"
@@ -300,12 +299,11 @@ def test_build_encode_audio_for_warns_when_libfdk_aac_unavailable(
 ) -> None:
     """_build_encode_audio_for warns and falls back to aac without libfdk_aac."""
     # Arrange
-    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     mock_logger_warning = mocker.patch("ts2mp4.audio_encoder.logger.warning")
     stream = _probed_audio_stream(tmp_path, codec_name="aac")
 
     # Act
-    conversion_method = _build_encode_audio_for(stream)
+    conversion_method = _build_encode_audio_for(stream, libfdk_aac_available=False)
 
     # Assert
     assert conversion_method.codec == "aac"
@@ -315,16 +313,13 @@ def test_build_encode_audio_for_warns_when_libfdk_aac_unavailable(
 
 
 @pytest.mark.unit
-def test_build_encode_audio_for_leaves_unknown_settings_unset(
-    mocker: MockerFixture, tmp_path: Path
-) -> None:
+def test_build_encode_audio_for_leaves_unknown_settings_unset(tmp_path: Path) -> None:
     """_build_encode_audio_for leaves settings the probe does not report as None."""
     # Arrange
-    mocker.patch("ts2mp4.audio_encoder.is_libfdk_aac_available", return_value=False)
     stream = _probed_audio_stream(tmp_path, codec_name="aac")
 
     # Act
-    conversion_method = _build_encode_audio_for(stream)
+    conversion_method = _build_encode_audio_for(stream, libfdk_aac_available=False)
 
     # Assert
     assert conversion_method == EncodeAudio(codec="aac")
@@ -343,7 +338,7 @@ def test_build_encode_audio_for_raises_for_unsupported_codec(
         NotImplementedError,
         match="Encoding is currently only supported for aac audio codec.",
     ):
-        _build_encode_audio_for(stream)
+        _build_encode_audio_for(stream, libfdk_aac_available=False)
 
 
 @pytest.mark.integration
@@ -394,6 +389,7 @@ def test_build_file_conversion_plan_for_audio_encoding_raises_for_missing_stream
             original_file=original_video_file,
             encoded_file=encoded_video_file,
             integrity_report=IntegrityReport(mismatched_output_indices=frozenset({1})),
+            libfdk_aac_available=False,
         )
 
 
@@ -588,6 +584,7 @@ def test_build_file_conversion_plan_for_audio_encoding_stream_type_mismatch_rais
             mock_original_video_file,
             mock_encoded_video_file,
             IntegrityReport(mismatched_output_indices=frozenset({2})),
+            libfdk_aac_available=False,
         )
 
     assert "Mismatch in stream types" in str(excinfo.value)
