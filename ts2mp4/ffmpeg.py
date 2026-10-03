@@ -3,7 +3,7 @@
 import asyncio
 import functools
 import subprocess
-from collections.abc import Hashable
+from collections.abc import AsyncIterable, Hashable
 from contextlib import asynccontextmanager
 from typing import AsyncGenerator, AsyncIterator, Literal, NamedTuple, Protocol
 
@@ -114,6 +114,31 @@ async def _spawn(
         )
 
 
+async def _log_lines(stream: asyncio.StreamReader) -> None:
+    """Read ``stream`` until EOF and log each line."""
+    while line := await stream.readline():
+        logger.info(line.decode("utf-8", errors="replace").strip())
+
+
+async def _decode_lines(stream: asyncio.StreamReader) -> AsyncIterator[str]:
+    """Yield each line of ``stream`` decoded as UTF-8."""
+    while line := await stream.readline():
+        yield line.decode("utf-8", errors="replace")
+
+
+async def _parse_out_seconds(lines: AsyncIterable[str]) -> AsyncIterator[float]:
+    """Yield how many seconds of output FFmpeg has written, from each ``-progress`` report.
+
+    The value is ``out_time_us`` converted to seconds: the position in the output
+    timeline, not the elapsed wall-clock time. Reports whose ``out_time_us`` is
+    ``N/A`` are skipped.
+    """
+    async for line in lines:
+        key, _, value = line.strip().partition("=")
+        if key == "out_time_us" and value != "N/A":
+            yield int(value) / 1_000_000
+
+
 async def _stream_stdout(
     executable: Literal["ffmpeg", "ffprobe"], args: list[str]
 ) -> AsyncGenerator[bytes, None]:
@@ -141,17 +166,34 @@ async def _stream_stdout(
     ):
         assert stdout_stream is not None
 
-        async def log_stderr() -> None:
-            """Read from stderr and log each line."""
-            while line := await stderr_stream.readline():
-                decoded_line = line.decode("utf-8", errors="replace").strip()
-                logger.info(decoded_line)
-
-        log_task = asyncio.create_task(log_stderr())
+        log_task = asyncio.create_task(_log_lines(stderr_stream))
 
         try:
             while chunk := await stdout_stream.read(1024):
                 yield chunk
+        finally:
+            await log_task
+
+
+async def _stream_out_seconds(
+    executable: Literal["ffmpeg", "ffprobe"], args: list[str]
+) -> AsyncGenerator[float, None]:
+    """Execute a process and yield how many seconds of output it has written.
+
+    ``-progress pipe:1`` is appended to ``args`` so that progress reports are
+    written to stdout, apart from stderr, which is logged internally.
+    """
+    async with _spawn(executable, args + ["-progress", "pipe:1"], pipe_stdout=True) as (
+        stdout_stream,
+        stderr_stream,
+    ):
+        assert stdout_stream is not None
+
+        log_task = asyncio.create_task(_log_lines(stderr_stream))
+
+        try:
+            async for out_seconds in _parse_out_seconds(_decode_lines(stdout_stream)):
+                yield out_seconds
         finally:
             await log_task
 
@@ -188,6 +230,10 @@ class FFmpegRunner(Hashable, Protocol):
         """Run ffmpeg and yield its stderr line by line."""
         ...
 
+    def stream_out_seconds(self, args: list[str]) -> AsyncIterator[float]:
+        """Run ffmpeg and yield how many seconds of output it has written."""
+        ...
+
 
 class SubprocessFFmpegRunner:
     """Runs ffmpeg as a subprocess."""
@@ -205,6 +251,11 @@ class SubprocessFFmpegRunner:
         """Run ffmpeg and yield its stderr line by line."""
         async for line in _stream_stderr("ffmpeg", args):
             yield line
+
+    async def stream_out_seconds(self, args: list[str]) -> AsyncIterator[float]:
+        """Run ffmpeg and yield how many seconds of output it has written."""
+        async for out_seconds in _stream_out_seconds("ffmpeg", args):
+            yield out_seconds
 
 
 def execute_ffprobe(args: list[str]) -> FFmpegResult:
