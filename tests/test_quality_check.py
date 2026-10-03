@@ -20,6 +20,7 @@ from ts2mp4.converted_video_file import ConvertedVideoFile, StreamWithConversion
 from ts2mp4.ffmpeg import FFmpegProcessError, SubprocessFFmpegRunner
 from ts2mp4.quality_check import (
     AudioQualityMetrics,
+    build_quality_filter_complex,
     check_audio_quality,
     get_audio_quality_metrics,
     parse_audio_quality_metrics,
@@ -226,6 +227,33 @@ async def test_get_audio_quality_metrics_returns_empty_when_no_metrics_parsed(
 
     # Assert
     assert len(metrics) == 0
+
+
+@pytest.mark.unit
+def test_build_quality_filter_complex_compares_inputs_directly_without_filter() -> None:
+    """build_quality_filter_complex feeds both inputs to apsnr and asdr as they are."""
+    # Act
+    filter_complex = build_quality_filter_complex("[0:1]", "[1:2]", None)
+
+    # Assert
+    assert filter_complex == "[0:1][1:2]apsnr;[0:1][1:2]asdr"
+
+
+@pytest.mark.unit
+def test_build_quality_filter_complex_applies_filter_to_original_input() -> None:
+    """build_quality_filter_complex passes the original input through audio_filter."""
+    # Act
+    filter_complex = build_quality_filter_complex(
+        "[0:1]", "[1:2]", "aformat=channel_layouts=5.1"
+    )
+
+    # Assert
+    assert filter_complex == (
+        "[0:1]aformat=channel_layouts=5.1[original_apsnr];"
+        "[original_apsnr][1:2]apsnr;"
+        "[0:1]aformat=channel_layouts=5.1[original_asdr];"
+        "[original_asdr][1:2]asdr"
+    )
 
 
 @pytest.mark.unit

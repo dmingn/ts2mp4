@@ -8,6 +8,7 @@ import pytest
 from pytest_mock import MockerFixture
 
 from tests.helpers import FakeFFmpegRunner
+from ts2mp4.audio_channels import UnsupportedChannelLayoutError
 from ts2mp4.stream_integrity import IntegrityReport
 from ts2mp4.ts2mp4 import ts2mp4
 from ts2mp4.video_file import VideoFile
@@ -20,6 +21,56 @@ _MISMATCH_REPORT = IntegrityReport(mismatched_output_indices=frozenset({1}))
 def ffmpeg_runner() -> FakeFFmpegRunner:
     """Return a FakeFFmpegRunner for one test."""
     return FakeFFmpegRunner()
+
+
+@pytest.fixture(autouse=True)
+def find_streams_requiring_fixed_surround(mocker: MockerFixture) -> MagicMock:
+    """Patch the channel analysis so that no stream requires fixed 5.1ch by default."""
+    return mocker.patch(
+        "ts2mp4.ts2mp4.find_streams_requiring_fixed_surround",
+        return_value=frozenset(),
+    )
+
+
+@pytest.mark.unit
+def test_ts2mp4_analyzes_channels_of_input_file(
+    mock_video_file: VideoFile,
+    mocker: MockerFixture,
+    ffmpeg_runner: FakeFFmpegRunner,
+    find_streams_requiring_fixed_surround: MagicMock,
+) -> None:
+    """Analyze the audio channel layouts of the input file."""
+    # Arrange
+    mocker.patch("ts2mp4.ts2mp4.build_file_conversion_plan_for_video_encoding")
+    mocker.patch("ts2mp4.ts2mp4.execute_conversion")
+    mocker.patch("ts2mp4.ts2mp4.check_integrity", return_value=_OK_REPORT)
+
+    # Act
+    ts2mp4(mock_video_file, Path("output.mp4"), 23, "medium", ffmpeg_runner)
+
+    # Assert
+    find_streams_requiring_fixed_surround.assert_called_once_with(mock_video_file)
+
+
+@pytest.mark.unit
+def test_ts2mp4_does_not_encode_video_on_unsupported_channel_layout(
+    mock_video_file: VideoFile,
+    mocker: MockerFixture,
+    ffmpeg_runner: FakeFFmpegRunner,
+    find_streams_requiring_fixed_surround: MagicMock,
+) -> None:
+    """Fail before video encoding when an audio stream has an unsupported layout."""
+    # Arrange
+    find_streams_requiring_fixed_surround.side_effect = UnsupportedChannelLayoutError(
+        "unsupported"
+    )
+    mock_execute_conversion = mocker.patch("ts2mp4.ts2mp4.execute_conversion")
+
+    # Act & Assert
+    with pytest.raises(UnsupportedChannelLayoutError):
+        ts2mp4(mock_video_file, Path("output.mp4"), 23, "medium", ffmpeg_runner)
+
+    mock_execute_conversion.assert_not_called()
 
 
 @pytest.mark.unit
@@ -277,6 +328,38 @@ def test_ts2mp4_builds_audio_file_conversion_plan_on_integrity_failure(
         original_file=mock_video_file,
         encoded_file=audio_fallback_mocks.video_encoded_file,
         integrity_report=_MISMATCH_REPORT,
+        fixed_surround_source_indices=frozenset(),
+        libfdk_aac_available=False,
+    )
+
+
+@pytest.mark.unit
+def test_ts2mp4_builds_audio_file_conversion_plan_for_fixed_surround_streams(
+    mock_video_file: VideoFile,
+    audio_fallback_mocks: _AudioFallbackMocks,
+    ffmpeg_runner: FakeFFmpegRunner,
+    find_streams_requiring_fixed_surround: MagicMock,
+) -> None:
+    """Build the audio file conversion plan when a stream needs fixed 5.1ch even if MD5 matches."""
+    # Arrange
+    find_streams_requiring_fixed_surround.return_value = frozenset({2})
+    audio_fallback_mocks.check_integrity.side_effect = [_OK_REPORT, _OK_REPORT]
+
+    # Act
+    ts2mp4(
+        mock_video_file,
+        Path("output.mp4"),
+        crf=23,
+        preset="medium",
+        ffmpeg_runner=ffmpeg_runner,
+    )
+
+    # Assert
+    audio_fallback_mocks.build_audio_file_conversion_plan.assert_called_once_with(
+        original_file=mock_video_file,
+        encoded_file=audio_fallback_mocks.video_encoded_file,
+        integrity_report=_OK_REPORT,
+        fixed_surround_source_indices=frozenset({2}),
         libfdk_aac_available=False,
     )
 

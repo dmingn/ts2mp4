@@ -61,6 +61,23 @@ async def parse_audio_quality_metrics(
     return AudioQualityMetrics(apsnr=apsnr, asdr=asdr)
 
 
+def build_quality_filter_complex(
+    original_input: str, re_encoded_input: str, audio_filter: str | None
+) -> str:
+    """Build the filtergraph that compares an original and a re-encoded stream.
+
+    ``audio_filter`` is applied to the original stream so that it has the same
+    channel layout as the re-encoded stream.
+    """
+    return ";".join(
+        f"{original_input}{audio_filter}[original_{metric}];"
+        f"[original_{metric}]{re_encoded_input}{metric}"
+        if audio_filter is not None
+        else f"{original_input}{re_encoded_input}{metric}"
+        for metric in ("apsnr", "asdr")
+    )
+
+
 async def get_audio_quality_metrics(
     converted_file: ConvertedVideoFile[FileConversionPlan],
     ffmpeg_runner: FFmpegRunner,
@@ -79,9 +96,10 @@ async def get_audio_quality_metrics(
     quality_metrics: dict[int, AudioQualityMetrics] = {}
 
     for stream_with_conversion_plan in converted_file.streams_with_conversion_plans:
-        if not isinstance(
-            stream_with_conversion_plan.conversion_plan.conversion_method, EncodeAudio
-        ):
+        conversion_method = (
+            stream_with_conversion_plan.conversion_plan.conversion_method
+        )
+        if not isinstance(conversion_method, EncodeAudio):
             continue
 
         original_file = (
@@ -101,8 +119,11 @@ async def get_audio_quality_metrics(
             "-i",
             str(re_encoded_file),
             "-filter_complex",
-            f"[0:{original_stream_index}][1:{re_encoded_stream_index}]apsnr;"
-            + f"[0:{original_stream_index}][1:{re_encoded_stream_index}]asdr",
+            build_quality_filter_complex(
+                f"[0:{original_stream_index}]",
+                f"[1:{re_encoded_stream_index}]",
+                conversion_method.audio_filter,
+            ),
             "-f",
             "null",
             "-",
