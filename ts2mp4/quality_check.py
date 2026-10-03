@@ -2,7 +2,8 @@
 
 import asyncio
 import re
-from typing import AsyncIterable, NamedTuple, Optional
+from itertools import zip_longest
+from typing import AsyncIterable, NamedTuple
 
 from logzero import logger
 
@@ -12,53 +13,78 @@ from .ffmpeg import FFmpegProcessError, FFmpegRunner
 
 
 class AudioQualityMetrics(NamedTuple):
-    """A class to hold audio quality metrics."""
+    """Per-channel audio quality metrics of each segment.
 
-    apsnr: Optional[float]  # Average Peak Signal-to-Noise Ratio
-    asdr: Optional[float]  # Average Signal-to-Distortion Ratio
+    FFmpeg reports the metrics each time the filtergraph is configured, and it
+    reconfigures the filtergraph when the input channel layout changes. Each
+    segment therefore covers a span with one channel layout.
+    """
+
+    apsnr: tuple[tuple[float, ...], ...]  # Average Peak Signal-to-Noise Ratio
+    asdr: tuple[tuple[float, ...], ...]  # Average Signal-to-Distortion Ratio
+
+
+_METRIC_LINE_PATTERN = re.compile(
+    r"\[Parsed_(?P<metric>apsnr|asdr)_\d+ @ [^\]]+\] (?:PSNR|SDR) "
+    r"ch(?P<channel>\d+): "
+    r"(?P<value>[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?|-?inf|-?nan) dB"
+)
 
 
 async def parse_audio_quality_metrics(
     output_lines: AsyncIterable[str],
 ) -> AudioQualityMetrics:
-    """Parse FFmpeg output and log APSNR and ASDR metrics."""
-    apsnr: Optional[float] = None
-    asdr: Optional[float] = None
+    """Parse the APSNR and ASDR of every segment and channel from FFmpeg output.
+
+    A ``ch0`` line starts a new segment of its metric.
+    """
+    segments: dict[str, list[list[float]]] = {"apsnr": [], "asdr": []}
 
     async for line in output_lines:
-        if "Parsed_apsnr" in line and apsnr is None:
-            match = re.search(
-                r"PSNR ch\d+: ([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?|inf|-inf|-?nan) dB",
-                line,
-            )
-            if match:
-                try:
-                    value_str = match.group(1)
-                    if value_str == "-nan":
-                        value_str = "nan"
-                    apsnr = float(value_str)
-                except ValueError as e:
-                    logger.warning(f"Could not parse APSNR from line: {line} - {e}")
-            else:
-                logger.warning(f"Could not find APSNR in line: {line}")
+        match = _METRIC_LINE_PATTERN.search(line)
+        if match is None:
+            if "Parsed_apsnr" in line or "Parsed_asdr" in line:
+                logger.warning(f"Could not parse audio quality metric from: {line}")
+            continue
 
-        if "Parsed_asdr" in line and asdr is None:
-            match = re.search(
-                r"SDR ch\d+: ([-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?|inf|-inf|-?nan) dB",
-                line,
-            )
-            if match:
-                try:
-                    value_str = match.group(1)
-                    if value_str == "-nan":
-                        value_str = "nan"
-                    asdr = float(value_str)
-                except ValueError as e:
-                    logger.warning(f"Could not parse ASDR from line: {line} - {e}")
-            else:
-                logger.warning(f"Could not find ASDR in line: {line}")
+        metric_segments = segments[match["metric"]]
+        if match["channel"] == "0" or not metric_segments:
+            metric_segments.append([])
+        metric_segments[-1].append(float(match["value"]))
 
-    return AudioQualityMetrics(apsnr=apsnr, asdr=asdr)
+    return AudioQualityMetrics(
+        apsnr=tuple(tuple(segment) for segment in segments["apsnr"]),
+        asdr=tuple(tuple(segment) for segment in segments["asdr"]),
+    )
+
+
+def format_audio_quality_segments(metrics: AudioQualityMetrics) -> tuple[str, ...]:
+    """Return a description of each segment, such as ``APSNR=[30.00, 31.00]dB``."""
+    return tuple(
+        " ".join(
+            f"{name}=[{', '.join(f'{value:.2f}' for value in values)}]dB"
+            for name, values in (("APSNR", apsnr), ("ASDR", asdr))
+            if values
+        )
+        for apsnr, asdr in zip_longest(metrics.apsnr, metrics.asdr, fillvalue=())
+    )
+
+
+def build_quality_filter_complex(
+    original_input: str, re_encoded_input: str, audio_filter: str | None
+) -> str:
+    """Build the filtergraph that compares an original and a re-encoded stream.
+
+    ``audio_filter`` is applied to the original stream so that it has the same
+    channel layout as the re-encoded stream.
+    """
+    return ";".join(
+        f"{original_input}{audio_filter}[original_{metric}];"
+        f"[original_{metric}]{re_encoded_input}{metric}"
+        if audio_filter is not None
+        else f"{original_input}{re_encoded_input}{metric}"
+        for metric in ("apsnr", "asdr")
+    )
 
 
 async def get_audio_quality_metrics(
@@ -79,9 +105,10 @@ async def get_audio_quality_metrics(
     quality_metrics: dict[int, AudioQualityMetrics] = {}
 
     for stream_with_conversion_plan in converted_file.streams_with_conversion_plans:
-        if not isinstance(
-            stream_with_conversion_plan.conversion_plan.conversion_method, EncodeAudio
-        ):
+        conversion_method = (
+            stream_with_conversion_plan.conversion_plan.conversion_method
+        )
+        if not isinstance(conversion_method, EncodeAudio):
             continue
 
         original_file = (
@@ -101,8 +128,11 @@ async def get_audio_quality_metrics(
             "-i",
             str(re_encoded_file),
             "-filter_complex",
-            f"[0:{original_stream_index}][1:{re_encoded_stream_index}]apsnr;"
-            + f"[0:{original_stream_index}][1:{re_encoded_stream_index}]asdr",
+            build_quality_filter_complex(
+                f"[0:{original_stream_index}]",
+                f"[1:{re_encoded_stream_index}]",
+                conversion_method.audio_filter,
+            ),
             "-f",
             "null",
             "-",
@@ -111,7 +141,7 @@ async def get_audio_quality_metrics(
         try:
             lines = ffmpeg_runner.stream_stderr(command)
             metrics = await parse_audio_quality_metrics(lines)
-            if metrics.apsnr is not None or metrics.asdr is not None:
+            if metrics.apsnr or metrics.asdr:
                 quality_metrics[re_encoded_stream_index] = metrics
         except FFmpegProcessError as e:
             logger.error(

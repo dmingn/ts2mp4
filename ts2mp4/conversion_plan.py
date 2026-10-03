@@ -42,6 +42,7 @@ class EncodeAudio(BaseModel):
     channels: int | None = None
     profile: str | None = None
     bit_rate: int | None = None
+    audio_filter: str | None = None
 
     model_config = ConfigDict(frozen=True)
 

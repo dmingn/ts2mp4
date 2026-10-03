@@ -47,6 +47,7 @@ def _encode_audio_args(conversion_method: EncodeAudio, output_index: int) -> lis
             ("ac", conversion_method.channels),
             ("profile", conversion_method.profile),
             ("b", conversion_method.bit_rate),
+            ("filter", conversion_method.audio_filter),
         ],
         output_index,
     )

@@ -147,6 +147,7 @@ def test_encode_audio_args_includes_all_set_options() -> None:
         channels=2,
         profile="aac_low",
         bit_rate=192000,
+        audio_filter="aformat=channel_layouts=5.1",
     )
 
     # Act
@@ -164,6 +165,8 @@ def test_encode_audio_args_includes_all_set_options() -> None:
         "aac_low",
         "-b:1",
         "192000",
+        "-filter:1",
+        "aformat=channel_layouts=5.1",
     ]
 
 

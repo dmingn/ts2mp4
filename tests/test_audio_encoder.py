@@ -11,6 +11,7 @@ from ts2mp4.audio_encoder import (
     FileConversionPlanForAudioEncoding,
     StreamConversionPlanForAudioEncoding,
     _build_encode_audio_for,
+    _build_fixed_surround_encode_audio_for,
     build_file_conversion_plan_for_audio_encoding,
 )
 from ts2mp4.conversion_plan import (
@@ -139,7 +140,7 @@ def test_build_file_conversion_plan_for_audio_encoding_raises_without_mismatch(
     mock_original_video_file: VideoFile,
     mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
 ) -> None:
-    """build_file_conversion_plan_for_audio_encoding rejects a report without mismatches."""
+    """build_file_conversion_plan_for_audio_encoding rejects a call with nothing to encode."""
     # Arrange
     mock_encoded_video_file = mock_video_encoded_file_factory(
         mock_original_video_file, [0, 1, 2]
@@ -151,6 +152,7 @@ def test_build_file_conversion_plan_for_audio_encoding_raises_without_mismatch(
             mock_original_video_file,
             mock_encoded_video_file,
             _NO_MISMATCH_REPORT,
+            fixed_surround_source_indices=frozenset(),
             libfdk_aac_available=False,
         )
 
@@ -172,6 +174,7 @@ def test_build_file_conversion_plan_for_audio_encoding_copies_matching_streams(
         mock_original_video_file,
         mock_encoded_video_file,
         integrity_report,
+        fixed_surround_source_indices=frozenset(),
         libfdk_aac_available=False,
     )
 
@@ -207,6 +210,7 @@ def test_build_file_conversion_plan_for_audio_encoding_with_mismatch(
         mock_original_video_file,
         mock_encoded_video_file,
         integrity_report,
+        fixed_surround_source_indices=frozenset(),
         libfdk_aac_available=False,
     )
 
@@ -217,6 +221,72 @@ def test_build_file_conversion_plan_for_audio_encoding_with_mismatch(
         if isinstance(s.conversion_method, EncodeAudio)
     ]
     assert encoded_source_streams == [stream_at(mock_original_video_file.streams, 1)]
+
+
+@pytest.mark.unit
+def test_build_file_conversion_plan_for_audio_encoding_encodes_fixed_surround_stream(
+    mock_original_video_file: VideoFile,
+    mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
+) -> None:
+    """A stream in fixed_surround_source_indices is encoded from the original as fixed 5.1ch."""
+    # Arrange
+    mock_encoded_video_file = mock_video_encoded_file_factory(
+        mock_original_video_file, [0, 1, 2]
+    )
+
+    # Act
+    file_conversion_plan = build_file_conversion_plan_for_audio_encoding(
+        mock_original_video_file,
+        mock_encoded_video_file,
+        _NO_MISMATCH_REPORT,
+        fixed_surround_source_indices=frozenset({2}),
+        libfdk_aac_available=False,
+    )
+
+    # Assert
+    encoded_plans = [
+        (s.source_stream, s.conversion_method)
+        for s in file_conversion_plan
+        if isinstance(s.conversion_method, EncodeAudio)
+    ]
+    assert encoded_plans == [
+        (
+            stream_at(mock_original_video_file.streams, 2),
+            EncodeAudio(
+                codec="aac", channels=6, audio_filter="aformat=channel_layouts=5.1"
+            ),
+        )
+    ]
+
+
+@pytest.mark.unit
+def test_build_file_conversion_plan_for_audio_encoding_prefers_fixed_surround_over_mismatch(
+    mock_original_video_file: VideoFile,
+    mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
+) -> None:
+    """A mismatched stream that also needs fixed 5.1ch is encoded as fixed 5.1ch."""
+    # Arrange
+    mock_encoded_video_file = mock_video_encoded_file_factory(
+        mock_original_video_file, [0, 1, 2]
+    )
+    integrity_report = IntegrityReport(mismatched_output_indices=frozenset({1}))
+
+    # Act
+    file_conversion_plan = build_file_conversion_plan_for_audio_encoding(
+        mock_original_video_file,
+        mock_encoded_video_file,
+        integrity_report,
+        fixed_surround_source_indices=frozenset({1}),
+        libfdk_aac_available=False,
+    )
+
+    # Assert
+    encoded_channels = [
+        s.conversion_method.channels
+        for s in file_conversion_plan
+        if isinstance(s.conversion_method, EncodeAudio)
+    ]
+    assert encoded_channels == [6]
 
 
 @pytest.mark.unit
@@ -237,6 +307,7 @@ def test_build_file_conversion_plan_for_audio_encoding_missing_stream_raises_err
             mock_original_video_file,
             mock_encoded_video_file,
             integrity_report,
+            fixed_surround_source_indices=frozenset(),
             libfdk_aac_available=False,
         )
 
@@ -262,6 +333,37 @@ def test_build_encode_audio_for_takes_settings_from_stream(tmp_path: Path) -> No
         sample_rate=48000,
         channels=2,
         bit_rate=192000,
+    )
+
+
+@pytest.mark.unit
+def test_build_fixed_surround_encode_audio_for_keeps_other_settings_from_stream(
+    tmp_path: Path,
+) -> None:
+    """_build_fixed_surround_encode_audio_for overrides only the channel layout."""
+    # Arrange
+    stream = _probed_audio_stream(
+        tmp_path,
+        codec_name="aac",
+        sample_rate=48000,
+        channels=2,
+        profile="LC",
+        bit_rate=256000,
+    )
+
+    # Act
+    conversion_method = _build_fixed_surround_encode_audio_for(
+        stream, libfdk_aac_available=True
+    )
+
+    # Assert
+    assert conversion_method == EncodeAudio(
+        codec="libfdk_aac",
+        sample_rate=48000,
+        channels=6,
+        profile="aac_low",
+        bit_rate=256000,
+        audio_filter="aformat=channel_layouts=5.1",
     )
 
 
@@ -389,6 +491,7 @@ def test_build_file_conversion_plan_for_audio_encoding_raises_for_missing_stream
             original_file=original_video_file,
             encoded_file=encoded_video_file,
             integrity_report=IntegrityReport(mismatched_output_indices=frozenset({1})),
+            fixed_surround_source_indices=frozenset(),
             libfdk_aac_available=False,
         )
 
@@ -584,6 +687,7 @@ def test_build_file_conversion_plan_for_audio_encoding_stream_type_mismatch_rais
             mock_original_video_file,
             mock_encoded_video_file,
             IntegrityReport(mismatched_output_indices=frozenset({2})),
+            fixed_surround_source_indices=frozenset(),
             libfdk_aac_available=False,
         )
 

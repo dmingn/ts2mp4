@@ -54,6 +54,18 @@ def mp4_file(project_root: Path) -> Path:
     return project_root / "tests" / "assets" / "test_video.mp4"
 
 
+@pytest.fixture(scope="session")
+def mixed_surround_ts_file(project_root: Path) -> Path:
+    """Return the path to the test TS file whose audio switches from stereo to 5.1ch."""
+    return project_root / "tests" / "assets" / "test_mixed_surround.ts"
+
+
+@pytest.fixture
+def mixed_surround_mp4_file(project_root: Path) -> Path:
+    """Return the path to the MP4 file converted from the mixed surround TS file."""
+    return project_root / "tests" / "assets" / "test_mixed_surround.mp4"
+
+
 @pytest.fixture
 def mock_video_file(tmp_path: Path) -> VideoFile:
     """Mock VideoFile object for ts2mp4 tests."""

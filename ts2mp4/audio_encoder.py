@@ -1,10 +1,11 @@
-"""Builds the file conversion plan that re-encodes audio streams failing integrity checks."""
+"""Builds the file conversion plan that re-encodes problematic audio streams."""
 
 from typing import Self
 
 from logzero import logger
 from pydantic import model_validator
 
+from .audio_channels import SURROUND_5_1_CHANNELS, SURROUND_5_1_LAYOUT
 from .conversion_plan import (
     AudioConversionMethod,
     Copy,
@@ -72,13 +73,16 @@ def build_file_conversion_plan_for_audio_encoding(
     original_file: VideoFile,
     encoded_file: VideoEncodedFile,
     integrity_report: IntegrityReport,
+    fixed_surround_source_indices: frozenset[int],
     libfdk_aac_available: bool,
 ) -> FileConversionPlanForAudioEncoding:
-    """Build the file conversion plan that fixes mismatched audio streams.
+    """Build the file conversion plan that fixes problematic audio streams.
 
-    Video streams and matching audio streams are copied from ``encoded_file``.
-    Audio streams reported as mismatched in ``integrity_report`` are encoded
-    from ``original_file`` with their original settings.
+    Video streams and the other audio streams are copied from ``encoded_file``.
+    Audio streams in ``fixed_surround_source_indices`` are encoded from
+    ``original_file`` as fixed 5.1ch. Audio streams reported as mismatched in
+    ``integrity_report`` are encoded from ``original_file`` with their
+    original settings.
 
     Args:
     ----
@@ -86,15 +90,19 @@ def build_file_conversion_plan_for_audio_encoding(
         encoded_file: The VideoEncodedFile produced from original_file.
                       It contains the mapping between original and encoded streams.
         integrity_report: The IntegrityReport from check_integrity on encoded_file.
-                          It must report at least one mismatched stream.
+        fixed_surround_source_indices: The indices of the audio streams in
+                      original_file to encode as fixed 5.1ch.
         libfdk_aac_available: Whether ffmpeg can encode with libfdk_aac.
 
     Raises
     ------
-        ValueError: If integrity_report reports no mismatched streams.
+        ValueError: If no stream needs to be encoded.
     """
-    if integrity_report.is_ok:
-        raise ValueError("integrity_report must report at least one mismatch.")
+    if integrity_report.is_ok and not fixed_surround_source_indices:
+        raise ValueError(
+            "integrity_report must report at least one mismatch "
+            "or fixed_surround_source_indices must not be empty."
+        )
 
     # Source streams are guaranteed to be unique for a video-encoded file.
     original_encoded_stream_mapping = {
@@ -138,16 +146,16 @@ def build_file_conversion_plan_for_audio_encoding(
                     f"'audio', but was '{type(matching_stream).__name__}'."
                 )
 
-            if matching_stream.index not in integrity_report.mismatched_output_indices:
-                # If the stream matches, it can be copied from the encoded file
+            if original_stream.index in fixed_surround_source_indices:
                 plans.append(
                     StreamConversionPlan(
-                        source_stream=matching_stream,
-                        conversion_method=Copy(),
+                        source_stream=original_stream,
+                        conversion_method=_build_fixed_surround_encode_audio_for(
+                            original_stream, libfdk_aac_available
+                        ),
                     )
                 )
-            else:
-                # If the stream mismatches, it must be encoded from the original file
+            elif matching_stream.index in integrity_report.mismatched_output_indices:
                 plans.append(
                     StreamConversionPlan(
                         source_stream=original_stream,
@@ -156,11 +164,37 @@ def build_file_conversion_plan_for_audio_encoding(
                         ),
                     )
                 )
+            else:
+                plans.append(
+                    StreamConversionPlan(
+                        source_stream=matching_stream,
+                        conversion_method=Copy(),
+                    )
+                )
 
     return FileConversionPlanForAudioEncoding(root=tuple(plans))
 
 
 _FFMPEG_AAC_PROFILES = {"LC": "aac_low"}
+
+_FIXED_SURROUND_AUDIO_FILTER = f"aformat=channel_layouts={SURROUND_5_1_LAYOUT}"
+
+
+def _build_fixed_surround_encode_audio_for(
+    stream: AudioStream, libfdk_aac_available: bool
+) -> EncodeAudio:
+    """Return an EncodeAudio that re-encodes ``stream`` as fixed 5.1ch.
+
+    Settings other than the channel layout are the same as
+    ``_build_encode_audio_for``. Stereo frames are upmixed into the front
+    left and right channels, leaving the other channels silent.
+    """
+    return _build_encode_audio_for(stream, libfdk_aac_available).model_copy(
+        update={
+            "channels": SURROUND_5_1_CHANNELS,
+            "audio_filter": _FIXED_SURROUND_AUDIO_FILTER,
+        }
+    )
 
 
 def _build_encode_audio_for(

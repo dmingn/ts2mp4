@@ -4,10 +4,11 @@ from pathlib import Path
 
 from logzero import logger
 
+from .audio_channels import find_streams_requiring_fixed_surround
 from .audio_encoder import build_file_conversion_plan_for_audio_encoding
 from .conversion import execute_conversion
 from .ffmpeg import FFmpegRunner, is_libfdk_aac_available
-from .quality_check import check_audio_quality
+from .quality_check import check_audio_quality, format_audio_quality_segments
 from .stream_integrity import check_integrity
 from .video_encoder import build_file_conversion_plan_for_video_encoding
 from .video_file import VideoFile
@@ -36,6 +37,16 @@ def ts2mp4(
         ffmpeg_runner: The FFmpegRunner used to run ffmpeg.
 
     """
+    logger.info(f"Analyzing audio channel layouts of {input_file.path.name}")
+    fixed_surround_source_indices = find_streams_requiring_fixed_surround(input_file)
+    if fixed_surround_source_indices:
+        logger.warning(
+            "Audio streams at indices "
+            f"{sorted(fixed_surround_source_indices)} contain 5.1ch frames but "
+            "are not consistently 5.1ch as declared. They will be encoded as "
+            "fixed 5.1ch."
+        )
+
     video_encoded_file = execute_conversion(
         build_file_conversion_plan_for_video_encoding(
             input_file, crf=crf, preset=preset
@@ -55,47 +66,44 @@ def ts2mp4(
             "Audio integrity check failed for output streams at indices "
             f"{sorted(video_encoded_integrity_report.mismatched_output_indices)}"
         )
-        logger.info("Attempting to encode mismatched audio streams.")
-        temp_output_file = output_path.with_suffix(output_path.suffix + ".temp")
-        audio_encoded_file = execute_conversion(
-            build_file_conversion_plan_for_audio_encoding(
-                original_file=input_file,
-                encoded_file=video_encoded_file,
-                integrity_report=video_encoded_integrity_report,
-                libfdk_aac_available=is_libfdk_aac_available(ffmpeg_runner),
-            ),
-            temp_output_file,
-            ffmpeg_runner,
-        )
 
-        logger.info(
-            f"Verifying copied stream integrity for {audio_encoded_file.path.name}"
+    if video_encoded_integrity_report.is_ok and not fixed_surround_source_indices:
+        return
+
+    logger.info("Attempting to encode audio streams.")
+    temp_output_file = output_path.with_suffix(output_path.suffix + ".temp")
+    audio_encoded_file = execute_conversion(
+        build_file_conversion_plan_for_audio_encoding(
+            original_file=input_file,
+            encoded_file=video_encoded_file,
+            integrity_report=video_encoded_integrity_report,
+            fixed_surround_source_indices=fixed_surround_source_indices,
+            libfdk_aac_available=is_libfdk_aac_available(ffmpeg_runner),
+        ),
+        temp_output_file,
+        ffmpeg_runner,
+    )
+
+    logger.info(f"Verifying copied stream integrity for {audio_encoded_file.path.name}")
+    audio_encoded_integrity_report = check_integrity(audio_encoded_file, ffmpeg_runner)
+    if not audio_encoded_integrity_report.is_ok:
+        raise RuntimeError(
+            "Stream integrity check failed after audio encoding for output "
+            f"streams at indices {sorted(audio_encoded_integrity_report.mismatched_output_indices)} "
+            f"in {audio_encoded_file.path.name}"
         )
-        audio_encoded_integrity_report = check_integrity(
-            audio_encoded_file, ffmpeg_runner
-        )
-        if not audio_encoded_integrity_report.is_ok:
-            raise RuntimeError(
-                "Stream integrity check failed after audio encoding for output "
-                f"streams at indices {sorted(audio_encoded_integrity_report.mismatched_output_indices)} "
-                f"in {audio_encoded_file.path.name}"
+    logger.info("Copied stream integrity verified successfully. All MD5 hashes match.")
+
+    quality_metrics = check_audio_quality(audio_encoded_file, ffmpeg_runner)
+    for stream_index, metrics in quality_metrics.items():
+        for segment_number, description in enumerate(
+            format_audio_quality_segments(metrics), start=1
+        ):
+            logger.info(
+                f"Audio quality for stream {stream_index}, "
+                f"segment {segment_number}: {description}"
             )
-        logger.info(
-            "Copied stream integrity verified successfully. All MD5 hashes match."
-        )
-
-        quality_metrics = check_audio_quality(audio_encoded_file, ffmpeg_runner)
-        for stream_index, metrics in quality_metrics.items():
-            log_parts = []
-            if metrics.apsnr is not None:
-                log_parts.append(f"APSNR={metrics.apsnr:.2f}dB")
-            if metrics.asdr is not None:
-                log_parts.append(f"ASDR={metrics.asdr:.2f}dB")
-            if log_parts:
-                logger.info(
-                    f"Audio quality for stream {stream_index}: {', '.join(log_parts)}"
-                )
-        temp_output_file.replace(output_path)
-        logger.info(
-            f"Successfully encoded audio for {output_path.name} and replaced original."
-        )
+    temp_output_file.replace(output_path)
+    logger.info(
+        f"Successfully encoded audio for {output_path.name} and replaced original."
+    )
