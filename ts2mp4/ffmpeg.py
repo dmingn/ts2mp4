@@ -207,56 +207,6 @@ class SubprocessFFmpegRunner:
             yield line
 
 
-def execute_ffmpeg(args: list[str]) -> FFmpegResult:
-    """Execute ffmpeg and returns the result.
-
-    Args:
-    ----
-        args: A list of arguments for the command.
-
-    Returns
-    -------
-        An FFmpegResult object with the command's results.
-
-    Raises
-    ------
-        FFmpegProcessError: If ffmpeg exits with a non-zero return code.
-    """
-    return _run_command("ffmpeg", args)
-
-
-async def execute_ffmpeg_streamed(
-    args: list[str],
-) -> AsyncGenerator[bytes, None]:
-    """Execute ffmpeg and returns a generator for stdout.
-
-    Args:
-    ----
-        args: A list of arguments for the command.
-
-    Returns
-    -------
-        An generator that yields stdout in chunks.
-    """
-    async for chunk in _stream_stdout("ffmpeg", args):
-        yield chunk
-
-
-async def execute_ffmpeg_stderr_streamed(args: list[str]) -> AsyncGenerator[str, None]:
-    """Execute ffmpeg and returns a generator for stderr lines.
-
-    Args:
-    ----
-        args: A list of arguments for the command.
-
-    Returns
-    -------
-        An generator that yields stderr lines.
-    """
-    async for line in _stream_stderr("ffmpeg", args):
-        yield line
-
-
 def execute_ffprobe(args: list[str]) -> FFmpegResult:
     """Execute ffprobe and returns the result.
 

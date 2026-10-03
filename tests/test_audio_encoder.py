@@ -20,7 +20,7 @@ from ts2mp4.conversion_plan import (
     StreamConversionPlan,
 )
 from ts2mp4.converted_video_file import StreamWithConversionPlan
-from ts2mp4.ffmpeg import execute_ffmpeg
+from ts2mp4.ffmpeg import SubprocessFFmpegRunner
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_integrity import IntegrityReport
 from ts2mp4.video_encoder import (
@@ -351,7 +351,7 @@ def test_build_file_conversion_plan_for_audio_encoding_raises_for_missing_stream
     original_streams = original_video_file.streams
 
     encoded_file_path = tmp_path / "encoded_missing_stream.mp4"
-    execute_ffmpeg(
+    SubprocessFFmpegRunner().run(
         [
             "-i",
             str(ts_file),

@@ -12,10 +12,9 @@ from pytest_mock import MockerFixture
 from tests.helpers import FakeFFmpegRunner
 from ts2mp4.ffmpeg import (
     FFmpegProcessError,
+    SubprocessFFmpegRunner,
     _run_command,
     _stream_stdout,
-    execute_ffmpeg,
-    execute_ffmpeg_streamed,
     execute_ffprobe,
     is_libfdk_aac_available,
 )
@@ -91,19 +90,19 @@ def test_is_libfdk_aac_available_caching() -> None:
 
 
 @pytest.mark.integration
-def test_execute_ffmpeg_success() -> None:
-    """Test that execute_ffmpeg runs ffmpeg successfully."""
-    result = execute_ffmpeg(["-version"])
+def test_subprocess_ffmpeg_runner_run_success() -> None:
+    """Test that SubprocessFFmpegRunner.run runs ffmpeg successfully."""
+    result = SubprocessFFmpegRunner().run(["-version"])
     assert result.returncode == 0
     assert b"ffmpeg version" in result.stdout or "ffmpeg version" in result.stderr
 
 
 @pytest.mark.integration
-def test_execute_ffmpeg_raises_on_nonzero_exit() -> None:
-    """Test that execute_ffmpeg raises FFmpegProcessError when ffmpeg fails."""
+def test_subprocess_ffmpeg_runner_run_raises_on_nonzero_exit() -> None:
+    """Test that SubprocessFFmpegRunner.run raises FFmpegProcessError when ffmpeg fails."""
     # Act & Assert
     with pytest.raises(FFmpegProcessError):
-        execute_ffmpeg(["-invalid_option"])
+        SubprocessFFmpegRunner().run(["-invalid_option"])
 
 
 @pytest.mark.integration
@@ -161,8 +160,8 @@ def test_run_command_raises_on_nonzero_returncode(mocker: MockerFixture) -> None
 
 
 @pytest.mark.integration
-def test_execute_ffmpeg_logs_stderr_as_info() -> None:
-    """Test that execute_ffmpeg logs stderr as info even when ffmpeg fails."""
+def test_subprocess_ffmpeg_runner_run_logs_stderr_as_info() -> None:
+    """Test that SubprocessFFmpegRunner.run logs stderr as info even when ffmpeg fails."""
     # Arrange
     log_stream = io.StringIO()
     handler = logging.StreamHandler(log_stream)
@@ -171,7 +170,7 @@ def test_execute_ffmpeg_logs_stderr_as_info() -> None:
 
     # Act
     with pytest.raises(FFmpegProcessError):
-        execute_ffmpeg(["-invalid_option"])
+        SubprocessFFmpegRunner().run(["-invalid_option"])
     logzero.logger.removeHandler(handler)
 
     # Assert
@@ -180,8 +179,8 @@ def test_execute_ffmpeg_logs_stderr_as_info() -> None:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_execute_ffmpeg_streamed(mocker: MockerFixture) -> None:
-    """Test that execute_ffmpeg_streamed calls _stream_stdout."""
+async def test_subprocess_ffmpeg_runner_stream_stdout(mocker: MockerFixture) -> None:
+    """Test that SubprocessFFmpegRunner.stream_stdout calls _stream_stdout."""
     expected_args = ["-i", "input.ts", "output.mp4"]
 
     async def mock_stream_stdout(
@@ -193,7 +192,9 @@ async def test_execute_ffmpeg_streamed(mocker: MockerFixture) -> None:
 
     mocker.patch("ts2mp4.ffmpeg._stream_stdout", mock_stream_stdout)
 
-    result = [chunk async for chunk in execute_ffmpeg_streamed(expected_args)]
+    result = [
+        chunk async for chunk in SubprocessFFmpegRunner().stream_stdout(expected_args)
+    ]
     assert result == [b"test"]
 
 
