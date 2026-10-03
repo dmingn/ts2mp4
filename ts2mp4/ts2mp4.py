@@ -8,7 +8,7 @@ from .audio_channels import find_streams_requiring_fixed_surround
 from .audio_encoder import build_file_conversion_plan_for_audio_encoding
 from .conversion import execute_conversion
 from .ffmpeg import FFmpegRunner, is_libfdk_aac_available
-from .quality_check import check_audio_quality
+from .quality_check import check_audio_quality, format_audio_quality_segments
 from .stream_integrity import check_integrity
 from .video_encoder import build_file_conversion_plan_for_video_encoding
 from .video_file import VideoFile
@@ -96,14 +96,12 @@ def ts2mp4(
 
     quality_metrics = check_audio_quality(audio_encoded_file, ffmpeg_runner)
     for stream_index, metrics in quality_metrics.items():
-        log_parts = []
-        if metrics.apsnr is not None:
-            log_parts.append(f"APSNR={metrics.apsnr:.2f}dB")
-        if metrics.asdr is not None:
-            log_parts.append(f"ASDR={metrics.asdr:.2f}dB")
-        if log_parts:
+        for segment_number, description in enumerate(
+            format_audio_quality_segments(metrics), start=1
+        ):
             logger.info(
-                f"Audio quality for stream {stream_index}: {', '.join(log_parts)}"
+                f"Audio quality for stream {stream_index}, "
+                f"segment {segment_number}: {description}"
             )
     temp_output_file.replace(output_path)
     logger.info(
