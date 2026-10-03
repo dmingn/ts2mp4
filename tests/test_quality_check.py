@@ -1,5 +1,6 @@
 """Unit and integration tests for the quality_check module."""
 
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import AsyncGenerator
 from unittest.mock import MagicMock
@@ -7,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
+from tests.helpers import FakeFFmpegRunner
 from ts2mp4.conversion_plan import (
     ConversionMethod,
     Copy,
@@ -15,7 +17,7 @@ from ts2mp4.conversion_plan import (
     StreamConversionPlan,
 )
 from ts2mp4.converted_video_file import ConvertedVideoFile, StreamWithConversionPlan
-from ts2mp4.ffmpeg import FFmpegProcessError
+from ts2mp4.ffmpeg import FFmpegProcessError, SubprocessFFmpegRunner
 from ts2mp4.quality_check import (
     AudioQualityMetrics,
     check_audio_quality,
@@ -23,6 +25,19 @@ from ts2mp4.quality_check import (
     parse_audio_quality_metrics,
 )
 from ts2mp4.video_file import AudioStream, Stream, VideoFile, VideoStream
+
+
+class _FailFirstCallFFmpegRunner(FakeFFmpegRunner):
+    """A FakeFFmpegRunner whose first stream_stderr call fails."""
+
+    async def stream_stderr(self, args: list[str]) -> AsyncIterator[str]:
+        """Raise FFmpegProcessError on the first call, then yield the fixed lines."""
+        if not self.calls:
+            self.calls.append(args)
+            raise FFmpegProcessError("Error")
+
+        async for line in super().stream_stderr(args):
+            yield line
 
 
 @pytest.mark.unit
@@ -74,19 +89,16 @@ async def test_parse_audio_quality_metrics(
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_get_audio_quality_metrics_returns_metrics_for_encoded_audio(
-    mocker: MockerFixture, tmp_path: Path
+    tmp_path: Path,
 ) -> None:
     """Return APSNR/ASDR for each encoded audio stream and skip others."""
     # Arrange
-    mock_stream = mocker.patch("ts2mp4.quality_check.execute_ffmpeg_stderr_streamed")
-
-    async def mock_generator(
-        *args: object, **kwargs: object
-    ) -> AsyncGenerator[str, None]:
-        yield "[Parsed_apsnr_0 @ 0x123] PSNR ch0: 30.00 dB"
-        yield "[Parsed_asdr_1 @ 0x456] SDR ch0: 25.00 dB"
-
-    mock_stream.side_effect = mock_generator
+    ffmpeg_runner = FakeFFmpegRunner(
+        stderr_lines=[
+            "[Parsed_apsnr_0 @ 0x123] PSNR ch0: 30.00 dB",
+            "[Parsed_asdr_1 @ 0x456] SDR ch0: 25.00 dB",
+        ]
+    )
 
     dummy_file = tmp_path / "original.ts"
     dummy_file.touch()
@@ -121,7 +133,7 @@ async def test_get_audio_quality_metrics_returns_metrics_for_encoded_audio(
     mock_converted_file.path = output_file
 
     # Act
-    metrics = await get_audio_quality_metrics(mock_converted_file)
+    metrics = await get_audio_quality_metrics(mock_converted_file, ffmpeg_runner)
 
     # Assert
     assert len(metrics) == 2
@@ -129,26 +141,22 @@ async def test_get_audio_quality_metrics_returns_metrics_for_encoded_audio(
     assert 2 in metrics
     assert metrics[0] == AudioQualityMetrics(apsnr=30.00, asdr=25.00)
     assert metrics[2] == AudioQualityMetrics(apsnr=30.00, asdr=25.00)
-    assert mock_stream.call_count == 2
+    assert len(ffmpeg_runner.calls) == 2
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_get_audio_quality_metrics_skips_failed_stream(
-    mocker: MockerFixture, tmp_path: Path
+    tmp_path: Path,
 ) -> None:
     """Omit a stream when FFmpeg fails and keep metrics for later streams."""
     # Arrange
-    mock_stream = mocker.patch("ts2mp4.quality_check.execute_ffmpeg_stderr_streamed")
-
-    async def mock_generator() -> AsyncGenerator[str, None]:
-        yield "[Parsed_apsnr_0 @ 0x123] PSNR ch0: 30.00 dB"
-        yield "[Parsed_asdr_1 @ 0x456] SDR ch0: 25.00 dB"
-
-    mock_stream.side_effect = [
-        FFmpegProcessError("Error"),
-        mock_generator(),
-    ]
+    ffmpeg_runner = _FailFirstCallFFmpegRunner(
+        stderr_lines=[
+            "[Parsed_apsnr_0 @ 0x123] PSNR ch0: 30.00 dB",
+            "[Parsed_asdr_1 @ 0x456] SDR ch0: 25.00 dB",
+        ]
+    )
 
     dummy_file = tmp_path / "original.ts"
     dummy_file.touch()
@@ -177,30 +185,23 @@ async def test_get_audio_quality_metrics_skips_failed_stream(
     mock_converted_file.path = output_file
 
     # Act
-    metrics = await get_audio_quality_metrics(mock_converted_file)
+    metrics = await get_audio_quality_metrics(mock_converted_file, ffmpeg_runner)
 
     # Assert
     assert len(metrics) == 1
     assert 2 in metrics
     assert metrics[2] == AudioQualityMetrics(apsnr=30.00, asdr=25.00)
-    assert mock_stream.call_count == 2
+    assert len(ffmpeg_runner.calls) == 2
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
 async def test_get_audio_quality_metrics_returns_empty_when_no_metrics_parsed(
-    mocker: MockerFixture, tmp_path: Path
+    tmp_path: Path,
 ) -> None:
     """Return an empty dict when FFmpeg output contains no parseable metrics."""
     # Arrange
-    mock_stream = mocker.patch("ts2mp4.quality_check.execute_ffmpeg_stderr_streamed")
-
-    async def mock_generator(
-        *args: object, **kwargs: object
-    ) -> AsyncGenerator[str, None]:
-        yield "No metrics here"
-
-    mock_stream.side_effect = mock_generator
+    ffmpeg_runner = FakeFFmpegRunner(stderr_lines=["No metrics here"])
 
     dummy_file = tmp_path / "original.ts"
     dummy_file.touch()
@@ -221,7 +222,7 @@ async def test_get_audio_quality_metrics_returns_empty_when_no_metrics_parsed(
     mock_converted_file.path = output_file
 
     # Act
-    metrics = await get_audio_quality_metrics(mock_converted_file)
+    metrics = await get_audio_quality_metrics(mock_converted_file, ffmpeg_runner)
 
     # Assert
     assert len(metrics) == 0
@@ -233,12 +234,13 @@ def test_check_audio_quality(mocker: MockerFixture) -> None:
     # Arrange
     mock_async_func = mocker.patch("ts2mp4.quality_check.get_audio_quality_metrics")
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
+    ffmpeg_runner = FakeFFmpegRunner()
 
     # Act
-    check_audio_quality(mock_converted_file)
+    check_audio_quality(mock_converted_file, ffmpeg_runner)
 
     # Assert
-    mock_async_func.assert_called_once_with(mock_converted_file)
+    mock_async_func.assert_called_once_with(mock_converted_file, ffmpeg_runner)
 
 
 @pytest.mark.integration
@@ -268,7 +270,9 @@ async def test_get_audio_quality_metrics_returns_positive_metrics_for_real_file(
     )
 
     # Act
-    metrics_dict = await get_audio_quality_metrics(converted_file)
+    metrics_dict = await get_audio_quality_metrics(
+        converted_file, SubprocessFFmpegRunner()
+    )
 
     # Assert
     assert len(metrics_dict) == len(video_file.valid_audio_streams)

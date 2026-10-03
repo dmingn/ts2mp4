@@ -8,7 +8,7 @@ from logzero import logger
 
 from .conversion_plan import EncodeAudio, FileConversionPlan
 from .converted_video_file import ConvertedVideoFile
-from .ffmpeg import FFmpegProcessError, execute_ffmpeg_stderr_streamed
+from .ffmpeg import FFmpegProcessError, FFmpegRunner
 
 
 class AudioQualityMetrics(NamedTuple):
@@ -63,12 +63,14 @@ async def parse_audio_quality_metrics(
 
 async def get_audio_quality_metrics(
     converted_file: ConvertedVideoFile[FileConversionPlan],
+    ffmpeg_runner: FFmpegRunner,
 ) -> dict[int, AudioQualityMetrics]:
     """Calculate audio quality metrics for all converted audio streams.
 
     Args:
     ----
         converted_file: The converted video file.
+        ffmpeg_runner: The FFmpegRunner used to compare the audio streams.
 
     Returns
     -------
@@ -107,7 +109,7 @@ async def get_audio_quality_metrics(
         ]
 
         try:
-            lines = execute_ffmpeg_stderr_streamed(command)
+            lines = ffmpeg_runner.stream_stderr(command)
             metrics = await parse_audio_quality_metrics(lines)
             if metrics.apsnr is not None or metrics.asdr is not None:
                 quality_metrics[re_encoded_stream_index] = metrics
@@ -122,6 +124,7 @@ async def get_audio_quality_metrics(
 
 def check_audio_quality(
     converted_file: ConvertedVideoFile[FileConversionPlan],
+    ffmpeg_runner: FFmpegRunner,
 ) -> dict[int, AudioQualityMetrics]:
     """Get audio quality metrics in a synchronous context."""
-    return asyncio.run(get_audio_quality_metrics(converted_file))
+    return asyncio.run(get_audio_quality_metrics(converted_file, ffmpeg_runner))

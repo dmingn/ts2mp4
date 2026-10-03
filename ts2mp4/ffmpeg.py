@@ -3,8 +3,9 @@
 import asyncio
 import functools
 import subprocess
+from collections.abc import Hashable
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator, AsyncIterator, Literal, NamedTuple
+from typing import AsyncGenerator, AsyncIterator, Literal, NamedTuple, Protocol
 
 from logzero import logger
 
@@ -169,54 +170,41 @@ async def _stream_stderr(
             yield line_str
 
 
-def execute_ffmpeg(args: list[str]) -> FFmpegResult:
-    """Execute ffmpeg and returns the result.
+class FFmpegRunner(Hashable, Protocol):
+    """Runs ffmpeg with the given arguments.
 
-    Args:
-    ----
-        args: A list of arguments for the command.
-
-    Returns
-    -------
-        An FFmpegResult object with the command's results.
-
-    Raises
-    ------
-        FFmpegProcessError: If ffmpeg exits with a non-zero return code.
+    Runners are hashable so that results can be cached per runner.
     """
-    return _run_command("ffmpeg", args)
+
+    def run(self, args: list[str]) -> FFmpegResult:
+        """Run ffmpeg and return its result."""
+        ...
+
+    def stream_stdout(self, args: list[str]) -> AsyncIterator[bytes]:
+        """Run ffmpeg and yield its stdout in chunks."""
+        ...
+
+    def stream_stderr(self, args: list[str]) -> AsyncIterator[str]:
+        """Run ffmpeg and yield its stderr line by line."""
+        ...
 
 
-async def execute_ffmpeg_streamed(
-    args: list[str],
-) -> AsyncGenerator[bytes, None]:
-    """Execute ffmpeg and returns a generator for stdout.
+class SubprocessFFmpegRunner:
+    """Runs ffmpeg as a subprocess."""
 
-    Args:
-    ----
-        args: A list of arguments for the command.
+    def run(self, args: list[str]) -> FFmpegResult:
+        """Run ffmpeg and return its result."""
+        return _run_command("ffmpeg", args)
 
-    Returns
-    -------
-        An generator that yields stdout in chunks.
-    """
-    async for chunk in _stream_stdout("ffmpeg", args):
-        yield chunk
+    async def stream_stdout(self, args: list[str]) -> AsyncIterator[bytes]:
+        """Run ffmpeg and yield its stdout in chunks."""
+        async for chunk in _stream_stdout("ffmpeg", args):
+            yield chunk
 
-
-async def execute_ffmpeg_stderr_streamed(args: list[str]) -> AsyncGenerator[str, None]:
-    """Execute ffmpeg and returns a generator for stderr lines.
-
-    Args:
-    ----
-        args: A list of arguments for the command.
-
-    Returns
-    -------
-        An generator that yields stderr lines.
-    """
-    async for line in _stream_stderr("ffmpeg", args):
-        yield line
+    async def stream_stderr(self, args: list[str]) -> AsyncIterator[str]:
+        """Run ffmpeg and yield its stderr line by line."""
+        async for line in _stream_stderr("ffmpeg", args):
+            yield line
 
 
 def execute_ffprobe(args: list[str]) -> FFmpegResult:
@@ -238,13 +226,17 @@ def execute_ffprobe(args: list[str]) -> FFmpegResult:
 
 
 @functools.cache
-def is_libfdk_aac_available() -> bool:
+def is_libfdk_aac_available(ffmpeg_runner: FFmpegRunner) -> bool:
     """Check if libfdk_aac is available in ffmpeg.
+
+    Args:
+    ----
+        ffmpeg_runner: The FFmpegRunner used to list the encoders.
 
     Returns
     -------
         True if libfdk_aac is available, False otherwise.
 
     """
-    result = execute_ffmpeg(["-encoders"])
+    result = ffmpeg_runner.run(["-encoders"])
     return b"libfdk_aac" in result.stdout

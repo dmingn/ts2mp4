@@ -57,6 +57,7 @@ def test_cli_options_recognized(mocker: MockerFixture, tmp_path: Path) -> None:
         output_path=mocker.ANY,
         crf=20,
         preset="slow",
+        ffmpeg_runner=mocker.ANY,
     )
 
 

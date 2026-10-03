@@ -5,11 +5,13 @@ import hashlib
 from functools import cache
 from typing import assert_never
 
-from .ffmpeg import execute_ffmpeg_streamed
+from .ffmpeg import FFmpegRunner
 from .video_file import AudioStream, VideoStream
 
 
-async def _get_stream_md5_async(stream: VideoStream | AudioStream) -> str:
+async def _get_stream_md5_async(
+    stream: VideoStream | AudioStream, ffmpeg_runner: FFmpegRunner
+) -> str:
     match stream:
         case AudioStream():
             output_format = "s16le"
@@ -30,7 +32,7 @@ async def _get_stream_md5_async(stream: VideoStream | AudioStream) -> str:
         "-",  # Output to stdout
     ]
 
-    process_generator = execute_ffmpeg_streamed(ffmpeg_args)
+    process_generator = ffmpeg_runner.stream_stdout(ffmpeg_args)
     md5_hash = hashlib.md5()
     async for chunk in process_generator:
         md5_hash.update(chunk)
@@ -43,6 +45,7 @@ def _get_stream_md5_cached(
     stream: VideoStream | AudioStream,
     _mtime: float,
     _size: int,
+    ffmpeg_runner: FFmpegRunner,
 ) -> str:
     """Calculate the MD5 hash of a decoded stream, with caching.
 
@@ -58,20 +61,24 @@ def _get_stream_md5_cached(
         stream: The domain stream to hash.
         _mtime: The modification time of the file, used for cache invalidation.
         _size: The size of the file, used for cache invalidation.
+        ffmpeg_runner: The FFmpegRunner used to decode the stream.
 
     Returns
     -------
         The MD5 hash of the decoded stream as a hexadecimal string.
     """
-    return asyncio.run(_get_stream_md5_async(stream))
+    return asyncio.run(_get_stream_md5_async(stream, ffmpeg_runner))
 
 
-def get_stream_md5(stream: VideoStream | AudioStream) -> str:
+def get_stream_md5(
+    stream: VideoStream | AudioStream, ffmpeg_runner: FFmpegRunner
+) -> str:
     """Calculate the MD5 hash of a decoded stream.
 
     Args:
     ----
         stream: The domain stream to hash.
+        ffmpeg_runner: The FFmpegRunner used to decode the stream.
 
     Returns
     -------
@@ -83,4 +90,4 @@ def get_stream_md5(stream: VideoStream | AudioStream) -> str:
     """
     resolved_path = stream.file.path.resolve(strict=True)
     stat = resolved_path.stat()
-    return _get_stream_md5_cached(stream, stat.st_mtime, stat.st_size)
+    return _get_stream_md5_cached(stream, stat.st_mtime, stat.st_size, ffmpeg_runner)

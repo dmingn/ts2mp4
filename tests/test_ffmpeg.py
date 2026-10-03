@@ -2,20 +2,19 @@
 
 import io
 import logging
-from typing import AsyncGenerator, Optional, cast
+from typing import Optional, cast
 from unittest.mock import AsyncMock, MagicMock
 
 import logzero
 import pytest
 from pytest_mock import MockerFixture
 
+from tests.helpers import FakeFFmpegRunner
 from ts2mp4.ffmpeg import (
     FFmpegProcessError,
-    FFmpegResult,
+    SubprocessFFmpegRunner,
     _run_command,
     _stream_stdout,
-    execute_ffmpeg,
-    execute_ffmpeg_streamed,
     execute_ffprobe,
     is_libfdk_aac_available,
 )
@@ -64,50 +63,46 @@ class MockAsyncProcess:
         (b"... libfdk_aac ...", True),
     ],
 )
-def test_is_libfdk_aac_available(
-    mocker: MockerFixture, ffmpeg_output: bytes, expected: bool
-) -> None:
+def test_is_libfdk_aac_available(ffmpeg_output: bytes, expected: bool) -> None:
     """Test that is_libfdk_aac_available returns the correct value."""
-    is_libfdk_aac_available.cache_clear()
-    mock_execute_ffmpeg = mocker.patch("ts2mp4.ffmpeg.execute_ffmpeg")
-    mock_execute_ffmpeg.return_value = FFmpegResult(
-        stdout=ffmpeg_output, stderr="", returncode=0
-    )
+    # Arrange
+    ffmpeg_runner = FakeFFmpegRunner(stdout=ffmpeg_output)
 
-    assert is_libfdk_aac_available() is expected
+    # Act
+    result = is_libfdk_aac_available(ffmpeg_runner)
+
+    # Assert
+    assert result is expected
 
 
 @pytest.mark.unit
-def test_is_libfdk_aac_available_caching(mocker: MockerFixture) -> None:
+def test_is_libfdk_aac_available_caching() -> None:
     """Test that is_libfdk_aac_available caches results."""
-    is_libfdk_aac_available.cache_clear()
-    mock_execute_ffmpeg = mocker.patch(
-        "ts2mp4.ffmpeg.execute_ffmpeg",
-        return_value=FFmpegResult(stdout=b"libfdk_aac", stderr="", returncode=0),
-    )
+    # Arrange
+    ffmpeg_runner = FakeFFmpegRunner(stdout=b"libfdk_aac")
 
-    # Call twice
-    is_libfdk_aac_available()
-    is_libfdk_aac_available()
+    # Act
+    is_libfdk_aac_available(ffmpeg_runner)
+    is_libfdk_aac_available(ffmpeg_runner)
 
-    # Assert that execute_ffmpeg was only called once
-    mock_execute_ffmpeg.assert_called_once()
+    # Assert
+    assert len(ffmpeg_runner.calls) == 1
 
 
 @pytest.mark.integration
-def test_execute_ffmpeg_success() -> None:
-    """Test that execute_ffmpeg runs ffmpeg successfully."""
-    result = execute_ffmpeg(["-version"])
+def test_subprocess_ffmpeg_runner_run_success() -> None:
+    """Test that SubprocessFFmpegRunner.run runs ffmpeg successfully."""
+    result = SubprocessFFmpegRunner().run(["-version"])
     assert result.returncode == 0
     assert b"ffmpeg version" in result.stdout or "ffmpeg version" in result.stderr
 
 
 @pytest.mark.integration
-def test_execute_ffmpeg_raises_on_nonzero_exit() -> None:
-    """Test that execute_ffmpeg raises FFmpegProcessError when ffmpeg fails."""
+def test_subprocess_ffmpeg_runner_run_raises_on_nonzero_exit() -> None:
+    """Test that SubprocessFFmpegRunner.run raises FFmpegProcessError when ffmpeg fails."""
     # Act & Assert
     with pytest.raises(FFmpegProcessError):
-        execute_ffmpeg(["-invalid_option"])
+        SubprocessFFmpegRunner().run(["-invalid_option"])
 
 
 @pytest.mark.integration
@@ -165,8 +160,8 @@ def test_run_command_raises_on_nonzero_returncode(mocker: MockerFixture) -> None
 
 
 @pytest.mark.integration
-def test_execute_ffmpeg_logs_stderr_as_info() -> None:
-    """Test that execute_ffmpeg logs stderr as info even when ffmpeg fails."""
+def test_subprocess_ffmpeg_runner_run_logs_stderr_as_info() -> None:
+    """Test that SubprocessFFmpegRunner.run logs stderr as info even when ffmpeg fails."""
     # Arrange
     log_stream = io.StringIO()
     handler = logging.StreamHandler(log_stream)
@@ -175,30 +170,11 @@ def test_execute_ffmpeg_logs_stderr_as_info() -> None:
 
     # Act
     with pytest.raises(FFmpegProcessError):
-        execute_ffmpeg(["-invalid_option"])
+        SubprocessFFmpegRunner().run(["-invalid_option"])
     logzero.logger.removeHandler(handler)
 
     # Assert
     assert "Unrecognized option" in log_stream.getvalue()
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_execute_ffmpeg_streamed(mocker: MockerFixture) -> None:
-    """Test that execute_ffmpeg_streamed calls _stream_stdout."""
-    expected_args = ["-i", "input.ts", "output.mp4"]
-
-    async def mock_stream_stdout(
-        executable: str, args: list[str]
-    ) -> AsyncGenerator[bytes, None]:
-        assert executable == "ffmpeg"
-        assert args == expected_args
-        yield b"test"
-
-    mocker.patch("ts2mp4.ffmpeg._stream_stdout", mock_stream_stdout)
-
-    result = [chunk async for chunk in execute_ffmpeg_streamed(expected_args)]
-    assert result == [b"test"]
 
 
 @pytest.mark.unit
