@@ -17,9 +17,9 @@ from ts2mp4.conversion_plan import (
     Copy,
     EncodeAudio,
     EncodeVideo,
-    FileConversionPlan,
     StreamConversionPlan,
 )
+from ts2mp4.converted_video_file import StreamWithConversionPlan
 from ts2mp4.ffmpeg import execute_ffmpeg
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_integrity import IntegrityReport
@@ -105,33 +105,28 @@ def mock_video_encoded_file_factory(
 
         original_streams = original_file.streams
 
-        encoded_streams = frozenset(
-            (
-                VideoStream(file=encoded_vf, index=new_index)
-                if isinstance(stream_at(original_streams, i), VideoStream)
-                else AudioStream(file=encoded_vf, index=new_index)
-            )
-            for new_index, i in enumerate(encoded_streams_indices)
-        )
-        type(mock_encoded_file).streams = mocker.PropertyMock(
-            return_value=encoded_streams
-        )
-
-        file_conversion_plan = FileConversionPlan(
-            root=tuple(
-                StreamConversionPlan(
+        streams_with_conversion_plans: tuple[
+            StreamWithConversionPlan[VideoStream | AudioStream], ...
+        ] = tuple(
+            StreamWithConversionPlan(
+                stream=(
+                    VideoStream(file=encoded_vf, index=new_index)
+                    if isinstance(stream_at(original_streams, i), VideoStream)
+                    else AudioStream(file=encoded_vf, index=new_index)
+                ),
+                conversion_plan=StreamConversionPlan(
                     source_stream=stream_at(original_streams, i),
                     conversion_method=(
                         EncodeVideo(codec="libx265", crf=23, preset="medium")
                         if isinstance(stream_at(original_streams, i), VideoStream)
                         else Copy()
                     ),
-                )
-                for i in encoded_streams_indices
+                ),
             )
+            for new_index, i in enumerate(encoded_streams_indices)
         )
-        type(mock_encoded_file).file_conversion_plan = mocker.PropertyMock(
-            return_value=file_conversion_plan
+        type(mock_encoded_file).streams_with_conversion_plans = mocker.PropertyMock(
+            return_value=streams_with_conversion_plans
         )
 
         return cast(VideoEncodedFile, mock_encoded_file)
@@ -573,20 +568,17 @@ def test_build_file_conversion_plan_for_audio_encoding_stream_type_mismatch_rais
         for s in initial_streams
     )
 
-    type(mock_encoded_video_file).streams = mocker.PropertyMock(
-        return_value=mismatched_streams
-    )
-
     original_streams = mock_original_video_file.streams
-    type(mock_encoded_video_file).file_conversion_plan = mocker.PropertyMock(
-        return_value=FileConversionPlan(
-            root=tuple(
-                StreamConversionPlan(
-                    source_stream=stream_at(original_streams, i),
+    type(mock_encoded_video_file).streams_with_conversion_plans = mocker.PropertyMock(
+        return_value=tuple(
+            StreamWithConversionPlan(
+                stream=stream,
+                conversion_plan=StreamConversionPlan(
+                    source_stream=stream_at(original_streams, stream.index),
                     conversion_method=Copy(),
-                )
-                for i in range(len(initial_streams))
+                ),
             )
+            for stream in sorted(mismatched_streams, key=lambda s: s.index)
         )
     )
 

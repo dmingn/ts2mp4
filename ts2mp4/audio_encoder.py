@@ -12,7 +12,6 @@ from .conversion_plan import (
     FileConversionPlan,
     StreamConversionPlan,
 )
-from .converted_video_file import streams_by_unique_index
 from .ffmpeg import is_libfdk_aac_available
 from .stream_integrity import IntegrityReport
 from .video_encoder import VideoEncodedFile
@@ -97,11 +96,11 @@ def build_file_conversion_plan_for_audio_encoding(
         raise ValueError("integrity_report must report at least one mismatch.")
 
     # Source streams are guaranteed to be unique for a video-encoded file.
-    # file_conversion_plan position i corresponds to output stream index i.
-    streams_by_index = streams_by_unique_index(encoded_file.streams)
     original_encoded_stream_mapping = {
-        plan.source_stream.index: streams_by_index[i]
-        for i, plan in enumerate(encoded_file.file_conversion_plan)
+        stream_with_conversion_plan.conversion_plan.source_stream.index: (
+            stream_with_conversion_plan.stream
+        )
+        for stream_with_conversion_plan in encoded_file.streams_with_conversion_plans
     }
 
     plans: list[StreamConversionPlanForAudioEncoding] = []
