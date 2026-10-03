@@ -64,8 +64,6 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
     assert args == [
         "-hide_banner",
         "-nostats",
-        "-fflags",
-        "+discardcorrupt",
         "-y",
         "-i",
         str(encoded_path),
@@ -86,6 +84,50 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
         "-f",
         "mp4",
         str(output_path),
+    ]
+
+
+@pytest.mark.unit
+def test_build_ffmpeg_args_reads_each_stream_of_a_shared_source_from_its_own_input(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    """build_ffmpeg_args gives each stream its own input even if they share a file."""
+    # Arrange
+    path = tmp_path / "input.ts"
+    path.touch()
+    video_file = VideoFile(path=path)
+
+    file_conversion_plan = FileConversionPlan(
+        root=(
+            StreamConversionPlan(
+                source_stream=AudioStream(file=video_file, index=1),
+                conversion_method=EncodeAudio(codec="aac"),
+            ),
+            StreamConversionPlan(
+                source_stream=AudioStream(file=video_file, index=2),
+                conversion_method=EncodeAudio(codec="aac"),
+            ),
+        )
+    )
+
+    mocker.patch.object(
+        FileConversionPlan,
+        "default_stream_indices",
+        new_callable=mocker.PropertyMock,
+        return_value=frozenset({0}),
+    )
+
+    # Act
+    args = build_ffmpeg_args(file_conversion_plan, Path("output.mp4"))
+
+    # Assert
+    assert [args[i + 1] for i, arg in enumerate(args) if arg == "-i"] == [
+        str(path),
+        str(path),
+    ]
+    assert [args[i + 1] for i, arg in enumerate(args) if arg == "-map"] == [
+        "0:1",
+        "1:2",
     ]
 
 

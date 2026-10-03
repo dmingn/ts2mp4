@@ -88,24 +88,24 @@ def build_ffmpeg_args(
 ) -> list[str]:
     """Build FFmpeg arguments that write ``file_conversion_plan`` to ``output_path``.
 
-    Output stream ``i`` is mapped from ``file_conversion_plan[i]``. Each distinct
-    source file becomes one input, in order of first appearance.
+    Output stream ``i`` is mapped from input ``i``, which reads the source file
+    of ``file_conversion_plan[i]``. Each output stream gets its own input even
+    when streams share a source file, because FFmpeg truncates the other
+    decoded streams of an input when one of them ends midway.
     """
-    input_files = list(
-        dict.fromkeys(s.source_stream.file for s in file_conversion_plan)
-    )
-    input_index_by_file = {file: i for i, file in enumerate(input_files)}
-
     return (
-        ["-hide_banner", "-nostats", "-fflags", "+discardcorrupt", "-y"]
-        + [arg for file in input_files for arg in ("-i", str(file.path))]
+        ["-hide_banner", "-nostats", "-y"]
+        + [
+            arg
+            for plan in file_conversion_plan
+            for arg in ("-i", str(plan.source_stream.file.path))
+        ]
         + [
             arg
             for i, plan in enumerate(file_conversion_plan)
             for arg in (
                 "-map",
-                f"{input_index_by_file[plan.source_stream.file]}:"
-                f"{plan.source_stream.index}",
+                f"{i}:{plan.source_stream.index}",
                 *_codec_args(plan.conversion_method, i),
             )
         ]
