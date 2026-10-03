@@ -14,13 +14,19 @@ from ts2mp4.video_file import VideoFile
 
 _OK_REPORT = IntegrityReport(mismatched_output_indices=frozenset())
 _MISMATCH_REPORT = IntegrityReport(mismatched_output_indices=frozenset({1}))
-_FFMPEG_RUNNER = FakeFFmpegRunner()
+
+
+@pytest.fixture
+def ffmpeg_runner() -> FakeFFmpegRunner:
+    """Return a FakeFFmpegRunner for one test."""
+    return FakeFFmpegRunner()
 
 
 @pytest.mark.unit
 def test_ts2mp4_builds_video_file_conversion_plan_with_given_parameters(
     mock_video_file: VideoFile,
     mocker: MockerFixture,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Pass the input file, crf, and preset to the video file conversion plan builder."""
     # Arrange
@@ -35,7 +41,7 @@ def test_ts2mp4_builds_video_file_conversion_plan_with_given_parameters(
     mocker.patch("ts2mp4.ts2mp4.check_integrity", return_value=_OK_REPORT)
 
     # Act
-    ts2mp4(mock_video_file, output_file, crf, preset, _FFMPEG_RUNNER)
+    ts2mp4(mock_video_file, output_file, crf, preset, ffmpeg_runner)
 
     # Assert
     mock_build_video_file_conversion_plan.assert_called_once_with(
@@ -47,6 +53,7 @@ def test_ts2mp4_builds_video_file_conversion_plan_with_given_parameters(
 def test_ts2mp4_converts_video_file_conversion_plan_to_output(
     mock_video_file: VideoFile,
     mocker: MockerFixture,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Convert the video file conversion plan into the output path."""
     # Arrange
@@ -64,12 +71,12 @@ def test_ts2mp4_converts_video_file_conversion_plan_to_output(
         output_file,
         crf=23,
         preset="medium",
-        ffmpeg_runner=_FFMPEG_RUNNER,
+        ffmpeg_runner=ffmpeg_runner,
     )
 
     # Assert
     mock_execute_conversion.assert_called_once_with(
-        mock_build_video_file_conversion_plan.return_value, output_file, _FFMPEG_RUNNER
+        mock_build_video_file_conversion_plan.return_value, output_file, ffmpeg_runner
     )
 
 
@@ -77,6 +84,7 @@ def test_ts2mp4_converts_video_file_conversion_plan_to_output(
 def test_ts2mp4_checks_integrity_of_video_encoded_file(
     mock_video_file: VideoFile,
     mocker: MockerFixture,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Check integrity of the file produced by the video conversion."""
     # Arrange
@@ -96,17 +104,19 @@ def test_ts2mp4_checks_integrity_of_video_encoded_file(
     )
 
     # Act
-    ts2mp4(mock_video_file, output_file, crf, preset, _FFMPEG_RUNNER)
+    ts2mp4(mock_video_file, output_file, crf, preset, ffmpeg_runner)
 
     # Assert
     mock_check_integrity.assert_called_once_with(
-        mock_output_video_file_instance, _FFMPEG_RUNNER
+        mock_output_video_file_instance, ffmpeg_runner
     )
 
 
 @pytest.mark.unit
 def test_ts2mp4_skips_audio_encoding_when_integrity_is_ok(
-    mock_video_file: VideoFile, mocker: MockerFixture
+    mock_video_file: VideoFile,
+    mocker: MockerFixture,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Do not encode audio when the integrity report has no mismatch."""
     # Arrange
@@ -122,7 +132,7 @@ def test_ts2mp4_skips_audio_encoding_when_integrity_is_ok(
     )
 
     # Act
-    ts2mp4(mock_video_file, output_file, crf, preset, _FFMPEG_RUNNER)
+    ts2mp4(mock_video_file, output_file, crf, preset, ffmpeg_runner)
 
     # Assert
     mock_build_audio_file_conversion_plan.assert_not_called()
@@ -131,7 +141,9 @@ def test_ts2mp4_skips_audio_encoding_when_integrity_is_ok(
 
 @pytest.mark.unit
 def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(
-    mock_video_file: VideoFile, mocker: MockerFixture
+    mock_video_file: VideoFile,
+    mocker: MockerFixture,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Propagate RuntimeError when the video conversion fails."""
     # Arrange
@@ -147,12 +159,14 @@ def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="ffmpeg failed with return code 1"):
-        ts2mp4(mock_video_file, output_file, crf, preset, _FFMPEG_RUNNER)
+        ts2mp4(mock_video_file, output_file, crf, preset, ffmpeg_runner)
 
 
 @pytest.mark.unit
 def test_ts2mp4_does_not_check_integrity_on_ffmpeg_failure(
-    mock_video_file: VideoFile, mocker: MockerFixture
+    mock_video_file: VideoFile,
+    mocker: MockerFixture,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Skip check_integrity when the video conversion raises."""
     # Arrange
@@ -169,14 +183,16 @@ def test_ts2mp4_does_not_check_integrity_on_ffmpeg_failure(
 
     # Act & Assert
     with pytest.raises(RuntimeError):
-        ts2mp4(mock_video_file, output_file, crf, preset, _FFMPEG_RUNNER)
+        ts2mp4(mock_video_file, output_file, crf, preset, ffmpeg_runner)
 
     mock_check_integrity.assert_not_called()
 
 
 @pytest.mark.unit
 def test_ts2mp4_propagates_runtime_error_from_check_integrity(
-    mock_video_file: VideoFile, mocker: MockerFixture
+    mock_video_file: VideoFile,
+    mocker: MockerFixture,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Propagate unrelated RuntimeErrors instead of falling back to audio encoding."""
     # Arrange
@@ -194,7 +210,7 @@ def test_ts2mp4_propagates_runtime_error_from_check_integrity(
 
     # Act & Assert
     with pytest.raises(RuntimeError, match="Stream type mismatch"):
-        ts2mp4(mock_video_file, output_file, crf, preset, _FFMPEG_RUNNER)
+        ts2mp4(mock_video_file, output_file, crf, preset, ffmpeg_runner)
 
 
 class _AudioFallbackMocks(NamedTuple):
@@ -239,7 +255,9 @@ def audio_fallback_mocks(mocker: MockerFixture) -> _AudioFallbackMocks:
 
 @pytest.mark.unit
 def test_ts2mp4_builds_audio_file_conversion_plan_on_integrity_failure(
-    mock_video_file: VideoFile, audio_fallback_mocks: _AudioFallbackMocks
+    mock_video_file: VideoFile,
+    audio_fallback_mocks: _AudioFallbackMocks,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Build the audio file conversion plan from the report when the integrity check fails."""
     # Arrange
@@ -251,7 +269,7 @@ def test_ts2mp4_builds_audio_file_conversion_plan_on_integrity_failure(
         output_file,
         crf=23,
         preset="medium",
-        ffmpeg_runner=_FFMPEG_RUNNER,
+        ffmpeg_runner=ffmpeg_runner,
     )
 
     # Assert
@@ -265,7 +283,9 @@ def test_ts2mp4_builds_audio_file_conversion_plan_on_integrity_failure(
 
 @pytest.mark.unit
 def test_ts2mp4_converts_audio_file_conversion_plan_to_temp_file(
-    mock_video_file: VideoFile, audio_fallback_mocks: _AudioFallbackMocks
+    mock_video_file: VideoFile,
+    audio_fallback_mocks: _AudioFallbackMocks,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Convert the audio file conversion plan into a temp file next to the output."""
     # Arrange
@@ -277,20 +297,22 @@ def test_ts2mp4_converts_audio_file_conversion_plan_to_temp_file(
         output_file,
         crf=23,
         preset="medium",
-        ffmpeg_runner=_FFMPEG_RUNNER,
+        ffmpeg_runner=ffmpeg_runner,
     )
 
     # Assert
     audio_fallback_mocks.execute_conversion.assert_called_with(
         audio_fallback_mocks.build_audio_file_conversion_plan.return_value,
         Path("output.mp4.temp"),
-        _FFMPEG_RUNNER,
+        ffmpeg_runner,
     )
 
 
 @pytest.mark.unit
 def test_ts2mp4_checks_integrity_of_audio_encoded_file(
-    mock_video_file: VideoFile, audio_fallback_mocks: _AudioFallbackMocks
+    mock_video_file: VideoFile,
+    audio_fallback_mocks: _AudioFallbackMocks,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Check integrity of the audio-encoded file after re-encoding audio."""
     # Arrange
@@ -302,18 +324,20 @@ def test_ts2mp4_checks_integrity_of_audio_encoded_file(
         output_file,
         crf=23,
         preset="medium",
-        ffmpeg_runner=_FFMPEG_RUNNER,
+        ffmpeg_runner=ffmpeg_runner,
     )
 
     # Assert
     audio_fallback_mocks.check_integrity.assert_called_with(
-        audio_fallback_mocks.audio_encoded_file, _FFMPEG_RUNNER
+        audio_fallback_mocks.audio_encoded_file, ffmpeg_runner
     )
 
 
 @pytest.mark.unit
 def test_ts2mp4_raises_when_audio_encoded_file_fails_integrity(
-    mock_video_file: VideoFile, audio_fallback_mocks: _AudioFallbackMocks
+    mock_video_file: VideoFile,
+    audio_fallback_mocks: _AudioFallbackMocks,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Raise RuntimeError when the audio-encoded file still mismatches."""
     # Arrange
@@ -332,13 +356,15 @@ def test_ts2mp4_raises_when_audio_encoded_file_fails_integrity(
             output_file,
             crf=23,
             preset="medium",
-            ffmpeg_runner=_FFMPEG_RUNNER,
+            ffmpeg_runner=ffmpeg_runner,
         )
 
 
 @pytest.mark.unit
 def test_ts2mp4_checks_audio_quality_of_audio_encoded_file(
-    mock_video_file: VideoFile, audio_fallback_mocks: _AudioFallbackMocks
+    mock_video_file: VideoFile,
+    audio_fallback_mocks: _AudioFallbackMocks,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Check audio quality of the audio-encoded file."""
     # Arrange
@@ -350,18 +376,20 @@ def test_ts2mp4_checks_audio_quality_of_audio_encoded_file(
         output_file,
         crf=23,
         preset="medium",
-        ffmpeg_runner=_FFMPEG_RUNNER,
+        ffmpeg_runner=ffmpeg_runner,
     )
 
     # Assert
     audio_fallback_mocks.check_audio_quality.assert_called_once_with(
-        audio_fallback_mocks.audio_encoded_file, _FFMPEG_RUNNER
+        audio_fallback_mocks.audio_encoded_file, ffmpeg_runner
     )
 
 
 @pytest.mark.unit
 def test_ts2mp4_replaces_output_with_audio_encoded_file(
-    mock_video_file: VideoFile, audio_fallback_mocks: _AudioFallbackMocks
+    mock_video_file: VideoFile,
+    audio_fallback_mocks: _AudioFallbackMocks,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Replace the output path with the temp file holding the re-encoded audio."""
     # Arrange
@@ -373,7 +401,7 @@ def test_ts2mp4_replaces_output_with_audio_encoded_file(
         output_file,
         crf=23,
         preset="medium",
-        ffmpeg_runner=_FFMPEG_RUNNER,
+        ffmpeg_runner=ffmpeg_runner,
     )
 
     # Assert
@@ -382,7 +410,9 @@ def test_ts2mp4_replaces_output_with_audio_encoded_file(
 
 @pytest.mark.unit
 def test_ts2mp4_raises_on_audio_encode_failure(
-    mock_video_file: VideoFile, audio_fallback_mocks: _AudioFallbackMocks
+    mock_video_file: VideoFile,
+    audio_fallback_mocks: _AudioFallbackMocks,
+    ffmpeg_runner: FakeFFmpegRunner,
 ) -> None:
     """Propagate RuntimeError when the audio conversion fails."""
     # Arrange
@@ -399,5 +429,5 @@ def test_ts2mp4_raises_on_audio_encode_failure(
             output_file,
             crf=23,
             preset="medium",
-            ffmpeg_runner=_FFMPEG_RUNNER,
+            ffmpeg_runner=ffmpeg_runner,
         )
