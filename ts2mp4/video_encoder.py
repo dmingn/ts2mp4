@@ -45,13 +45,18 @@ VideoEncodedFile = ConvertedVideoFile[FileConversionPlanForVideoEncoding]
 
 
 def build_file_conversion_plan_for_video_encoding(
-    input_file: VideoFile, crf: int, preset: str
+    input_file: VideoFile, crf: int, preset: int
 ) -> FileConversionPlanForVideoEncoding:
-    """Build the file conversion plan that encodes video and copies audio from TS to MP4."""
+    """Build the file conversion plan that encodes video and copies audio from TS to MP4.
+
+    Video is encoded with SVT-AV1 in 10 bit, which reduces banding even from an
+    8 bit source.
+    """
     encode_video = EncodeVideo(
-        codec="libx265",
+        codec="libsvtav1",
         crf=crf,
         preset=preset,
+        pix_fmt="yuv420p10le",
         video_filter="bwdif",
         fps_mode="cfr",
     )

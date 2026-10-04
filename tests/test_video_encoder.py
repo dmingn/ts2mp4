@@ -63,7 +63,7 @@ def test_build_file_conversion_plan_for_video_encoding_orders_by_stream_index(
 
     # Act
     file_conversion_plan = build_file_conversion_plan_for_video_encoding(
-        input_file, crf=23, preset="medium"
+        input_file, crf=32, preset=5
     )
 
     # Assert
@@ -86,7 +86,7 @@ def test_build_file_conversion_plan_for_video_encoding_marks_video_encoded_and_a
 
     # Act
     file_conversion_plan = build_file_conversion_plan_for_video_encoding(
-        input_file, crf=23, preset="medium"
+        input_file, crf=32, preset=5
     )
 
     # Assert
@@ -101,23 +101,24 @@ def test_build_file_conversion_plan_for_video_encoding_marks_video_encoded_and_a
 
 
 @pytest.mark.unit
-def test_build_file_conversion_plan_for_video_encoding_encodes_video_with_libx265_settings(
+def test_build_file_conversion_plan_for_video_encoding_encodes_video_with_svt_av1_settings(
     mock_video_file_factory: Callable[..., VideoFile],
 ) -> None:
-    """Encode video with libx265, the given crf and preset, bwdif and cfr."""
+    """Encode video with 10 bit SVT-AV1, the given crf and preset, bwdif and cfr."""
     # Arrange
     input_file = mock_video_file_factory(video_streams=1, audio_streams=1)
 
     # Act
     file_conversion_plan = build_file_conversion_plan_for_video_encoding(
-        input_file, crf=23, preset="medium"
+        input_file, crf=32, preset=5
     )
 
     # Assert
     assert file_conversion_plan[0].conversion_method == EncodeVideo(
-        codec="libx265",
-        crf=23,
-        preset="medium",
+        codec="libsvtav1",
+        crf=32,
+        preset=5,
+        pix_fmt="yuv420p10le",
         video_filter="bwdif",
         fps_mode="cfr",
     )
@@ -160,7 +161,7 @@ def test_file_conversion_plan_for_video_encoding_raises_on_invalid_plans(
     plans: list[StreamConversionPlanForVideoEncoding] = [
         StreamConversionPlan(
             source_stream=stream_at(video_file.streams, 0),
-            conversion_method=EncodeVideo(codec="libx265", crf=23, preset="medium"),
+            conversion_method=EncodeVideo(codec="libsvtav1", crf=32, preset=5),
         ),
         StreamConversionPlan(
             source_stream=stream_at(video_file.streams, 1),
@@ -177,7 +178,7 @@ def test_file_conversion_plan_for_video_encoding_raises_on_invalid_plans(
         plans.append(
             StreamConversionPlan(
                 source_stream=stream_at(other_video_file.streams, 0),
-                conversion_method=EncodeVideo(codec="libx265", crf=23, preset="medium"),
+                conversion_method=EncodeVideo(codec="libsvtav1", crf=32, preset=5),
             )
         )
     elif modifier == "duplicate_streams":

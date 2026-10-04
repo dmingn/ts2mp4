@@ -246,9 +246,10 @@ def test_encode_video_args_includes_all_set_options() -> None:
     """_encode_video_args emits every set option for the output stream."""
     # Arrange
     conversion_method = EncodeVideo(
-        codec="libx265",
-        crf=23,
-        preset="medium",
+        codec="libsvtav1",
+        crf=32,
+        preset=5,
+        pix_fmt="yuv420p10le",
         video_filter="bwdif",
         fps_mode="cfr",
     )
@@ -259,11 +260,13 @@ def test_encode_video_args_includes_all_set_options() -> None:
     # Assert
     assert args == [
         "-codec:0",
-        "libx265",
+        "libsvtav1",
         "-crf:0",
-        "23",
+        "32",
         "-preset:0",
-        "medium",
+        "5",
+        "-pix_fmt:0",
+        "yuv420p10le",
         "-filter:0",
         "bwdif",
         "-fps_mode:0",
@@ -275,10 +278,10 @@ def test_encode_video_args_includes_all_set_options() -> None:
 def test_encode_video_args_omits_unset_options() -> None:
     """_encode_video_args omits options that are None."""
     # Arrange
-    conversion_method = EncodeVideo(codec="libx265", crf=23, preset="medium")
+    conversion_method = EncodeVideo(codec="libsvtav1", crf=32, preset=5)
 
     # Act
     args = _encode_video_args(conversion_method, 0)
 
     # Assert
-    assert args == ["-codec:0", "libx265", "-crf:0", "23", "-preset:0", "medium"]
+    assert args == ["-codec:0", "libsvtav1", "-crf:0", "32", "-preset:0", "5"]

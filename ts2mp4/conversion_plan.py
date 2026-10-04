@@ -27,7 +27,8 @@ class EncodeVideo(BaseModel):
 
     codec: str
     crf: int
-    preset: str
+    preset: int
+    pix_fmt: str | None = None
     video_filter: str | None = None
     fps_mode: str | None = None
 

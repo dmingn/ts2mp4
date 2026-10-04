@@ -122,7 +122,7 @@ def mock_video_encoded_file_factory(
                 conversion_plan=StreamConversionPlan(
                     source_stream=stream_at(original_streams, i),
                     conversion_method=(
-                        EncodeVideo(codec="libx265", crf=23, preset="medium")
+                        EncodeVideo(codec="libsvtav1", crf=32, preset=5)
                         if isinstance(stream_at(original_streams, i), VideoStream)
                         else Copy()
                     ),
@@ -526,9 +526,7 @@ def test_build_file_conversion_plan_for_audio_encoding_raises_for_missing_stream
             root=(
                 StreamConversionPlan(
                     source_stream=stream_at(original_streams, 0),
-                    conversion_method=EncodeVideo(
-                        codec="libx265", crf=23, preset="medium"
-                    ),
+                    conversion_method=EncodeVideo(codec="libsvtav1", crf=32, preset=5),
                 ),
                 StreamConversionPlan(
                     source_stream=stream_at(original_streams, 1),

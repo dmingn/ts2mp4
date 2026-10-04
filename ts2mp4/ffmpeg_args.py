@@ -36,6 +36,7 @@ def _encode_video_args(conversion_method: EncodeVideo, output_index: int) -> lis
             ("codec", conversion_method.codec),
             ("crf", conversion_method.crf),
             ("preset", conversion_method.preset),
+            ("pix_fmt", conversion_method.pix_fmt),
             ("filter", conversion_method.video_filter),
             ("fps_mode", conversion_method.fps_mode),
         ],

@@ -2,7 +2,6 @@
 
 import datetime
 import platform
-from enum import Enum
 from pathlib import Path
 from typing import Annotated
 
@@ -23,21 +22,6 @@ def version_callback(value: bool) -> None:
         raise typer.Exit()
 
 
-class Preset(str, Enum):
-    """Enum for FFmpeg presets."""
-
-    ultrafast = "ultrafast"
-    superfast = "superfast"
-    veryfast = "veryfast"
-    faster = "faster"
-    fast = "fast"
-    medium = "medium"
-    slow = "slow"
-    slower = "slower"
-    veryslow = "veryslow"
-    placebo = "placebo"
-
-
 app = typer.Typer()
 
 
@@ -56,11 +40,21 @@ def main(
         ),
     ] = None,
     crf: Annotated[
-        int, typer.Option(help="CRF value for encoding. Defaults to 22.")
-    ] = 22,
+        int,
+        typer.Option(
+            min=0,
+            max=63,
+            help="SVT-AV1 CRF value for encoding. Defaults to 32.",
+        ),
+    ] = 32,
     preset: Annotated[
-        Preset, typer.Option(help="Encoding preset. Defaults to 'slow'.")
-    ] = Preset.slow,
+        int,
+        typer.Option(
+            min=0,
+            max=13,
+            help="SVT-AV1 encoding preset. Lower is slower. Defaults to 5.",
+        ),
+    ] = 5,
     _version: Annotated[
         bool,
         typer.Option(
@@ -101,7 +95,7 @@ def main(
             input_file=video_file,
             output_path=mp4_part,
             crf=crf,
-            preset=preset.value,
+            preset=preset,
             ffmpeg_runner=SubprocessFFmpegRunner(),
         )
 

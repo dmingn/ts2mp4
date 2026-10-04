@@ -49,14 +49,14 @@ def test_cli_options_recognized(mocker: MockerFixture, tmp_path: Path) -> None:
     dummy_ts_path = tmp_path / "dummy.ts"
     dummy_ts_path.write_text("dummy")
     runner = CliRunner()
-    result = runner.invoke(app, [str(dummy_ts_path), "--crf", "20", "--preset", "slow"])
+    result = runner.invoke(app, [str(dummy_ts_path), "--crf", "28", "--preset", "8"])
 
     assert result.exit_code == 0
     mock_ts2mp4.assert_called_once_with(
         input_file=mocker.ANY,
         output_path=mocker.ANY,
-        crf=20,
-        preset="slow",
+        crf=28,
+        preset=8,
         ffmpeg_runner=mocker.ANY,
     )
 
@@ -80,7 +80,7 @@ def test_cli_invalid_crf_value(tmp_path: Path) -> None:
 
 @pytest.mark.integration
 def test_cli_invalid_preset_value(mocker: MockerFixture, tmp_path: Path) -> None:
-    """Test that the CLI handles invalid preset values gracefully."""
+    """Test that the CLI rejects a preset outside the SVT-AV1 range of 0 to 13."""
     mock_ts2mp4 = mocker.patch("ts2mp4.ts2mp4.ts2mp4")
 
     # Simulate command-line arguments
@@ -96,7 +96,7 @@ def test_cli_invalid_preset_value(mocker: MockerFixture, tmp_path: Path) -> None
     dummy_ts_path = tmp_path / "dummy.ts"
     dummy_ts_path.write_text("dummy")
     runner = CliRunner()
-    result = runner.invoke(app, [str(dummy_ts_path), "--preset", "invalid_preset"])
+    result = runner.invoke(app, [str(dummy_ts_path), "--preset", "14"])
 
     assert result.exit_code != 0
     assert isinstance(result.exception, SystemExit)

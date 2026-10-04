@@ -18,7 +18,7 @@ def ts2mp4(
     input_file: VideoFile,
     output_path: Path,
     crf: int,
-    preset: str,
+    preset: int,
     ffmpeg_runner: FFmpegRunner,
 ) -> None:
     """Convert a Transport Stream (TS) file to MP4 format using FFmpeg.
@@ -32,8 +32,8 @@ def ts2mp4(
         output_path: The path where the output MP4 file will be saved.
         crf: The Constant Rate Factor (CRF) value for video encoding. Lower
             values result in higher quality and larger file sizes.
-        preset: The encoding preset for FFmpeg. This affects the compression
-            speed and efficiency (e.g., 'medium', 'fast', 'slow').
+        preset: The SVT-AV1 encoding preset from 0 to 13. Lower values are
+            slower and compress more efficiently.
         ffmpeg_runner: The FFmpegRunner used to run ffmpeg.
 
     """
