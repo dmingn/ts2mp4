@@ -15,7 +15,7 @@ from ts2mp4.conversion import execute_conversion
 from ts2mp4.conversion_plan import (
     ConversionMethod,
     Copy,
-    EncodeAudio,
+    EncodeAudioWithNativeAac,
     FileConversionPlan,
     StreamConversionPlan,
 )
@@ -183,7 +183,7 @@ async def test_get_audio_quality_metrics_returns_metrics_for_encoded_audio(
     stream3 = AudioStream(file=converted_video, index=2)
 
     plan1: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
-        conversion_method=EncodeAudio(codec="aac"),
+        conversion_method=EncodeAudioWithNativeAac(),
         source_stream=AudioStream(file=original_file, index=0),
     )
     plan2: StreamConversionPlan[VideoStream, ConversionMethod] = StreamConversionPlan(
@@ -191,7 +191,7 @@ async def test_get_audio_quality_metrics_returns_metrics_for_encoded_audio(
         source_stream=VideoStream(file=original_file, index=1),
     )
     plan3: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
-        conversion_method=EncodeAudio(codec="aac"),
+        conversion_method=EncodeAudioWithNativeAac(),
         source_stream=AudioStream(file=original_file, index=1),
     )
 
@@ -240,11 +240,11 @@ async def test_get_audio_quality_metrics_skips_failed_stream(
     stream2 = AudioStream(file=converted_video, index=2)
 
     plan1: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
-        conversion_method=EncodeAudio(codec="aac"),
+        conversion_method=EncodeAudioWithNativeAac(),
         source_stream=AudioStream(file=original_file, index=0),
     )
     plan2: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
-        conversion_method=EncodeAudio(codec="aac"),
+        conversion_method=EncodeAudioWithNativeAac(),
         source_stream=AudioStream(file=original_file, index=1),
     )
 
@@ -283,7 +283,7 @@ async def test_get_audio_quality_metrics_returns_empty_when_no_metrics_parsed(
 
     stream1 = AudioStream(file=converted_video, index=0)
     plan1: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
-        conversion_method=EncodeAudio(codec="aac"),
+        conversion_method=EncodeAudioWithNativeAac(),
         source_stream=AudioStream(file=original_file, index=0),
     )
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
@@ -352,7 +352,7 @@ async def test_get_audio_quality_metrics_returns_positive_metrics_for_real_file(
     file_conversion_plan: list[StreamConversionPlan[Stream, ConversionMethod]] = []
     for stream in sorted(video_file.streams):
         if isinstance(stream, AudioStream):
-            conversion_method: ConversionMethod = EncodeAudio(codec="aac")
+            conversion_method: ConversionMethod = EncodeAudioWithNativeAac()
         else:
             conversion_method = Copy()
         file_conversion_plan.append(
@@ -402,8 +402,7 @@ async def test_get_audio_quality_metrics_reports_each_channel_layout_segment(
                 ),
                 StreamConversionPlan(
                     source_stream=AudioStream(file=original_file, index=1),
-                    conversion_method=EncodeAudio(
-                        codec="aac",
+                    conversion_method=EncodeAudioWithNativeAac(
                         channels=6,
                         audio_filter="aformat=channel_layouts=5.1",
                     ),

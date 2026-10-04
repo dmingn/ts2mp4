@@ -1,6 +1,6 @@
 """Conversion plan models describing how each output stream is made."""
 
-from typing import Generic, Iterator, TypeGuard, TypeVar
+from typing import Generic, Iterator, Literal, TypeGuard, TypeVar
 
 from pydantic import BaseModel, ConfigDict, RootModel
 
@@ -42,32 +42,42 @@ class BitRate(BaseModel):
     model_config = ConfigDict(frozen=True)
 
 
-class VbrMode(BaseModel):
-    """Encode in the given VBR mode of the encoder."""
+class LibfdkVbrMode(BaseModel):
+    """Encode in the given VBR mode of libfdk_aac."""
 
     mode: int
 
     model_config = ConfigDict(frozen=True)
 
 
-AudioRateControl = BitRate | VbrMode
-
-
 class EncodeAudio(BaseModel):
     """Re-encode the source audio stream with the given encoder options."""
 
-    codec: str
     sample_rate: int | None = None
     channels: int | None = None
     profile: str | None = None
-    rate_control: AudioRateControl | None = None
     audio_filter: str | None = None
 
     model_config = ConfigDict(frozen=True)
 
 
+class EncodeAudioWithLibfdkAac(EncodeAudio):
+    """Re-encode the source audio stream with libfdk_aac."""
+
+    codec: Literal["libfdk_aac"] = "libfdk_aac"
+    rate_control: BitRate | LibfdkVbrMode | None = None
+
+
+class EncodeAudioWithNativeAac(EncodeAudio):
+    """Re-encode the source audio stream with FFmpeg's native aac encoder."""
+
+    codec: Literal["aac"] = "aac"
+    rate_control: BitRate | None = None
+
+
 VideoConversionMethod = Copy | EncodeVideo
-AudioConversionMethod = Copy | EncodeAudio
+AudioEncodingMethod = EncodeAudioWithLibfdkAac | EncodeAudioWithNativeAac
+AudioConversionMethod = Copy | AudioEncodingMethod
 ConversionMethod = VideoConversionMethod | AudioConversionMethod
 ConversionMethodT = TypeVar("ConversionMethodT", bound=ConversionMethod, covariant=True)
 

@@ -8,11 +8,12 @@ from pytest_mock import MockerFixture
 from ts2mp4.conversion_plan import (
     BitRate,
     Copy,
-    EncodeAudio,
+    EncodeAudioWithLibfdkAac,
+    EncodeAudioWithNativeAac,
     EncodeVideo,
     FileConversionPlan,
+    LibfdkVbrMode,
     StreamConversionPlan,
-    VbrMode,
 )
 from ts2mp4.ffmpeg_args import (
     _disposition_args,
@@ -46,7 +47,7 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
             ),
             StreamConversionPlan(
                 source_stream=AudioStream(file=original_file, index=2),
-                conversion_method=EncodeAudio(codec="aac"),
+                conversion_method=EncodeAudioWithNativeAac(),
             ),
         )
     )
@@ -102,11 +103,11 @@ def test_build_ffmpeg_args_reads_each_stream_of_a_shared_source_from_its_own_inp
         root=(
             StreamConversionPlan(
                 source_stream=AudioStream(file=video_file, index=1),
-                conversion_method=EncodeAudio(codec="aac"),
+                conversion_method=EncodeAudioWithNativeAac(),
             ),
             StreamConversionPlan(
                 source_stream=AudioStream(file=video_file, index=2),
-                conversion_method=EncodeAudio(codec="aac"),
+                conversion_method=EncodeAudioWithNativeAac(),
             ),
         )
     )
@@ -184,8 +185,7 @@ def test_disposition_args_marks_only_default_streams(
 def test_encode_audio_args_includes_all_set_options() -> None:
     """_encode_audio_args emits every set option for the output stream."""
     # Arrange
-    conversion_method = EncodeAudio(
-        codec="aac",
+    conversion_method = EncodeAudioWithNativeAac(
         sample_rate=48000,
         channels=2,
         profile="aac_low",
@@ -215,9 +215,9 @@ def test_encode_audio_args_includes_all_set_options() -> None:
 
 @pytest.mark.unit
 def test_encode_audio_args_sets_vbr_mode() -> None:
-    """_encode_audio_args emits -vbr for a VbrMode rate control."""
+    """_encode_audio_args emits -vbr for a LibfdkVbrMode rate control."""
     # Arrange
-    conversion_method = EncodeAudio(codec="libfdk_aac", rate_control=VbrMode(mode=5))
+    conversion_method = EncodeAudioWithLibfdkAac(rate_control=LibfdkVbrMode(mode=5))
 
     # Act
     args = _encode_audio_args(conversion_method, 1)
@@ -230,7 +230,7 @@ def test_encode_audio_args_sets_vbr_mode() -> None:
 def test_encode_audio_args_omits_unset_options() -> None:
     """_encode_audio_args omits options that are None."""
     # Arrange
-    conversion_method = EncodeAudio(codec="aac")
+    conversion_method = EncodeAudioWithNativeAac()
 
     # Act
     args = _encode_audio_args(conversion_method, 1)

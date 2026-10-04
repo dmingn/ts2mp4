@@ -18,9 +18,11 @@ from ts2mp4.conversion_plan import (
     BitRate,
     Copy,
     EncodeAudio,
+    EncodeAudioWithLibfdkAac,
+    EncodeAudioWithNativeAac,
     EncodeVideo,
+    LibfdkVbrMode,
     StreamConversionPlan,
-    VbrMode,
 )
 from ts2mp4.converted_video_file import StreamWithConversionPlan
 from ts2mp4.ffmpeg import SubprocessFFmpegRunner
@@ -254,8 +256,8 @@ def test_build_file_conversion_plan_for_audio_encoding_encodes_fixed_surround_st
     assert encoded_plans == [
         (
             stream_at(mock_original_video_file.streams, 2),
-            EncodeAudio(
-                codec="aac", channels=6, audio_filter="aformat=channel_layouts=5.1"
+            EncodeAudioWithNativeAac(
+                channels=6, audio_filter="aformat=channel_layouts=5.1"
             ),
         )
     ]
@@ -330,8 +332,7 @@ def test_build_encode_audio_for_takes_settings_from_stream(tmp_path: Path) -> No
     conversion_method = _build_encode_audio_for(stream, libfdk_aac_available=False)
 
     # Assert
-    assert conversion_method == EncodeAudio(
-        codec="aac",
+    assert conversion_method == EncodeAudioWithNativeAac(
         sample_rate=48000,
         channels=2,
         rate_control=BitRate(bit_rate=192000),
@@ -359,12 +360,11 @@ def test_build_fixed_surround_encode_audio_for_keeps_other_settings_from_stream(
     )
 
     # Assert
-    assert conversion_method == EncodeAudio(
-        codec="libfdk_aac",
+    assert conversion_method == EncodeAudioWithLibfdkAac(
         sample_rate=48000,
         channels=6,
         profile="aac_low",
-        rate_control=VbrMode(mode=5),
+        rate_control=LibfdkVbrMode(mode=5),
         audio_filter="aformat=channel_layouts=5.1",
     )
 
@@ -402,7 +402,7 @@ def test_build_encode_audio_for_uses_highest_vbr_mode_with_libfdk_aac(
     conversion_method = _build_encode_audio_for(stream, libfdk_aac_available=True)
 
     # Assert
-    assert conversion_method.rate_control == VbrMode(mode=5)
+    assert conversion_method.rate_control == LibfdkVbrMode(mode=5)
 
 
 @pytest.mark.unit
@@ -445,7 +445,7 @@ def test_build_encode_audio_for_uses_libfdk_aac_when_available(
     conversion_method = _build_encode_audio_for(stream, libfdk_aac_available=True)
 
     # Assert
-    assert conversion_method.codec == "libfdk_aac"
+    assert isinstance(conversion_method, EncodeAudioWithLibfdkAac)
 
 
 @pytest.mark.unit
@@ -461,7 +461,7 @@ def test_build_encode_audio_for_warns_when_libfdk_aac_unavailable(
     conversion_method = _build_encode_audio_for(stream, libfdk_aac_available=False)
 
     # Assert
-    assert conversion_method.codec == "aac"
+    assert isinstance(conversion_method, EncodeAudioWithNativeAac)
     mock_logger_warning.assert_called_once_with(
         "libfdk_aac is not available. Falling back to the default AAC encoder."
     )
@@ -477,7 +477,7 @@ def test_build_encode_audio_for_leaves_unknown_settings_unset(tmp_path: Path) ->
     conversion_method = _build_encode_audio_for(stream, libfdk_aac_available=False)
 
     # Assert
-    assert conversion_method == EncodeAudio(codec="aac")
+    assert conversion_method == EncodeAudioWithNativeAac()
 
 
 @pytest.mark.unit
@@ -569,7 +569,7 @@ def test_file_conversion_plan_for_audio_encoding_validation_success(
             source_stream=VideoStream(file=encoded_file, index=0),
         ),
         StreamConversionPlan(
-            conversion_method=EncodeAudio(codec="aac"),
+            conversion_method=EncodeAudioWithNativeAac(),
             source_stream=AudioStream(file=original_file, index=1),
         ),
     ]
@@ -630,7 +630,7 @@ def test_file_conversion_plan_for_audio_encoding_value_validation_failures(
             source_stream=AudioStream(file=encoded_file, index=1),
         ),
         StreamConversionPlan(
-            conversion_method=EncodeAudio(codec="aac"),
+            conversion_method=EncodeAudioWithNativeAac(),
             source_stream=AudioStream(file=original_file, index=2),
         ),
     ]
@@ -665,7 +665,7 @@ def test_file_conversion_plan_for_audio_encoding_value_validation_failures(
     elif modifier == "encoded_from_multiple":
         plans.append(
             StreamConversionPlan(
-                conversion_method=EncodeAudio(codec="aac"),
+                conversion_method=EncodeAudioWithNativeAac(),
                 source_stream=AudioStream(file=another_original, index=3),
             )
         )
