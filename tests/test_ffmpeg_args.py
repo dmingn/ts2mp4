@@ -83,6 +83,8 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
         "default",
         "-disposition:1",
         "0",
+        "-movflags",
+        "+faststart",
         "-f",
         "mp4",
         str(output_path),

@@ -132,5 +132,5 @@ def build_ffmpeg_args(
             )
         ]
         + _disposition_args(file_conversion_plan)
-        + ["-f", "mp4", str(output_path)]
+        + ["-movflags", "+faststart", "-f", "mp4", str(output_path)]
     )
