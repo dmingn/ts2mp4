@@ -10,7 +10,7 @@ from pytest_mock import MockerFixture
 from tests.helpers import FakeFFmpegRunner
 from ts2mp4.conversion_plan import (
     Copy,
-    EncodeAudio,
+    EncodeAudioWithNativeAac,
     EncodeVideo,
     FileConversionPlan,
     StreamConversionPlan,
@@ -272,7 +272,7 @@ def test_check_integrity_skips_non_copied_streams(
     file_conversion_plan = list(mock_converted_video_file.file_conversion_plan)
     file_conversion_plan[1] = StreamConversionPlan(
         source_stream=file_conversion_plan[1].source_stream,
-        conversion_method=EncodeAudio(codec="aac"),
+        conversion_method=EncodeAudioWithNativeAac(),
     )
     mock_converted_video_file.file_conversion_plan = FileConversionPlan(
         root=tuple(file_conversion_plan)

@@ -8,9 +8,14 @@ from pydantic import model_validator
 from .audio_channels import SURROUND_5_1_CHANNELS, SURROUND_5_1_LAYOUT
 from .conversion_plan import (
     AudioConversionMethod,
+    AudioEncodingMethod,
+    BitRate,
     Copy,
     EncodeAudio,
+    EncodeAudioWithLibfdkAac,
+    EncodeAudioWithNativeAac,
     FileConversionPlan,
+    LibfdkVbrMode,
     StreamConversionPlan,
 )
 from .stream_integrity import IntegrityReport
@@ -82,7 +87,7 @@ def build_file_conversion_plan_for_audio_encoding(
     Audio streams in ``fixed_surround_source_indices`` are encoded from
     ``original_file`` as fixed 5.1ch. Audio streams reported as mismatched in
     ``integrity_report`` are encoded from ``original_file`` with their
-    original settings.
+    original channel count.
 
     Args:
     ----
@@ -179,54 +184,90 @@ _FFMPEG_AAC_PROFILES = {"LC": "aac_low"}
 
 _FIXED_SURROUND_AUDIO_FILTER = f"aformat=channel_layouts={SURROUND_5_1_LAYOUT}"
 
+# Re-encoding an already lossy stream at its own bit rate compounds the loss,
+# so libfdk_aac uses its highest quality VBR mode instead.
+_LIBFDK_AAC_HIGHEST_VBR_MODE = 5
+
 
 def _build_fixed_surround_encode_audio_for(
     stream: AudioStream, libfdk_aac_available: bool
-) -> EncodeAudio:
+) -> AudioEncodingMethod:
     """Return an EncodeAudio that re-encodes ``stream`` as fixed 5.1ch.
 
-    Settings other than the channel layout are the same as
-    ``_build_encode_audio_for``. Stereo frames are upmixed into the front
-    left and right channels, leaving the other channels silent.
+    Stereo frames are upmixed into the front left and right channels, leaving
+    the other channels silent.
     """
-    return _build_encode_audio_for(stream, libfdk_aac_available).model_copy(
-        update={
-            "channels": SURROUND_5_1_CHANNELS,
-            "audio_filter": _FIXED_SURROUND_AUDIO_FILTER,
-        }
+    return _build_encode_audio(
+        stream,
+        libfdk_aac_available,
+        channels=SURROUND_5_1_CHANNELS,
+        audio_filter=_FIXED_SURROUND_AUDIO_FILTER,
     )
 
 
 def _build_encode_audio_for(
     stream: AudioStream, libfdk_aac_available: bool
-) -> EncodeAudio:
-    """Return an EncodeAudio that re-encodes ``stream`` with its own settings.
+) -> AudioEncodingMethod:
+    """Return an EncodeAudio that re-encodes ``stream`` with its own channel count."""
+    return _build_encode_audio(
+        stream, libfdk_aac_available, channels=stream.channels, audio_filter=None
+    )
 
-    The sample rate, channel count, profile and bit rate are taken from
-    ``stream``. The encoder is libfdk_aac if ``libfdk_aac_available``,
-    otherwise aac.
+
+def _build_encode_audio(
+    stream: AudioStream,
+    libfdk_aac_available: bool,
+    channels: int | None,
+    audio_filter: str | None,
+) -> AudioEncodingMethod:
+    """Return an EncodeAudio that re-encodes ``stream`` into ``channels`` channels.
+
+    The sample rate and profile are taken from ``stream``. With libfdk_aac the
+    quality is set by its highest VBR mode. Otherwise the aac encoder is used
+    with the bit rate of ``stream`` scaled to ``channels``.
     """
     if stream.codec_name != "aac":
         raise NotImplementedError(
             "Encoding is currently only supported for aac audio codec."
         )
 
-    if libfdk_aac_available:
-        codec = "libfdk_aac"
-    else:
-        logger.warning(
-            "libfdk_aac is not available. Falling back to the default AAC encoder."
-        )
-        codec = "aac"
-
-    return EncodeAudio(
-        codec=codec,
-        sample_rate=stream.sample_rate,
-        channels=stream.channels,
-        profile=(
-            _FFMPEG_AAC_PROFILES.get(stream.profile, stream.profile)
-            if stream.profile is not None
-            else None
-        ),
-        bit_rate=stream.bit_rate,
+    profile = (
+        _FFMPEG_AAC_PROFILES.get(stream.profile, stream.profile)
+        if stream.profile is not None
+        else None
     )
+
+    if libfdk_aac_available:
+        return EncodeAudioWithLibfdkAac(
+            sample_rate=stream.sample_rate,
+            channels=channels,
+            profile=profile,
+            rate_control=LibfdkVbrMode(mode=_LIBFDK_AAC_HIGHEST_VBR_MODE),
+            audio_filter=audio_filter,
+        )
+
+    logger.warning(
+        "libfdk_aac is not available. Falling back to the default AAC encoder."
+    )
+    return EncodeAudioWithNativeAac(
+        sample_rate=stream.sample_rate,
+        channels=channels,
+        profile=profile,
+        rate_control=_scaled_bit_rate(stream, channels),
+        audio_filter=audio_filter,
+    )
+
+
+def _scaled_bit_rate(stream: AudioStream, channels: int | None) -> BitRate | None:
+    """Return the bit rate of ``stream`` scaled to ``channels`` channels.
+
+    The bit rate is kept as is when either channel count is unknown, and None
+    is returned when the bit rate of ``stream`` is unknown.
+    """
+    if stream.bit_rate is None:
+        return None
+
+    if not stream.channels or channels is None:
+        return BitRate(bit_rate=stream.bit_rate)
+
+    return BitRate(bit_rate=stream.bit_rate * channels // stream.channels)

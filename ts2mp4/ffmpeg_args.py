@@ -4,11 +4,15 @@ from pathlib import Path
 from typing import assert_never
 
 from .conversion_plan import (
+    AudioEncodingMethod,
+    BitRate,
     ConversionMethod,
     Copy,
-    EncodeAudio,
+    EncodeAudioWithLibfdkAac,
+    EncodeAudioWithNativeAac,
     EncodeVideo,
     FileConversionPlan,
+    LibfdkVbrMode,
 )
 from .ffmpeg_input_args import build_input_args
 
@@ -39,7 +43,24 @@ def _encode_video_args(conversion_method: EncodeVideo, output_index: int) -> lis
     )
 
 
-def _encode_audio_args(conversion_method: EncodeAudio, output_index: int) -> list[str]:
+def _rate_control_options(
+    rate_control: BitRate | LibfdkVbrMode | None,
+) -> list[tuple[str, str | int | None]]:
+    """Build the options that set ``rate_control``."""
+    match rate_control:
+        case None:
+            return []
+        case BitRate():
+            return [("b", rate_control.bit_rate)]
+        case LibfdkVbrMode():
+            return [("vbr", rate_control.mode)]
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+def _encode_audio_args(
+    conversion_method: AudioEncodingMethod, output_index: int
+) -> list[str]:
     """Build the codec arguments for an output stream encoded with ``conversion_method``."""
     return _stream_options_args(
         [
@@ -47,7 +68,7 @@ def _encode_audio_args(conversion_method: EncodeAudio, output_index: int) -> lis
             ("ar", conversion_method.sample_rate),
             ("ac", conversion_method.channels),
             ("profile", conversion_method.profile),
-            ("b", conversion_method.bit_rate),
+            *_rate_control_options(conversion_method.rate_control),
             ("filter", conversion_method.audio_filter),
         ],
         output_index,
@@ -61,7 +82,7 @@ def _codec_args(conversion_method: ConversionMethod, output_index: int) -> list[
             return [f"-codec:{output_index}", "copy"]
         case EncodeVideo():
             return _encode_video_args(conversion_method, output_index)
-        case EncodeAudio():
+        case EncodeAudioWithLibfdkAac() | EncodeAudioWithNativeAac():
             return _encode_audio_args(conversion_method, output_index)
         case _ as unreachable:
             assert_never(unreachable)
