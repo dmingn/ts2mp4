@@ -10,6 +10,7 @@ from logzero import logger
 from .conversion_plan import EncodeAudio, FileConversionPlan
 from .converted_video_file import ConvertedVideoFile
 from .ffmpeg import FFmpegProcessError, FFmpegRunner
+from .ffmpeg_input_args import build_input_args
 
 
 class AudioQualityMetrics(NamedTuple):
@@ -123,10 +124,8 @@ async def get_audio_quality_metrics(
         command = [
             "-hide_banner",
             "-nostats",
-            "-i",
-            str(original_file),
-            "-i",
-            str(re_encoded_file),
+            *build_input_args(original_file),
+            *build_input_args(re_encoded_file),
             "-filter_complex",
             build_quality_filter_complex(
                 f"[0:{original_stream_index}]",

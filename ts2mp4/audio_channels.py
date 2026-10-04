@@ -3,6 +3,7 @@
 from functools import cache
 
 from .ffmpeg import execute_ffprobe
+from .ffmpeg_input_args import build_input_args
 from .video_file import AudioStream, VideoFile
 
 STEREO_CHANNELS = 2
@@ -34,7 +35,7 @@ def _get_frame_channel_counts_cached(
             "frame=channels",
             "-of",
             "csv=p=0",
-            str(stream.file.path),
+            *build_input_args(stream.file.path),
         ]
     )
 

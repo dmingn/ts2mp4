@@ -10,6 +10,7 @@ from .conversion_plan import (
     EncodeVideo,
     FileConversionPlan,
 )
+from .ffmpeg_input_args import build_input_args
 
 
 def _stream_options_args(
@@ -98,7 +99,7 @@ def build_ffmpeg_args(
         + [
             arg
             for plan in file_conversion_plan
-            for arg in ("-i", str(plan.source_stream.file.path))
+            for arg in build_input_args(plan.source_stream.file.path)
         ]
         + [
             arg

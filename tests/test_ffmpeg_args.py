@@ -18,6 +18,7 @@ from ts2mp4.ffmpeg_args import (
     _encode_video_args,
     build_ffmpeg_args,
 )
+from ts2mp4.ffmpeg_input_args import build_input_args
 from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
 
@@ -65,10 +66,8 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
         "-hide_banner",
         "-nostats",
         "-y",
-        "-i",
-        str(encoded_path),
-        "-i",
-        str(original_path),
+        *build_input_args(encoded_path),
+        *build_input_args(original_path),
         "-map",
         "0:0",
         "-codec:0",
