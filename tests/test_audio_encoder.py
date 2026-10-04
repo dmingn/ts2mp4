@@ -15,10 +15,12 @@ from ts2mp4.audio_encoder import (
     build_file_conversion_plan_for_audio_encoding,
 )
 from ts2mp4.conversion_plan import (
+    BitRate,
     Copy,
     EncodeAudio,
     EncodeVideo,
     StreamConversionPlan,
+    VbrMode,
 )
 from ts2mp4.converted_video_file import StreamWithConversionPlan
 from ts2mp4.ffmpeg import SubprocessFFmpegRunner
@@ -332,7 +334,7 @@ def test_build_encode_audio_for_takes_settings_from_stream(tmp_path: Path) -> No
         codec="aac",
         sample_rate=48000,
         channels=2,
-        bit_rate=192000,
+        rate_control=BitRate(bit_rate=192000),
     )
 
 
@@ -362,9 +364,60 @@ def test_build_fixed_surround_encode_audio_for_keeps_other_settings_from_stream(
         sample_rate=48000,
         channels=6,
         profile="aac_low",
-        bit_rate=256000,
+        rate_control=VbrMode(mode=5),
         audio_filter="aformat=channel_layouts=5.1",
     )
+
+
+@pytest.mark.unit
+def test_build_fixed_surround_encode_audio_for_scales_bit_rate_without_libfdk_aac(
+    tmp_path: Path,
+) -> None:
+    """Without libfdk_aac, the stereo bit rate is scaled up to 5.1ch."""
+    # Arrange
+    stream = _probed_audio_stream(
+        tmp_path, codec_name="aac", channels=2, bit_rate=256000
+    )
+
+    # Act
+    conversion_method = _build_fixed_surround_encode_audio_for(
+        stream, libfdk_aac_available=False
+    )
+
+    # Assert
+    assert conversion_method.rate_control == BitRate(bit_rate=768000)
+
+
+@pytest.mark.unit
+def test_build_encode_audio_for_uses_highest_vbr_mode_with_libfdk_aac(
+    tmp_path: Path,
+) -> None:
+    """With libfdk_aac, the quality is set by VBR mode 5 instead of the bit rate."""
+    # Arrange
+    stream = _probed_audio_stream(
+        tmp_path, codec_name="aac", channels=2, bit_rate=192000
+    )
+
+    # Act
+    conversion_method = _build_encode_audio_for(stream, libfdk_aac_available=True)
+
+    # Assert
+    assert conversion_method.rate_control == VbrMode(mode=5)
+
+
+@pytest.mark.unit
+def test_build_encode_audio_for_keeps_bit_rate_when_channels_are_unknown(
+    tmp_path: Path,
+) -> None:
+    """Without libfdk_aac, the bit rate is kept as is if the channel count is unknown."""
+    # Arrange
+    stream = _probed_audio_stream(tmp_path, codec_name="aac", bit_rate=192000)
+
+    # Act
+    conversion_method = _build_encode_audio_for(stream, libfdk_aac_available=False)
+
+    # Assert
+    assert conversion_method.rate_control == BitRate(bit_rate=192000)
 
 
 @pytest.mark.unit

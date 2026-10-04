@@ -6,11 +6,13 @@ import pytest
 from pytest_mock import MockerFixture
 
 from ts2mp4.conversion_plan import (
+    BitRate,
     Copy,
     EncodeAudio,
     EncodeVideo,
     FileConversionPlan,
     StreamConversionPlan,
+    VbrMode,
 )
 from ts2mp4.ffmpeg_args import (
     _disposition_args,
@@ -187,7 +189,7 @@ def test_encode_audio_args_includes_all_set_options() -> None:
         sample_rate=48000,
         channels=2,
         profile="aac_low",
-        bit_rate=192000,
+        rate_control=BitRate(bit_rate=192000),
         audio_filter="aformat=channel_layouts=5.1",
     )
 
@@ -209,6 +211,19 @@ def test_encode_audio_args_includes_all_set_options() -> None:
         "-filter:1",
         "aformat=channel_layouts=5.1",
     ]
+
+
+@pytest.mark.unit
+def test_encode_audio_args_sets_vbr_mode() -> None:
+    """_encode_audio_args emits -vbr for a VbrMode rate control."""
+    # Arrange
+    conversion_method = EncodeAudio(codec="libfdk_aac", rate_control=VbrMode(mode=5))
+
+    # Act
+    args = _encode_audio_args(conversion_method, 1)
+
+    # Assert
+    assert args == ["-codec:1", "libfdk_aac", "-vbr:1", "5"]
 
 
 @pytest.mark.unit
