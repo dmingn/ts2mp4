@@ -6,6 +6,7 @@ from functools import cache
 from typing import assert_never
 
 from .ffmpeg import FFmpegRunner
+from .ffmpeg_input_args import build_input_args
 from .video_file import AudioStream, VideoStream
 
 
@@ -23,8 +24,7 @@ async def _get_stream_md5_async(
     ffmpeg_args = [
         "-hide_banner",
         "-nostats",
-        "-i",
-        str(stream.file.path.resolve(strict=True)),
+        *build_input_args(stream.file.path.resolve(strict=True)),
         "-map",
         f"0:{stream.index}",
         "-f",

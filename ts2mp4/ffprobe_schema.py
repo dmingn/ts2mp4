@@ -8,6 +8,7 @@ from typing import Optional
 from pydantic import BaseModel, ConfigDict, Field
 
 from .ffmpeg import execute_ffprobe
+from .ffmpeg_input_args import build_input_args
 
 
 class FFprobeStream(BaseModel):
@@ -55,7 +56,7 @@ def _probe_file_cached(file_path: Path, _mtime: float, _size: int) -> FFprobeOut
         "-show_streams",
         "-of",
         "json",
-        str(file_path),
+        *build_input_args(file_path),
     ]
     result = execute_ffprobe(ffprobe_args)
     data = json.loads(result.stdout.decode("utf-8"))
