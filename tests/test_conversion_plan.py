@@ -30,7 +30,7 @@ def file_conversion_plan(tmp_path: Path) -> FileConversionPlan:
         root=(
             StreamConversionPlan(
                 source_stream=VideoStream(file=file_a, index=0),
-                conversion_method=EncodeVideo(codec="libx265", crf=23, preset="medium"),
+                conversion_method=EncodeVideo(codec="libsvtav1", crf=32, preset=5),
             ),
             StreamConversionPlan(
                 source_stream=AudioStream(file=file_a, index=1),
