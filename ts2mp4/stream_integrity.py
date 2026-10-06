@@ -1,5 +1,7 @@
 """A module for verifying stream integrity."""
 
+from typing import TypeVar
+
 from logzero import logger
 from pydantic import BaseModel, ConfigDict
 
@@ -7,7 +9,9 @@ from .conversion_plan import Copy, FileConversionPlan
 from .converted_video_file import ConvertedVideoFile, StreamWithConversionPlan
 from .ffmpeg import FFmpegRunner
 from .hashing import get_stream_md5
-from .video_file import AudioStream, Stream, VideoStream
+from .video_file import AudioStream, OtherStream, Stream, VideoStream
+
+DecodableStreamT = TypeVar("DecodableStreamT", VideoStream, AudioStream)
 
 
 class IntegrityReport(BaseModel):
@@ -24,8 +28,8 @@ class IntegrityReport(BaseModel):
 
 
 def compare_stream_hashes(
-    stream_a: VideoStream | AudioStream,
-    stream_b: VideoStream | AudioStream,
+    stream_a: DecodableStreamT,
+    stream_b: DecodableStreamT,
     ffmpeg_runner: FFmpegRunner,
 ) -> bool:
     """Check the integrity of two streams by comparing MD5 hashes.
@@ -63,6 +67,39 @@ def compare_stream_hashes(
     return True
 
 
+def _audio_parameters(
+    stream: AudioStream,
+) -> tuple[str | None, str | None, int | None, int | None]:
+    """Return the codec parameters of ``stream`` that a player decodes with."""
+    return (stream.codec_name, stream.profile, stream.sample_rate, stream.channels)
+
+
+def compare_audio_parameters(stream_a: AudioStream, stream_b: AudioStream) -> bool:
+    """Check that two audio streams declare the same codec parameters.
+
+    FFmpeg decodes an AAC stream copied into MP4 with its ADTS headers left in
+    place, so the MD5 hashes still match, but other players cannot decode it
+    because its decoder configuration is missing or wrong. This shows up as a
+    different profile, sample rate or channel count.
+
+    Returns
+    -------
+        True if the codec parameters match, False otherwise.
+    """
+    parameters_a = _audio_parameters(stream_a)
+    parameters_b = _audio_parameters(stream_b)
+
+    if parameters_a != parameters_b:
+        logger.warning(
+            f"Mismatch in audio parameters of stream at index {stream_a.index}: "
+            "(codec, profile, sample rate, channels) "
+            f"A: {parameters_a}, B: {parameters_b}"
+        )
+        return False
+
+    return True
+
+
 def _stream_matches_source(
     stream_with_conversion_plan: StreamWithConversionPlan[Stream],
     ffmpeg_runner: FFmpegRunner,
@@ -71,14 +108,22 @@ def _stream_matches_source(
     stream = stream_with_conversion_plan.stream
     source_stream = stream_with_conversion_plan.conversion_plan.source_stream
 
-    if not isinstance(stream, (AudioStream, VideoStream)) or not isinstance(
-        source_stream, (AudioStream, VideoStream)
-    ):
-        raise NotImplementedError(
-            "Stream integrity check for non-audio/video streams is not implemented."
-        )
-
-    return compare_stream_hashes(source_stream, stream, ffmpeg_runner)
+    match (source_stream, stream):
+        case (AudioStream(), AudioStream()):
+            return compare_audio_parameters(
+                source_stream, stream
+            ) and compare_stream_hashes(source_stream, stream, ffmpeg_runner)
+        case (VideoStream(), VideoStream()):
+            return compare_stream_hashes(source_stream, stream, ffmpeg_runner)
+        case (OtherStream(), _) | (_, OtherStream()):
+            raise NotImplementedError(
+                "Stream integrity check for non-audio/video streams is not implemented."
+            )
+        case _:
+            raise ValueError(
+                f"Stream type mismatch for stream index {stream.index} "
+                f"in {stream.file.path.name}."
+            )
 
 
 def check_integrity(
