@@ -7,7 +7,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from tests.helpers import FakeFFmpegRunner
+from tests.helpers import FakeFFmpegRunner, StubVideoFile
 from ts2mp4.conversion_plan import (
     Copy,
     EncodeAudioWithNativeAac,
@@ -17,9 +17,11 @@ from ts2mp4.conversion_plan import (
 )
 from ts2mp4.converted_video_file import ConvertedVideoFile, StreamWithConversionPlan
 from ts2mp4.ffmpeg import FFmpegProcessError
+from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.stream_integrity import (
     IntegrityReport,
     check_integrity,
+    compare_audio_parameters,
     compare_stream_hashes,
 )
 from ts2mp4.video_file import AudioStream, OtherStream, VideoFile, VideoStream
@@ -119,6 +121,78 @@ def test_compare_stream_hashes_returns_false_when_hashing_fails(
     assert result is False
 
 
+_LC_STEREO_AAC = FFprobeStream(
+    index=1,
+    codec_type="audio",
+    codec_name="aac",
+    profile="LC",
+    sample_rate=48000,
+    channels=2,
+)
+
+
+def _stub_audio_stream(path: Path, probe_stream: FFprobeStream) -> AudioStream:
+    """Return the AudioStream of a file at ``path`` that probes as ``probe_stream``."""
+    path.touch()
+    return AudioStream(
+        file=StubVideoFile(
+            path=path, stub_probe=FFprobeOutput(streams=(probe_stream,))
+        ),
+        index=probe_stream.index,
+    )
+
+
+@pytest.mark.unit
+def test_compare_audio_parameters_returns_true_when_parameters_match(
+    tmp_path: Path,
+) -> None:
+    """compare_audio_parameters returns True when the codec parameters match."""
+    # Arrange
+    stream_a = _stub_audio_stream(tmp_path / "a.ts", _LC_STEREO_AAC)
+    stream_b = _stub_audio_stream(tmp_path / "b.mp4", _LC_STEREO_AAC)
+
+    # Act
+    result = compare_audio_parameters(stream_a, stream_b)
+
+    # Assert
+    assert result is True
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "probe_stream_b",
+    [
+        pytest.param(
+            _LC_STEREO_AAC.model_copy(update={"profile": "-1"}),
+            id="missing_decoder_configuration",
+        ),
+        pytest.param(
+            _LC_STEREO_AAC.model_copy(
+                update={"profile": "LTP", "sample_rate": 64000, "channels": 4}
+            ),
+            id="wrong_decoder_configuration",
+        ),
+        pytest.param(
+            _LC_STEREO_AAC.model_copy(update={"codec_name": "mp3"}),
+            id="different_codec",
+        ),
+    ],
+)
+def test_compare_audio_parameters_returns_false_when_parameters_differ(
+    tmp_path: Path, probe_stream_b: FFprobeStream
+) -> None:
+    """compare_audio_parameters returns False when any codec parameter differs."""
+    # Arrange
+    stream_a = _stub_audio_stream(tmp_path / "a.ts", _LC_STEREO_AAC)
+    stream_b = _stub_audio_stream(tmp_path / "b.mp4", probe_stream_b)
+
+    # Act
+    result = compare_audio_parameters(stream_a, stream_b)
+
+    # Assert
+    assert result is False
+
+
 @pytest.fixture
 def mock_converted_video_file(
     mocker: MockerFixture,
@@ -198,6 +272,7 @@ def test_check_integrity_reports_no_mismatch_when_hashes_match(
 ) -> None:
     """check_integrity reports no mismatch when copied stream hashes match."""
     # Arrange
+    mocker.patch("ts2mp4.stream_integrity.compare_audio_parameters", return_value=True)
     mocker.patch("ts2mp4.stream_integrity.compare_stream_hashes", return_value=True)
 
     # Act
@@ -205,6 +280,27 @@ def test_check_integrity_reports_no_mismatch_when_hashes_match(
 
     # Assert
     assert report == IntegrityReport(mismatched_output_indices=frozenset())
+
+
+@pytest.mark.unit
+def test_check_integrity_reports_mismatch_when_audio_parameters_differ(
+    mocker: MockerFixture,
+    mock_converted_video_file: MagicMock,
+) -> None:
+    """check_integrity reports a copied audio stream whose parameters differ.
+
+    The MD5 hashes match, as they do for an AAC stream copied with its ADTS
+    headers left in place.
+    """
+    # Arrange
+    mocker.patch("ts2mp4.stream_integrity.compare_audio_parameters", return_value=False)
+    mocker.patch("ts2mp4.stream_integrity.compare_stream_hashes", return_value=True)
+
+    # Act
+    report = check_integrity(mock_converted_video_file, _FFMPEG_RUNNER)
+
+    # Assert
+    assert report == IntegrityReport(mismatched_output_indices=frozenset({1}))
 
 
 @pytest.mark.unit
@@ -244,6 +340,7 @@ def test_check_integrity_reports_only_mismatched_output_indices(
             ),
         ]
     )
+    mocker.patch("ts2mp4.stream_integrity.compare_audio_parameters", return_value=True)
     mocker.patch(
         "ts2mp4.stream_integrity.compare_stream_hashes",
         side_effect=lambda source_stream, _stream, _ffmpeg_runner: (
@@ -256,6 +353,67 @@ def test_check_integrity_reports_only_mismatched_output_indices(
 
     # Assert
     assert report == IntegrityReport(mismatched_output_indices=frozenset({2}))
+
+
+@pytest.mark.unit
+def test_check_integrity_compares_only_hashes_of_copied_video_streams(
+    mocker: MockerFixture,
+    input_video_file: VideoFile,
+    output_video_file: VideoFile,
+) -> None:
+    """check_integrity compares copied video streams by hash, not audio parameters."""
+    # Arrange
+    mock_converted_file = cast(MagicMock, mocker.MagicMock(spec=ConvertedVideoFile))
+    mock_converted_file.path = output_video_file.path
+    type(mock_converted_file).streams_with_conversion_plans = mocker.PropertyMock(
+        return_value=[
+            StreamWithConversionPlan(
+                stream=VideoStream(file=output_video_file, index=0),
+                conversion_plan=StreamConversionPlan(
+                    source_stream=VideoStream(file=input_video_file, index=0),
+                    conversion_method=Copy(),
+                ),
+            ),
+        ]
+    )
+    mock_compare_audio_parameters = mocker.patch(
+        "ts2mp4.stream_integrity.compare_audio_parameters"
+    )
+    mocker.patch("ts2mp4.stream_integrity.compare_stream_hashes", return_value=False)
+
+    # Act
+    report = check_integrity(mock_converted_file, _FFMPEG_RUNNER)
+
+    # Assert
+    assert report == IntegrityReport(mismatched_output_indices=frozenset({0}))
+    mock_compare_audio_parameters.assert_not_called()
+
+
+@pytest.mark.unit
+def test_check_integrity_raises_for_stream_type_mismatch(
+    mocker: MockerFixture,
+    input_video_file: VideoFile,
+    output_video_file: VideoFile,
+) -> None:
+    """check_integrity raises ValueError when a copied stream changes its kind."""
+    # Arrange
+    mock_converted_file = cast(MagicMock, mocker.MagicMock(spec=ConvertedVideoFile))
+    mock_converted_file.path = output_video_file.path
+    type(mock_converted_file).streams_with_conversion_plans = mocker.PropertyMock(
+        return_value=[
+            StreamWithConversionPlan(
+                stream=VideoStream(file=output_video_file, index=0),
+                conversion_plan=StreamConversionPlan(
+                    source_stream=AudioStream(file=input_video_file, index=0),
+                    conversion_method=Copy(),
+                ),
+            ),
+        ]
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Stream type mismatch"):
+        check_integrity(mock_converted_file, _FFMPEG_RUNNER)
 
 
 @pytest.mark.unit

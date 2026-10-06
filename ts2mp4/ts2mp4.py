@@ -59,7 +59,8 @@ def ts2mp4(
     video_encoded_integrity_report = check_integrity(video_encoded_file, ffmpeg_runner)
     if video_encoded_integrity_report.is_ok:
         logger.info(
-            "Copied stream integrity verified successfully. All MD5 hashes match."
+            "Copied stream integrity verified successfully. "
+            "All audio parameters and MD5 hashes match."
         )
     else:
         logger.warning(
@@ -92,7 +93,10 @@ def ts2mp4(
             f"streams at indices {sorted(audio_encoded_integrity_report.mismatched_output_indices)} "
             f"in {audio_encoded_file.path.name}"
         )
-    logger.info("Copied stream integrity verified successfully. All MD5 hashes match.")
+    logger.info(
+        "Copied stream integrity verified successfully. "
+        "All audio parameters and MD5 hashes match."
+    )
 
     quality_metrics = check_audio_quality(audio_encoded_file, ffmpeg_runner)
     for stream_index, metrics in quality_metrics.items():
