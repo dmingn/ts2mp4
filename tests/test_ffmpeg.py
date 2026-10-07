@@ -17,6 +17,7 @@ from ts2mp4.ffmpeg import (
     _parse_out_seconds,
     _run_command,
     _stream_out_seconds,
+    _stream_stderr_piped,
     _stream_stdout,
     execute_ffprobe,
     is_libfdk_aac_available,
@@ -340,6 +341,66 @@ async def test_stream_out_seconds_failure(mocker: MockerFixture) -> None:
         match="ffmpeg failed with exit code 1. Check logs for details.",
     ):
         _ = [seconds async for seconds in _stream_out_seconds("ffmpeg", [])]
+
+
+_SILENT_NUT_SOURCE_ARGS = [
+    "-f",
+    "lavfi",
+    "-i",
+    "anullsrc=duration=1",
+    "-f",
+    "nut",
+    "pipe:1",
+]
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_stream_stderr_piped_feeds_source_stdout_to_stdin() -> None:
+    """_stream_stderr_piped feeds the source's stdout into the process's stdin."""
+    # Act
+    lines = [
+        line
+        async for line in _stream_stderr_piped(
+            "ffmpeg",
+            _SILENT_NUT_SOURCE_ARGS,
+            ["-f", "nut", "-i", "pipe:0", "-f", "null", "-"],
+        )
+    ]
+
+    # Assert
+    assert any("Input #0, nut, from 'pipe:0'" in line for line in lines)
+
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_stream_stderr_piped_raises_when_process_fails() -> None:
+    """_stream_stderr_piped raises FFmpegProcessError when the reading process fails."""
+    # Act & Assert
+    with pytest.raises(FFmpegProcessError):
+        _ = [
+            line
+            async for line in _stream_stderr_piped(
+                "ffmpeg", _SILENT_NUT_SOURCE_ARGS, ["-invalid_option"]
+            )
+        ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_stream_stderr_piped_raises_when_source_fails(
+    mocker: MockerFixture,
+) -> None:
+    """_stream_stderr_piped raises FFmpegProcessError when only the source fails."""
+    # Arrange
+    mocker.patch(
+        "asyncio.create_subprocess_exec",
+        side_effect=[MockAsyncProcess(returncode=1), MockAsyncProcess(returncode=0)],
+    )
+
+    # Act & Assert
+    with pytest.raises(FFmpegProcessError):
+        _ = [line async for line in _stream_stderr_piped("ffmpeg", [], [])]
 
 
 async def _aiter(lines: Iterable[str]) -> AsyncIterator[str]:

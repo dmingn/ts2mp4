@@ -2,9 +2,10 @@
 
 import asyncio
 import functools
+import os
 import subprocess
 from collections.abc import AsyncIterable, Hashable
-from contextlib import asynccontextmanager
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import AsyncGenerator, AsyncIterator, Literal, NamedTuple, Protocol
 
 from logzero import logger
@@ -63,7 +64,10 @@ def _run_command(
 
 @asynccontextmanager
 async def _spawn(
-    executable: Literal["ffmpeg", "ffprobe"], args: list[str], pipe_stdout: bool
+    executable: Literal["ffmpeg", "ffprobe"],
+    args: list[str],
+    stdin: int | None = None,
+    stdout: int = asyncio.subprocess.DEVNULL,
 ) -> AsyncIterator[tuple[asyncio.StreamReader | None, asyncio.StreamReader]]:
     """Start a process and check its return code after the caller finishes reading.
 
@@ -74,7 +78,9 @@ async def _spawn(
     ----
         executable: The FFmpeg or FFprobe executable.
         args: A list of arguments for the command.
-        pipe_stdout: Whether to pipe stdout. If False, stdout is discarded.
+        stdin: A file descriptor to read stdin from. If None, stdin is inherited.
+        stdout: ``asyncio.subprocess.PIPE``, ``asyncio.subprocess.DEVNULL``, or
+            a file descriptor to write stdout to.
 
     Yields
     ------
@@ -91,15 +97,14 @@ async def _spawn(
     try:
         process = await asyncio.create_subprocess_exec(
             *command,
-            stdout=asyncio.subprocess.PIPE
-            if pipe_stdout
-            else asyncio.subprocess.DEVNULL,
+            stdin=stdin,
+            stdout=stdout,
             stderr=asyncio.subprocess.PIPE,
         )
     except OSError as e:
         raise FFmpegProcessError(f"Failed to start {executable} process: {e}") from e
 
-    if pipe_stdout and process.stdout is None:
+    if stdout == asyncio.subprocess.PIPE and process.stdout is None:
         raise FFmpegProcessError("Failed to open stdout for the process.")
     if process.stderr is None:
         raise FFmpegProcessError("Failed to open stderr for the process.")
@@ -124,6 +129,13 @@ async def _decode_lines(stream: asyncio.StreamReader) -> AsyncIterator[str]:
     """Yield each line of ``stream`` decoded as UTF-8."""
     while line := await stream.readline():
         yield line.decode("utf-8", errors="replace")
+
+
+async def _log_and_decode_lines(stream: asyncio.StreamReader) -> AsyncIterator[str]:
+    """Yield each line of ``stream`` decoded as UTF-8, while also logging it."""
+    async for line in _decode_lines(stream):
+        logger.info(line.strip())
+        yield line
 
 
 async def _parse_out_seconds(lines: AsyncIterable[str]) -> AsyncIterator[float]:
@@ -160,7 +172,7 @@ async def _stream_stdout(
     ------
         FFmpegProcessError: If the process fails to start or if the pipes cannot be opened.
     """
-    async with _spawn(executable, args, pipe_stdout=True) as (
+    async with _spawn(executable, args, stdout=asyncio.subprocess.PIPE) as (
         stdout_stream,
         stderr_stream,
     ):
@@ -183,7 +195,9 @@ async def _stream_out_seconds(
     ``-progress pipe:1`` is appended to ``args`` so that progress reports are
     written to stdout, apart from stderr, which is logged internally.
     """
-    async with _spawn(executable, args + ["-progress", "pipe:1"], pipe_stdout=True) as (
+    async with _spawn(
+        executable, args + ["-progress", "pipe:1"], stdout=asyncio.subprocess.PIPE
+    ) as (
         stdout_stream,
         stderr_stream,
     ):
@@ -202,14 +216,42 @@ async def _stream_stderr(
     executable: Literal["ffmpeg", "ffprobe"], args: list[str]
 ) -> AsyncGenerator[str, None]:
     """Execute a process and yield its stderr line by line, while also logging it."""
-    async with _spawn(executable, args, pipe_stdout=False) as (
-        _,
-        stderr_stream,
-    ):
-        while line_bytes := await stderr_stream.readline():
-            line_str = line_bytes.decode("utf-8", errors="replace")
-            logger.info(line_str.strip())
-            yield line_str
+    async with _spawn(executable, args) as (_, stderr_stream):
+        async for line in _log_and_decode_lines(stderr_stream):
+            yield line
+
+
+async def _stream_stderr_piped(
+    executable: Literal["ffmpeg", "ffprobe"],
+    source_args: list[str],
+    args: list[str],
+) -> AsyncGenerator[str, None]:
+    """Execute a process that reads the stdout of a source process as its stdin.
+
+    The stderr of the process is yielded line by line and logged, and the stderr
+    of the source process is logged. The return codes of both are checked.
+    """
+    read_fd, write_fd = os.pipe()
+
+    async with AsyncExitStack() as stack:
+        try:
+            _, source_stderr_stream = await stack.enter_async_context(
+                _spawn(executable, source_args, stdout=write_fd)
+            )
+            _, stderr_stream = await stack.enter_async_context(
+                _spawn(executable, args, stdin=read_fd)
+            )
+        finally:
+            os.close(read_fd)
+            os.close(write_fd)
+
+        log_task = asyncio.create_task(_log_lines(source_stderr_stream))
+
+        try:
+            async for line in _log_and_decode_lines(stderr_stream):
+                yield line
+        finally:
+            await log_task
 
 
 class FFmpegRunner(Hashable, Protocol):
@@ -228,6 +270,15 @@ class FFmpegRunner(Hashable, Protocol):
 
     def stream_stderr(self, args: list[str]) -> AsyncIterator[str]:
         """Run ffmpeg and yield its stderr line by line."""
+        ...
+
+    def stream_stderr_piped(
+        self, source_args: list[str], args: list[str]
+    ) -> AsyncIterator[str]:
+        """Run ffmpeg reading the stdout of ffmpeg run with ``source_args``.
+
+        Yield the stderr of the ffmpeg run with ``args`` line by line.
+        """
         ...
 
     def stream_out_seconds(self, args: list[str]) -> AsyncIterator[float]:
@@ -250,6 +301,16 @@ class SubprocessFFmpegRunner:
     async def stream_stderr(self, args: list[str]) -> AsyncIterator[str]:
         """Run ffmpeg and yield its stderr line by line."""
         async for line in _stream_stderr("ffmpeg", args):
+            yield line
+
+    async def stream_stderr_piped(
+        self, source_args: list[str], args: list[str]
+    ) -> AsyncIterator[str]:
+        """Run ffmpeg reading the stdout of ffmpeg run with ``source_args``.
+
+        Yield the stderr of the ffmpeg run with ``args`` line by line.
+        """
+        async for line in _stream_stderr_piped("ffmpeg", source_args, args):
             yield line
 
     async def stream_out_seconds(self, args: list[str]) -> AsyncIterator[float]:

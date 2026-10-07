@@ -8,7 +8,7 @@ from .audio_channels import find_streams_requiring_fixed_surround
 from .audio_encoder import build_file_conversion_plan_for_audio_encoding
 from .conversion import execute_conversion
 from .ffmpeg import FFmpegRunner, is_libfdk_aac_available
-from .quality_check import check_audio_quality, format_audio_quality_segments
+from .quality_check import check_audio_quality
 from .stream_integrity import check_integrity
 from .video_encoder import build_file_conversion_plan_for_video_encoding
 from .video_file import VideoFile
@@ -98,15 +98,14 @@ def ts2mp4(
         "All audio parameters and MD5 hashes match."
     )
 
-    quality_metrics = check_audio_quality(audio_encoded_file, ffmpeg_runner)
-    for stream_index, metrics in quality_metrics.items():
-        for segment_number, description in enumerate(
-            format_audio_quality_segments(metrics), start=1
-        ):
-            logger.info(
-                f"Audio quality for stream {stream_index}, "
-                f"segment {segment_number}: {description}"
-            )
+    audio_quality_report = check_audio_quality(audio_encoded_file, ffmpeg_runner)
+    if not audio_quality_report.is_ok:
+        raise RuntimeError(
+            "Audio quality check failed for output streams at indices "
+            f"{sorted(audio_quality_report.degraded_output_indices)} "
+            f"in {audio_encoded_file.path.name}"
+        )
+
     temp_output_file.replace(output_path)
     logger.info(
         f"Successfully encoded audio for {output_path.name} and replaced original."
