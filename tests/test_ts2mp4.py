@@ -9,7 +9,7 @@ from pytest_mock import MockerFixture
 
 from tests.helpers import FakeFFmpegRunner
 from ts2mp4.audio_channels import UnsupportedChannelLayoutError
-from ts2mp4.quality_check import AudioQualityMetrics
+from ts2mp4.quality_check import AudioQualityReport
 from ts2mp4.stream_integrity import IntegrityReport
 from ts2mp4.ts2mp4 import ts2mp4
 from ts2mp4.video_file import VideoFile
@@ -299,7 +299,8 @@ def audio_fallback_mocks(mocker: MockerFixture) -> _AudioFallbackMocks:
             side_effect=[video_encoded_file, audio_encoded_file],
         ),
         check_audio_quality=mocker.patch(
-            "ts2mp4.ts2mp4.check_audio_quality", return_value={}
+            "ts2mp4.ts2mp4.check_audio_quality",
+            return_value=AudioQualityReport(asdr_by_output_index={}),
         ),
         replace=mocker.patch("pathlib.Path.replace"),
     )
@@ -470,34 +471,29 @@ def test_ts2mp4_checks_audio_quality_of_audio_encoded_file(
 
 
 @pytest.mark.unit
-def test_ts2mp4_logs_audio_quality_of_each_segment(
+def test_ts2mp4_raises_when_audio_quality_is_below_threshold(
     mock_video_file: VideoFile,
     audio_fallback_mocks: _AudioFallbackMocks,
     ffmpeg_runner: FakeFFmpegRunner,
-    mocker: MockerFixture,
 ) -> None:
-    """Log one audio quality line per segment of each re-encoded stream."""
+    """Raise RuntimeError naming the streams whose ASDR is below the threshold."""
     # Arrange
-    audio_fallback_mocks.check_audio_quality.return_value = {
-        1: AudioQualityMetrics(apsnr=((30.0,), (40.0, 41.0)), asdr=())
-    }
-    mock_logger_info = mocker.patch("ts2mp4.ts2mp4.logger.info")
-
-    # Act
-    ts2mp4(
-        mock_video_file,
-        Path("output.mp4"),
-        crf=23,
-        preset=5,
-        ffmpeg_runner=ffmpeg_runner,
+    audio_fallback_mocks.check_audio_quality.return_value = AudioQualityReport(
+        asdr_by_output_index={1: (30.0, 31.0), 2: (30.0, -3.0)}
     )
 
-    # Assert
-    logged_messages = [call.args[0] for call in mock_logger_info.call_args_list]
-    assert [m for m in logged_messages if m.startswith("Audio quality")] == [
-        "Audio quality for stream 1, segment 1: APSNR=[30.00]dB",
-        "Audio quality for stream 1, segment 2: APSNR=[40.00, 41.00]dB",
-    ]
+    # Act & Assert
+    with pytest.raises(
+        RuntimeError,
+        match=r"Audio quality check failed for output streams at indices \[2\]",
+    ):
+        ts2mp4(
+            mock_video_file,
+            Path("output.mp4"),
+            crf=23,
+            preset=5,
+            ffmpeg_runner=ffmpeg_runner,
+        )
 
 
 @pytest.mark.unit

@@ -1,98 +1,130 @@
 """A module for checking the quality of audio streams."""
 
 import asyncio
+import math
 import re
-from itertools import zip_longest
-from typing import AsyncIterable, NamedTuple
+from pathlib import Path
+from typing import AsyncIterable
 
 from logzero import logger
+from pydantic import BaseModel, ConfigDict
 
 from .conversion_plan import EncodeAudio, FileConversionPlan
 from .converted_video_file import ConvertedVideoFile
-from .ffmpeg import FFmpegProcessError, FFmpegRunner
+from .ffmpeg import FFmpegRunner
 from .ffmpeg_input_args import build_input_args
 
+# Re-encoding broadcast audio measured 22 dB or more, while misaligned, silent,
+# or heavily degraded audio measured below 15 dB.
+ASDR_THRESHOLD_DB = 15.0
 
-class AudioQualityMetrics(NamedTuple):
-    """Per-channel audio quality metrics of each segment.
-
-    FFmpeg reports the metrics each time the filtergraph is configured, and it
-    reconfigures the filtergraph when the input channel layout changes. Each
-    segment therefore covers a span with one channel layout.
-    """
-
-    apsnr: tuple[tuple[float, ...], ...]  # Average Peak Signal-to-Noise Ratio
-    asdr: tuple[tuple[float, ...], ...]  # Average Signal-to-Distortion Ratio
-
-
-_METRIC_LINE_PATTERN = re.compile(
-    r"\[Parsed_(?P<metric>apsnr|asdr)_\d+ @ [^\]]+\] (?:PSNR|SDR) "
-    r"ch(?P<channel>\d+): "
+_ASDR_LINE_PATTERN = re.compile(
+    r"\[Parsed_asdr_\d+ @ [^\]]+\] SDR ch(?P<channel>\d+): "
     r"(?P<value>[-+]?[0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?|-?inf|-?nan) dB"
 )
 
 
-async def parse_audio_quality_metrics(
-    output_lines: AsyncIterable[str],
-) -> AudioQualityMetrics:
-    """Parse the APSNR and ASDR of every segment and channel from FFmpeg output.
-
-    A ``ch0`` line starts a new segment of its metric.
-    """
-    segments: dict[str, list[list[float]]] = {"apsnr": [], "asdr": []}
+async def parse_asdr(output_lines: AsyncIterable[str]) -> tuple[float, ...]:
+    """Parse the Average Signal-to-Distortion Ratio of every channel from FFmpeg output."""
+    asdr_by_channel: dict[int, float] = {}
 
     async for line in output_lines:
-        match = _METRIC_LINE_PATTERN.search(line)
+        match = _ASDR_LINE_PATTERN.search(line)
         if match is None:
-            if "Parsed_apsnr" in line or "Parsed_asdr" in line:
-                logger.warning(f"Could not parse audio quality metric from: {line}")
+            if "Parsed_asdr" in line:
+                logger.warning(f"Could not parse ASDR from: {line}")
             continue
 
-        metric_segments = segments[match["metric"]]
-        if match["channel"] == "0" or not metric_segments:
-            metric_segments.append([])
-        metric_segments[-1].append(float(match["value"]))
+        asdr_by_channel[int(match["channel"])] = float(match["value"])
 
-    return AudioQualityMetrics(
-        apsnr=tuple(tuple(segment) for segment in segments["apsnr"]),
-        asdr=tuple(tuple(segment) for segment in segments["asdr"]),
-    )
+    return tuple(asdr_by_channel[channel] for channel in sorted(asdr_by_channel))
 
 
-def format_audio_quality_segments(metrics: AudioQualityMetrics) -> tuple[str, ...]:
-    """Return a description of each segment, such as ``APSNR=[30.00, 31.00]dB``."""
-    return tuple(
-        " ".join(
-            f"{name}=[{', '.join(f'{value:.2f}' for value in values)}]dB"
-            for name, values in (("APSNR", apsnr), ("ASDR", asdr))
-            if values
-        )
-        for apsnr, asdr in zip_longest(metrics.apsnr, metrics.asdr, fillvalue=())
-    )
+def _format_asdr(asdr: tuple[float, ...]) -> str:
+    """Return a description of ``asdr``, such as ``ASDR=[30.00, 31.00]dB``."""
+    return f"ASDR=[{', '.join(f'{value:.2f}' for value in asdr)}]dB"
 
 
-def build_quality_filter_complex(
-    original_input: str, re_encoded_input: str, audio_filter: str | None
-) -> str:
-    """Build the filtergraph that compares an original and a re-encoded stream.
+def _meets_asdr_threshold(asdr: tuple[float, ...]) -> bool:
+    """Return whether every channel's ASDR reaches ``ASDR_THRESHOLD_DB``.
 
-    ``audio_filter`` is applied to the original stream so that it has the same
-    channel layout as the re-encoded stream.
+    Channels silent in both streams have a NaN ASDR and are ignored. A stream
+    without any channel does not meet the threshold.
     """
-    return ";".join(
-        f"{original_input}{audio_filter}[original_{metric}];"
-        f"[original_{metric}]{re_encoded_input}{metric}"
-        if audio_filter is not None
-        else f"{original_input}{re_encoded_input}{metric}"
-        for metric in ("apsnr", "asdr")
+    return bool(asdr) and all(
+        value >= ASDR_THRESHOLD_DB for value in asdr if not math.isnan(value)
     )
 
 
-async def get_audio_quality_metrics(
+class AudioQualityReport(BaseModel):
+    """The result of comparing re-encoded output streams against their sources."""
+
+    asdr_by_output_index: dict[int, tuple[float, ...]]
+
+    model_config = ConfigDict(frozen=True)
+
+    @property
+    def degraded_output_indices(self) -> frozenset[int]:
+        """Return the indices of the output streams whose quality is too low."""
+        return frozenset(
+            output_index
+            for output_index, asdr in self.asdr_by_output_index.items()
+            if not _meets_asdr_threshold(asdr)
+        )
+
+    @property
+    def is_ok(self) -> bool:
+        """Return True if every re-encoded stream is close enough to its source."""
+        return not self.degraded_output_indices
+
+
+def build_reference_args(
+    original_file: Path, stream_index: int, audio_filter: str | None
+) -> list[str]:
+    """Build the arguments that write an original stream to stdout as PCM.
+
+    ``audio_filter`` is applied so that the stream has the same channel layout
+    as the re-encoded stream. Normalizing the layout here keeps it from changing
+    in the comparison, where a change would misalign the two streams.
+    """
+    return [
+        "-hide_banner",
+        "-nostats",
+        *build_input_args(original_file),
+        "-map",
+        f"0:{stream_index}",
+        *(["-af", audio_filter] if audio_filter is not None else []),
+        "-c:a",
+        "pcm_f32le",
+        "-f",
+        "nut",
+        "pipe:1",
+    ]
+
+
+def build_comparison_args(re_encoded_file: Path, stream_index: int) -> list[str]:
+    """Build the arguments that compare the PCM from stdin with a re-encoded stream."""
+    return [
+        "-hide_banner",
+        "-nostats",
+        "-f",
+        "nut",
+        "-i",
+        "pipe:0",
+        *build_input_args(re_encoded_file),
+        "-filter_complex",
+        f"[0:0][1:{stream_index}]asdr",
+        "-f",
+        "null",
+        "-",
+    ]
+
+
+async def get_asdr(
     converted_file: ConvertedVideoFile[FileConversionPlan],
     ffmpeg_runner: FFmpegRunner,
-) -> dict[int, AudioQualityMetrics]:
-    """Calculate audio quality metrics for all converted audio streams.
+) -> dict[int, tuple[float, ...]]:
+    """Calculate the per-channel ASDR of all re-encoded audio streams.
 
     Args:
     ----
@@ -101,59 +133,48 @@ async def get_audio_quality_metrics(
 
     Returns
     -------
-        A dictionary mapping the output audio stream index to its quality metrics.
+        A dictionary mapping the output audio stream index to its per-channel ASDR.
+
+    Raises
+    ------
+        FFmpegProcessError: If FFmpeg fails to compare a stream.
     """
-    quality_metrics: dict[int, AudioQualityMetrics] = {}
+    asdr_by_output_index: dict[int, tuple[float, ...]] = {}
 
     for stream_with_conversion_plan in converted_file.streams_with_conversion_plans:
-        conversion_method = (
-            stream_with_conversion_plan.conversion_plan.conversion_method
-        )
-        if not isinstance(conversion_method, EncodeAudio):
+        conversion_plan = stream_with_conversion_plan.conversion_plan
+        if not isinstance(conversion_plan.conversion_method, EncodeAudio):
             continue
 
-        original_file = (
-            stream_with_conversion_plan.conversion_plan.source_stream.file.path
-        )
-        re_encoded_file = converted_file.path
-        original_stream_index = (
-            stream_with_conversion_plan.conversion_plan.source_stream.index
-        )
         re_encoded_stream_index = stream_with_conversion_plan.stream.index
 
-        command = [
-            "-hide_banner",
-            "-nostats",
-            *build_input_args(original_file),
-            *build_input_args(re_encoded_file),
-            "-filter_complex",
-            build_quality_filter_complex(
-                f"[0:{original_stream_index}]",
-                f"[1:{re_encoded_stream_index}]",
-                conversion_method.audio_filter,
+        lines = ffmpeg_runner.stream_stderr_piped(
+            build_reference_args(
+                conversion_plan.source_stream.file.path,
+                conversion_plan.source_stream.index,
+                conversion_plan.conversion_method.audio_filter,
             ),
-            "-f",
-            "null",
-            "-",
-        ]
+            build_comparison_args(converted_file.path, re_encoded_stream_index),
+        )
+        asdr = await parse_asdr(lines)
+        logger.info(
+            f"Audio quality for stream {re_encoded_stream_index}: {_format_asdr(asdr)}"
+        )
+        asdr_by_output_index[re_encoded_stream_index] = asdr
 
-        try:
-            lines = ffmpeg_runner.stream_stderr(command)
-            metrics = await parse_audio_quality_metrics(lines)
-            if metrics.apsnr or metrics.asdr:
-                quality_metrics[re_encoded_stream_index] = metrics
-        except FFmpegProcessError as e:
-            logger.error(
-                f"Error calculating audio quality metrics for stream {re_encoded_stream_index}: {e}"
-            )
-            continue
-
-    return quality_metrics
+    return asdr_by_output_index
 
 
 def check_audio_quality(
     converted_file: ConvertedVideoFile[FileConversionPlan],
     ffmpeg_runner: FFmpegRunner,
-) -> dict[int, AudioQualityMetrics]:
-    """Get audio quality metrics in a synchronous context."""
-    return asyncio.run(get_audio_quality_metrics(converted_file, ffmpeg_runner))
+) -> AudioQualityReport:
+    """Compare every re-encoded audio stream against its source.
+
+    Raises
+    ------
+        FFmpegProcessError: If FFmpeg fails to compare a stream.
+    """
+    return AudioQualityReport(
+        asdr_by_output_index=asyncio.run(get_asdr(converted_file, ffmpeg_runner))
+    )

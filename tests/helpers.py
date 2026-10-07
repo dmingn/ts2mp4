@@ -28,6 +28,7 @@ class FakeFFmpegRunner:
         self.out_seconds = tuple(out_seconds)
         self.error = error
         self.calls: list[list[str]] = []
+        self.piped_calls: list[tuple[list[str], list[str]]] = []
 
     def run(self, args: list[str]) -> FFmpegResult:
         """Record ``args`` and return the fixed output."""
@@ -50,6 +51,17 @@ class FakeFFmpegRunner:
     async def stream_stderr(self, args: list[str]) -> AsyncIterator[str]:
         """Record ``args`` and yield the fixed stderr lines."""
         self.calls.append(args)
+        if self.error is not None:
+            raise self.error
+
+        for line in self.stderr_lines:
+            yield line
+
+    async def stream_stderr_piped(
+        self, source_args: list[str], args: list[str]
+    ) -> AsyncIterator[str]:
+        """Record ``source_args`` and ``args`` and yield the fixed stderr lines."""
+        self.piped_calls.append((source_args, args))
         if self.error is not None:
             raise self.error
 

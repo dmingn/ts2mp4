@@ -2,7 +2,6 @@
 
 import asyncio
 import math
-from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import AsyncGenerator
 from unittest.mock import MagicMock
@@ -21,33 +20,60 @@ from ts2mp4.conversion_plan import (
 )
 from ts2mp4.converted_video_file import ConvertedVideoFile, StreamWithConversionPlan
 from ts2mp4.ffmpeg import FFmpegProcessError, SubprocessFFmpegRunner
+from ts2mp4.ffmpeg_input_args import build_input_args
 from ts2mp4.quality_check import (
-    AudioQualityMetrics,
-    build_quality_filter_complex,
+    ASDR_THRESHOLD_DB,
+    AudioQualityReport,
+    build_comparison_args,
+    build_reference_args,
     check_audio_quality,
-    format_audio_quality_segments,
-    get_audio_quality_metrics,
-    parse_audio_quality_metrics,
+    get_asdr,
+    parse_asdr,
 )
 from ts2mp4.video_file import AudioStream, Stream, VideoFile, VideoStream
-
-
-class _FailFirstCallFFmpegRunner(FakeFFmpegRunner):
-    """A FakeFFmpegRunner whose first stream_stderr call fails."""
-
-    async def stream_stderr(self, args: list[str]) -> AsyncIterator[str]:
-        """Raise FFmpegProcessError on the first call, then yield the fixed lines."""
-        if not self.calls:
-            self.calls.append(args)
-            raise FFmpegProcessError("Error")
-
-        async for line in super().stream_stderr(args):
-            yield line
 
 
 async def _lines(ffmpeg_output: str) -> AsyncGenerator[str, None]:
     for line in ffmpeg_output.splitlines():
         yield line
+
+
+def _converted_file_with_audio_streams(
+    tmp_path: Path, conversion_method: ConversionMethod
+) -> MagicMock:
+    """Return a converted file whose streams 0 and 2 are audio and 1 is copied video."""
+    (tmp_path / "original.ts").touch()
+    (tmp_path / "converted.mp4").touch()
+    original_file = VideoFile(path=tmp_path / "original.ts")
+    converted_video = VideoFile(path=tmp_path / "converted.mp4")
+
+    mock_converted_file = MagicMock(spec=ConvertedVideoFile)
+    mock_converted_file.streams_with_conversion_plans = [
+        StreamWithConversionPlan(
+            stream=AudioStream(file=converted_video, index=0),
+            conversion_plan=StreamConversionPlan(
+                conversion_method=conversion_method,
+                source_stream=AudioStream(file=original_file, index=3),
+            ),
+        ),
+        StreamWithConversionPlan(
+            stream=VideoStream(file=converted_video, index=1),
+            conversion_plan=StreamConversionPlan(
+                conversion_method=Copy(),
+                source_stream=VideoStream(file=original_file, index=4),
+            ),
+        ),
+        StreamWithConversionPlan(
+            stream=AudioStream(file=converted_video, index=2),
+            conversion_plan=StreamConversionPlan(
+                conversion_method=conversion_method,
+                source_stream=AudioStream(file=original_file, index=5),
+            ),
+        ),
+    ]
+    mock_converted_file.path = converted_video.path
+
+    return mock_converted_file
 
 
 @pytest.mark.unit
@@ -56,297 +82,272 @@ async def _lines(ffmpeg_output: str) -> AsyncGenerator[str, None]:
     "ffmpeg_output, expected",
     [
         pytest.param(
-            "[Parsed_apsnr_0 @ 0x7f9990004800] PSNR ch0: inf dB\n"
-            "[Parsed_asdr_1 @ 0x7f9990004ac0] SDR ch0: inf dB",
-            AudioQualityMetrics(apsnr=((float("inf"),),), asdr=((float("inf"),),)),
-            id="infinite_values",
+            "[Parsed_asdr_0 @ 0x7f9990004ac0] SDR ch0: inf dB",
+            (float("inf"),),
+            id="infinite_value",
         ),
         pytest.param(
-            "[Parsed_apsnr_0 @ 0x7f9990004800] PSNR ch0: 30.00 dB",
-            AudioQualityMetrics(apsnr=((30.0,),), asdr=()),
-            id="apsnr_only",
+            "[Parsed_asdr_0 @ 0x7f9990004ac0] SDR ch0: -5.25 dB",
+            (-5.25,),
+            id="negative_value",
         ),
         pytest.param(
-            "[Parsed_asdr_1 @ 0x7f9990004ac0] SDR ch0: -5.25 dB",
-            AudioQualityMetrics(apsnr=(), asdr=((-5.25,),)),
-            id="negative_asdr_only",
+            "[Parsed_asdr_0 @ 0x123] SDR ch0: 10.0 dB\n"
+            "[Parsed_asdr_0 @ 0x123] SDR ch1: 20.0 dB",
+            (10.0, 20.0),
+            id="channels_in_order",
         ),
         pytest.param(
             "No metrics here",
-            AudioQualityMetrics(apsnr=(), asdr=()),
+            (),
             id="no_metrics",
         ),
         pytest.param(
-            "[Parsed_apsnr_0 @ 0x7f9990004800] PSNR ch0: invalid dB",
-            AudioQualityMetrics(apsnr=(), asdr=()),
+            "[Parsed_asdr_0 @ 0x123] SDR ch0: invalid dB",
+            (),
             id="unparsable_value",
-        ),
-        pytest.param(
-            "[Parsed_apsnr_0 @ 0x123] PSNR ch0: 10.0 dB\n"
-            "[Parsed_apsnr_0 @ 0x123] PSNR ch1: 20.0 dB",
-            AudioQualityMetrics(apsnr=((10.0, 20.0),), asdr=()),
-            id="channels_of_one_segment",
-        ),
-        pytest.param(
-            "[Parsed_apsnr_0 @ 0x123] PSNR ch1: 42.0 dB",
-            AudioQualityMetrics(apsnr=((42.0,),), asdr=()),
-            id="segment_without_ch0",
-        ),
-        pytest.param(
-            "[Parsed_apsnr_0 @ 0x123] PSNR ch0: 10.0 dB\n"
-            "[Parsed_apsnr_0 @ 0x123] PSNR ch1: 20.0 dB\n"
-            "[Parsed_apsnr_0 @ 0x456] PSNR ch0: 30.0 dB",
-            AudioQualityMetrics(apsnr=((10.0, 20.0), (30.0,)), asdr=()),
-            id="ch0_starts_new_segment",
         ),
     ],
 )
-async def test_parse_audio_quality_metrics(
-    ffmpeg_output: str, expected: AudioQualityMetrics
+async def test_parse_asdr(ffmpeg_output: str, expected: tuple[float, ...]) -> None:
+    """parse_asdr reads the ASDR of every channel."""
+    # Act
+    asdr = await parse_asdr(_lines(ffmpeg_output))
+
+    # Assert
+    assert asdr == expected
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_parse_asdr_reads_negative_nan_as_nan() -> None:
+    """parse_asdr reads FFmpeg's -nan as NaN."""
+    # Act
+    asdr = await parse_asdr(_lines("[Parsed_asdr_0 @ 0x7f9990004ac0] SDR ch0: -nan dB"))
+
+    # Assert
+    assert math.isnan(asdr[0])
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "asdr, expected",
+    [
+        pytest.param((30.0, ASDR_THRESHOLD_DB), frozenset(), id="all_at_or_above"),
+        pytest.param((30.0, ASDR_THRESHOLD_DB - 0.01), frozenset({1}), id="one_below"),
+        pytest.param((30.0, float("nan")), frozenset(), id="nan_ignored"),
+        pytest.param((30.0, float("-inf")), frozenset({1}), id="negative_infinity"),
+        pytest.param((), frozenset({1}), id="no_channel"),
+    ],
+)
+def test_audio_quality_report_degraded_output_indices(
+    asdr: tuple[float, ...], expected: frozenset[int]
 ) -> None:
-    """parse_audio_quality_metrics reads every segment and channel of each metric."""
+    """A stream is degraded unless every measured channel reaches the ASDR threshold."""
+    # Arrange
+    report = AudioQualityReport(asdr_by_output_index={1: asdr})
+
     # Act
-    metrics = await parse_audio_quality_metrics(_lines(ffmpeg_output))
+    degraded_output_indices = report.degraded_output_indices
 
     # Assert
-    assert metrics == expected
+    assert degraded_output_indices == expected
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "asdr, expected",
+    [
+        pytest.param((30.0,), True, id="no_degraded_stream"),
+        pytest.param((-3.0,), False, id="degraded_stream"),
+    ],
+)
+def test_audio_quality_report_is_ok(asdr: tuple[float, ...], expected: bool) -> None:
+    """is_ok is True only when no stream is degraded."""
+    # Arrange
+    report = AudioQualityReport(asdr_by_output_index={1: asdr})
+
+    # Act & Assert
+    assert report.is_ok is expected
+
+
+@pytest.mark.unit
+def test_build_reference_args_writes_stream_to_stdout_as_pcm() -> None:
+    """build_reference_args maps the stream and writes it to stdout as PCM in NUT."""
+    # Act
+    args = build_reference_args(Path("original.ts"), 3, None)
+
+    # Assert
+    assert args == [
+        "-hide_banner",
+        "-nostats",
+        *build_input_args(Path("original.ts")),
+        "-map",
+        "0:3",
+        "-c:a",
+        "pcm_f32le",
+        "-f",
+        "nut",
+        "pipe:1",
+    ]
+
+
+@pytest.mark.unit
+def test_build_reference_args_applies_audio_filter() -> None:
+    """build_reference_args applies audio_filter to the stream."""
+    # Act
+    args = build_reference_args(Path("original.ts"), 3, "aformat=channel_layouts=5.1")
+
+    # Assert
+    assert args[args.index("-af") + 1] == "aformat=channel_layouts=5.1"
+
+
+@pytest.mark.unit
+def test_build_comparison_args_compares_stdin_with_re_encoded_stream() -> None:
+    """build_comparison_args feeds the PCM from stdin and the re-encoded stream to asdr."""
+    # Act
+    args = build_comparison_args(Path("converted.mp4"), 2)
+
+    # Assert
+    assert args == [
+        "-hide_banner",
+        "-nostats",
+        "-f",
+        "nut",
+        "-i",
+        "pipe:0",
+        *build_input_args(Path("converted.mp4")),
+        "-filter_complex",
+        "[0:0][1:2]asdr",
+        "-f",
+        "null",
+        "-",
+    ]
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_parse_audio_quality_metrics_reads_negative_nan_as_nan() -> None:
-    """parse_audio_quality_metrics reads FFmpeg's -nan as NaN."""
-    # Act
-    metrics = await parse_audio_quality_metrics(
-        _lines("[Parsed_asdr_1 @ 0x7f9990004ac0] SDR ch0: -nan dB")
-    )
-
-    # Assert
-    assert math.isnan(metrics.asdr[0][0])
-
-
-@pytest.mark.unit
-def test_format_audio_quality_segments_describes_each_segment() -> None:
-    """format_audio_quality_segments returns one description per segment."""
-    # Arrange
-    metrics = AudioQualityMetrics(
-        apsnr=((30.0, 31.0), (40.0,)),
-        asdr=((20.0, 21.0), (25.0,)),
-    )
-
-    # Act
-    descriptions = format_audio_quality_segments(metrics)
-
-    # Assert
-    assert descriptions == (
-        "APSNR=[30.00, 31.00]dB ASDR=[20.00, 21.00]dB",
-        "APSNR=[40.00]dB ASDR=[25.00]dB",
-    )
-
-
-@pytest.mark.unit
-def test_format_audio_quality_segments_omits_missing_metric() -> None:
-    """format_audio_quality_segments omits a metric that has no value for a segment."""
-    # Arrange
-    metrics = AudioQualityMetrics(apsnr=((30.0,), (40.0,)), asdr=((20.0,),))
-
-    # Act
-    descriptions = format_audio_quality_segments(metrics)
-
-    # Assert
-    assert descriptions == ("APSNR=[30.00]dB ASDR=[20.00]dB", "APSNR=[40.00]dB")
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_get_audio_quality_metrics_returns_metrics_for_encoded_audio(
+async def test_get_asdr_returns_asdr_of_encoded_audio(
     tmp_path: Path,
 ) -> None:
-    """Return APSNR/ASDR for each encoded audio stream and skip others."""
+    """Return the ASDR of each encoded audio stream and skip copied streams."""
+    # Arrange
+    ffmpeg_runner = FakeFFmpegRunner(
+        stderr_lines=["[Parsed_asdr_0 @ 0x456] SDR ch0: 25.00 dB"]
+    )
+    converted_file = _converted_file_with_audio_streams(
+        tmp_path, EncodeAudioWithNativeAac()
+    )
+
+    # Act
+    asdr_by_output_index = await get_asdr(converted_file, ffmpeg_runner)
+
+    # Assert
+    assert asdr_by_output_index == {0: (25.0,), 2: (25.0,)}
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_asdr_logs_asdr_of_each_stream(
+    tmp_path: Path, mocker: MockerFixture
+) -> None:
+    """Log one audio quality line per re-encoded stream."""
     # Arrange
     ffmpeg_runner = FakeFFmpegRunner(
         stderr_lines=[
-            "[Parsed_apsnr_0 @ 0x123] PSNR ch0: 30.00 dB",
-            "[Parsed_asdr_1 @ 0x456] SDR ch0: 25.00 dB",
+            "[Parsed_asdr_0 @ 0x456] SDR ch0: 30.00 dB",
+            "[Parsed_asdr_0 @ 0x456] SDR ch1: 31.50 dB",
         ]
     )
-
-    dummy_file = tmp_path / "original.ts"
-    dummy_file.touch()
-    original_file = VideoFile(path=dummy_file)
-    output_file = tmp_path / "converted.mp4"
-    output_file.touch()
-    converted_video = VideoFile(path=output_file)
-
-    stream1 = AudioStream(file=converted_video, index=0)
-    stream2 = VideoStream(file=converted_video, index=1)
-    stream3 = AudioStream(file=converted_video, index=2)
-
-    plan1: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
-        conversion_method=EncodeAudioWithNativeAac(),
-        source_stream=AudioStream(file=original_file, index=0),
+    converted_file = _converted_file_with_audio_streams(
+        tmp_path, EncodeAudioWithNativeAac()
     )
-    plan2: StreamConversionPlan[VideoStream, ConversionMethod] = StreamConversionPlan(
-        conversion_method=Copy(),
-        source_stream=VideoStream(file=original_file, index=1),
-    )
-    plan3: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
-        conversion_method=EncodeAudioWithNativeAac(),
-        source_stream=AudioStream(file=original_file, index=1),
-    )
-
-    mock_converted_file = MagicMock(spec=ConvertedVideoFile)
-    mock_converted_file.streams_with_conversion_plans = [
-        StreamWithConversionPlan(stream=stream1, conversion_plan=plan1),
-        StreamWithConversionPlan(stream=stream2, conversion_plan=plan2),
-        StreamWithConversionPlan(stream=stream3, conversion_plan=plan3),
-    ]
-    mock_converted_file.path = output_file
+    mock_logger_info = mocker.patch("ts2mp4.quality_check.logger.info")
 
     # Act
-    metrics = await get_audio_quality_metrics(mock_converted_file, ffmpeg_runner)
+    await get_asdr(converted_file, ffmpeg_runner)
 
     # Assert
-    assert len(metrics) == 2
-    assert 0 in metrics
-    assert 2 in metrics
-    assert metrics[0] == AudioQualityMetrics(apsnr=((30.0,),), asdr=((25.0,),))
-    assert metrics[2] == AudioQualityMetrics(apsnr=((30.0,),), asdr=((25.0,),))
-    assert len(ffmpeg_runner.calls) == 2
+    assert [call.args[0] for call in mock_logger_info.call_args_list] == [
+        "Audio quality for stream 0: ASDR=[30.00, 31.50]dB",
+        "Audio quality for stream 2: ASDR=[30.00, 31.50]dB",
+    ]
 
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_get_audio_quality_metrics_skips_failed_stream(
+async def test_get_asdr_pipes_source_stream_into_comparison(
     tmp_path: Path,
 ) -> None:
-    """Omit a stream when FFmpeg fails and keep metrics for later streams."""
+    """Pipe each source stream, through its audio filter, into the comparison."""
     # Arrange
-    ffmpeg_runner = _FailFirstCallFFmpegRunner(
-        stderr_lines=[
-            "[Parsed_apsnr_0 @ 0x123] PSNR ch0: 30.00 dB",
-            "[Parsed_asdr_1 @ 0x456] SDR ch0: 25.00 dB",
-        ]
-    )
-
-    dummy_file = tmp_path / "original.ts"
-    dummy_file.touch()
-    original_file = VideoFile(path=dummy_file)
-    output_file = tmp_path / "converted.mp4"
-    output_file.touch()
-    converted_video = VideoFile(path=output_file)
-
-    stream1 = AudioStream(file=converted_video, index=0)
-    stream2 = AudioStream(file=converted_video, index=2)
-
-    plan1: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
-        conversion_method=EncodeAudioWithNativeAac(),
-        source_stream=AudioStream(file=original_file, index=0),
-    )
-    plan2: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
-        conversion_method=EncodeAudioWithNativeAac(),
-        source_stream=AudioStream(file=original_file, index=1),
-    )
-
-    mock_converted_file = MagicMock(spec=ConvertedVideoFile)
-    mock_converted_file.streams_with_conversion_plans = [
-        StreamWithConversionPlan(stream=stream1, conversion_plan=plan1),
-        StreamWithConversionPlan(stream=stream2, conversion_plan=plan2),
-    ]
-    mock_converted_file.path = output_file
-
-    # Act
-    metrics = await get_audio_quality_metrics(mock_converted_file, ffmpeg_runner)
-
-    # Assert
-    assert len(metrics) == 1
-    assert 2 in metrics
-    assert metrics[2] == AudioQualityMetrics(apsnr=((30.0,),), asdr=((25.0,),))
-    assert len(ffmpeg_runner.calls) == 2
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_get_audio_quality_metrics_returns_empty_when_no_metrics_parsed(
-    tmp_path: Path,
-) -> None:
-    """Return an empty dict when FFmpeg output contains no parseable metrics."""
-    # Arrange
-    ffmpeg_runner = FakeFFmpegRunner(stderr_lines=["No metrics here"])
-
-    dummy_file = tmp_path / "original.ts"
-    dummy_file.touch()
-    original_file = VideoFile(path=dummy_file)
-    output_file = tmp_path / "converted.mp4"
-    output_file.touch()
-    converted_video = VideoFile(path=output_file)
-
-    stream1 = AudioStream(file=converted_video, index=0)
-    plan1: StreamConversionPlan[AudioStream, ConversionMethod] = StreamConversionPlan(
-        conversion_method=EncodeAudioWithNativeAac(),
-        source_stream=AudioStream(file=original_file, index=0),
-    )
-    mock_converted_file = MagicMock(spec=ConvertedVideoFile)
-    mock_converted_file.streams_with_conversion_plans = [
-        StreamWithConversionPlan(stream=stream1, conversion_plan=plan1)
-    ]
-    mock_converted_file.path = output_file
-
-    # Act
-    metrics = await get_audio_quality_metrics(mock_converted_file, ffmpeg_runner)
-
-    # Assert
-    assert len(metrics) == 0
-
-
-@pytest.mark.unit
-def test_build_quality_filter_complex_compares_inputs_directly_without_filter() -> None:
-    """build_quality_filter_complex feeds both inputs to apsnr and asdr as they are."""
-    # Act
-    filter_complex = build_quality_filter_complex("[0:1]", "[1:2]", None)
-
-    # Assert
-    assert filter_complex == "[0:1][1:2]apsnr;[0:1][1:2]asdr"
-
-
-@pytest.mark.unit
-def test_build_quality_filter_complex_applies_filter_to_original_input() -> None:
-    """build_quality_filter_complex passes the original input through audio_filter."""
-    # Act
-    filter_complex = build_quality_filter_complex(
-        "[0:1]", "[1:2]", "aformat=channel_layouts=5.1"
-    )
-
-    # Assert
-    assert filter_complex == (
-        "[0:1]aformat=channel_layouts=5.1[original_apsnr];"
-        "[original_apsnr][1:2]apsnr;"
-        "[0:1]aformat=channel_layouts=5.1[original_asdr];"
-        "[original_asdr][1:2]asdr"
-    )
-
-
-@pytest.mark.unit
-def test_check_audio_quality(mocker: MockerFixture) -> None:
-    """Test the synchronous wrapper for get_audio_quality_metrics."""
-    # Arrange
-    mock_async_func = mocker.patch("ts2mp4.quality_check.get_audio_quality_metrics")
-    mock_converted_file = MagicMock(spec=ConvertedVideoFile)
     ffmpeg_runner = FakeFFmpegRunner()
+    converted_file = _converted_file_with_audio_streams(
+        tmp_path, EncodeAudioWithNativeAac(audio_filter="aformat=channel_layouts=5.1")
+    )
 
     # Act
-    check_audio_quality(mock_converted_file, ffmpeg_runner)
+    await get_asdr(converted_file, ffmpeg_runner)
 
     # Assert
-    mock_async_func.assert_called_once_with(mock_converted_file, ffmpeg_runner)
+    assert ffmpeg_runner.piped_calls == [
+        (
+            build_reference_args(
+                tmp_path / "original.ts", 3, "aformat=channel_layouts=5.1"
+            ),
+            build_comparison_args(tmp_path / "converted.mp4", 0),
+        ),
+        (
+            build_reference_args(
+                tmp_path / "original.ts", 5, "aformat=channel_layouts=5.1"
+            ),
+            build_comparison_args(tmp_path / "converted.mp4", 2),
+        ),
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_get_asdr_raises_when_ffmpeg_fails(
+    tmp_path: Path,
+) -> None:
+    """Propagate FFmpegProcessError so that an unverified stream is not accepted."""
+    # Arrange
+    ffmpeg_runner = FakeFFmpegRunner(error=FFmpegProcessError("Error"))
+    converted_file = _converted_file_with_audio_streams(
+        tmp_path, EncodeAudioWithNativeAac()
+    )
+
+    # Act & Assert
+    with pytest.raises(FFmpegProcessError):
+        await get_asdr(converted_file, ffmpeg_runner)
+
+
+@pytest.mark.unit
+def test_check_audio_quality_reports_asdr_of_each_stream(
+    mocker: MockerFixture,
+) -> None:
+    """check_audio_quality wraps the ASDR of each stream in a report."""
+    # Arrange
+    asdr_by_output_index = {1: (30.0,)}
+    mocker.patch(
+        "ts2mp4.quality_check.get_asdr",
+        return_value=asdr_by_output_index,
+    )
+
+    # Act
+    report = check_audio_quality(MagicMock(spec=ConvertedVideoFile), FakeFFmpegRunner())
+
+    # Assert
+    assert report == AudioQualityReport(asdr_by_output_index=asdr_by_output_index)
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_get_audio_quality_metrics_returns_positive_metrics_for_real_file(
+async def test_get_asdr_meets_threshold_for_identical_file(
     ts_file: Path,
 ) -> None:
-    """Return positive APSNR/ASDR for each valid audio stream of a real file."""
+    """Meet the threshold for every valid audio stream compared with itself."""
     # Arrange
     video_file = VideoFile(path=ts_file)
     file_conversion_plan: list[StreamConversionPlan[Stream, ConversionMethod]] = []
@@ -368,27 +369,21 @@ async def test_get_audio_quality_metrics_returns_positive_metrics_for_real_file(
     )
 
     # Act
-    metrics_dict = await get_audio_quality_metrics(
-        converted_file, SubprocessFFmpegRunner()
-    )
+    asdr_by_output_index = await get_asdr(converted_file, SubprocessFFmpegRunner())
 
     # Assert
-    assert len(metrics_dict) == len(video_file.valid_audio_streams)
-    for stream_index, metrics in metrics_dict.items():
-        assert stream_index in [s.index for s in video_file.valid_audio_streams]
-        assert metrics.apsnr
-        assert metrics.asdr
-        # APSNR and ASDR should be positive for identical files
-        assert all(value > 0 for segment in metrics.apsnr for value in segment)
-        assert all(value > 0 for segment in metrics.asdr for value in segment)
+    assert asdr_by_output_index.keys() == {
+        s.index for s in video_file.valid_audio_streams
+    }
+    assert AudioQualityReport(asdr_by_output_index=asdr_by_output_index).is_ok
 
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_get_audio_quality_metrics_reports_each_channel_layout_segment(
+async def test_get_asdr_meets_threshold_across_channel_layout_change(
     tmp_path: Path, mixed_surround_ts_file: Path
 ) -> None:
-    """Return one segment per channel layout for audio switching from stereo to 5.1ch."""
+    """Meet the threshold on every 5.1ch channel for audio switching from stereo."""
     # Arrange
     ffmpeg_runner = SubprocessFFmpegRunner()
     original_file = VideoFile(path=mixed_surround_ts_file)
@@ -414,7 +409,8 @@ async def test_get_audio_quality_metrics_reports_each_channel_layout_segment(
     )
 
     # Act
-    metrics_dict = await get_audio_quality_metrics(converted_file, ffmpeg_runner)
+    asdr_by_output_index = await get_asdr(converted_file, ffmpeg_runner)
 
     # Assert
-    assert len(metrics_dict[1].apsnr) >= 2
+    assert len(asdr_by_output_index[1]) == 6
+    assert AudioQualityReport(asdr_by_output_index=asdr_by_output_index).is_ok
