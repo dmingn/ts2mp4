@@ -5,7 +5,7 @@ from typing import Callable
 
 import pytest
 
-from tests.helpers import StubVideoFile, stream_at
+from tests.helpers import TS_TIME_BASE, StubVideoFile, stream_at
 from ts2mp4.conversion_plan import Copy, EncodeVideo, StreamConversionPlan
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.video_encoder import (
@@ -28,10 +28,17 @@ def mock_video_file_factory(tmp_path: Path) -> Callable[..., VideoFile]:
 
         probe_streams: list[FFprobeStream] = []
         for i in range(video_streams):
-            probe_streams.append(FFprobeStream(codec_type="video", index=i))
+            probe_streams.append(
+                FFprobeStream(time_base=TS_TIME_BASE, codec_type="video", index=i)
+            )
         for i in range(audio_streams):
             probe_streams.append(
-                FFprobeStream(codec_type="audio", index=video_streams + i, channels=2)
+                FFprobeStream(
+                    time_base=TS_TIME_BASE,
+                    codec_type="audio",
+                    index=video_streams + i,
+                    channels=2,
+                )
             )
 
         return StubVideoFile(
@@ -53,10 +60,14 @@ def test_build_file_conversion_plan_for_video_encoding_orders_by_stream_index(
         path=path,
         stub_probe=FFprobeOutput(
             streams=[
-                FFprobeStream(codec_type="audio", index=2, channels=2),
-                FFprobeStream(codec_type="video", index=1),
-                FFprobeStream(codec_type="audio", index=3, channels=2),
-                FFprobeStream(codec_type="video", index=0),
+                FFprobeStream(
+                    time_base=TS_TIME_BASE, codec_type="audio", index=2, channels=2
+                ),
+                FFprobeStream(time_base=TS_TIME_BASE, codec_type="video", index=1),
+                FFprobeStream(
+                    time_base=TS_TIME_BASE, codec_type="audio", index=3, channels=2
+                ),
+                FFprobeStream(time_base=TS_TIME_BASE, codec_type="video", index=0),
             ]
         ),
     )

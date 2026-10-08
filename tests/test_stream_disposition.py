@@ -5,7 +5,7 @@ from typing import NamedTuple
 
 import pytest
 
-from tests.helpers import StubVideoFile
+from tests.helpers import TS_TIME_BASE, StubVideoFile
 from ts2mp4.ffprobe_schema import FFprobeFormat, FFprobeOutput, FFprobeStream
 from ts2mp4.stream_disposition import get_default_stream_indices
 from ts2mp4.video_file import AudioStream, Stream, VideoStream
@@ -105,6 +105,7 @@ def test_get_default_stream_indices(
         stub_probe=FFprobeOutput(
             streams=tuple(
                 FFprobeStream(
+                    time_base=TS_TIME_BASE,
                     codec_type=spec.codec_type,
                     index=spec.stream_index,
                     width=spec.width,
@@ -144,9 +145,16 @@ def test_get_default_stream_indices_uses_each_source_video_file_for_container_du
             format=FFprobeFormat(duration=100.0),
             streams=(
                 FFprobeStream(
-                    index=0, codec_type="video", width=720, height=480, duration=100.0
+                    time_base=TS_TIME_BASE,
+                    index=0,
+                    codec_type="video",
+                    width=720,
+                    height=480,
+                    duration=100.0,
                 ),
-                FFprobeStream(index=2, codec_type="audio", duration=100.0),
+                FFprobeStream(
+                    time_base=TS_TIME_BASE, index=2, codec_type="audio", duration=100.0
+                ),
             ),
         ),
     )
@@ -156,6 +164,7 @@ def test_get_default_stream_indices_uses_each_source_video_file_for_container_du
             format=FFprobeFormat(duration=1000.0),
             streams=(
                 FFprobeStream(
+                    time_base=TS_TIME_BASE,
                     index=0,
                     codec_type="video",
                     width=1440,

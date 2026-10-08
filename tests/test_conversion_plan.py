@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from tests.helpers import StubVideoFile
+from tests.helpers import TS_TIME_BASE, StubVideoFile
 from ts2mp4.conversion_plan import (
     Copy,
     EncodeVideo,
@@ -107,7 +107,11 @@ def test_file_conversion_plan_max_source_duration(
                     file=StubVideoFile(
                         path=path,
                         stub_probe=FFprobeOutput(
-                            streams=(FFprobeStream(index=0, codec_type="video"),),
+                            streams=(
+                                FFprobeStream(
+                                    time_base=TS_TIME_BASE, index=0, codec_type="video"
+                                ),
+                            ),
                             format=FFprobeFormat(duration=duration),
                         ),
                     ),

@@ -6,7 +6,7 @@ from typing import Callable, Literal, cast
 import pytest
 from pytest_mock import MockerFixture
 
-from tests.helpers import StubVideoFile, stream_at
+from tests.helpers import TS_TIME_BASE, StubVideoFile, stream_at
 from ts2mp4.audio_encoder import (
     FileConversionPlanForAudioEncoding,
     StreamConversionPlanForAudioEncoding,
@@ -54,6 +54,7 @@ def _probed_audio_stream(
         stub_probe=FFprobeOutput(
             streams=(
                 FFprobeStream(
+                    time_base=TS_TIME_BASE,
                     index=1,
                     codec_type="audio",
                     codec_name=codec_name,
@@ -78,12 +79,20 @@ def mock_original_video_file(tmp_path: Path) -> VideoFile:
         path=path,
         stub_probe=FFprobeOutput(
             streams=(
-                FFprobeStream(codec_type="video", index=0),
+                FFprobeStream(time_base=TS_TIME_BASE, codec_type="video", index=0),
                 FFprobeStream(
-                    codec_type="audio", index=1, codec_name="aac", channels=2
+                    time_base=TS_TIME_BASE,
+                    codec_type="audio",
+                    index=1,
+                    codec_name="aac",
+                    channels=2,
                 ),
                 FFprobeStream(
-                    codec_type="audio", index=2, codec_name="aac", channels=2
+                    time_base=TS_TIME_BASE,
+                    codec_type="audio",
+                    index=2,
+                    codec_name="aac",
+                    channels=2,
                 ),
             )
         ),

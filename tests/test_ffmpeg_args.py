@@ -22,8 +22,8 @@ from ts2mp4.ffmpeg_args import (
     _encode_video_args,
     build_ffmpeg_args,
 )
-from ts2mp4.ffmpeg_input_args import build_input_args
-from ts2mp4.ffprobe_schema import FFprobeFormat, FFprobeOutput
+from ts2mp4.ffmpeg_input_args import build_zero_based_input_args
+from ts2mp4.ffprobe_schema import FFprobeOutput
 from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
 
@@ -72,8 +72,8 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
         "-nostats",
         "-y",
         "-copyts",
-        *build_input_args(encoded_path),
-        *build_input_args(original_path),
+        *build_zero_based_input_args(encoded_file.path, encoded_file.start_time),
+        *build_zero_based_input_args(original_file.path, original_file.start_time),
         "-map",
         "0:0",
         "-codec:0",
@@ -134,54 +134,6 @@ def test_build_ffmpeg_args_reads_each_stream_of_a_shared_source_from_its_own_inp
         "0:1",
         "1:2",
     ]
-
-
-@pytest.mark.unit
-@pytest.mark.parametrize(
-    "start_time, expected_offset_args",
-    [
-        pytest.param(100.5, ["-itsoffset", "-100.5"], id="start_time"),
-        pytest.param(0.0, [], id="zero_start_time"),
-        pytest.param(None, [], id="no_start_time"),
-    ],
-)
-def test_build_ffmpeg_args_shifts_each_input_by_the_start_time_of_its_source(
-    mocker: MockerFixture,
-    tmp_path: Path,
-    start_time: float | None,
-    expected_offset_args: list[str],
-) -> None:
-    """build_ffmpeg_args shifts each input so that its source file starts at zero."""
-    # Arrange
-    path = tmp_path / "input.ts"
-    path.touch()
-    video_file = StubVideoFile(
-        path=path,
-        stub_probe=FFprobeOutput(format=FFprobeFormat(start_time=start_time)),
-    )
-
-    file_conversion_plan = FileConversionPlan(
-        root=(
-            StreamConversionPlan(
-                source_stream=AudioStream(file=video_file, index=1),
-                conversion_method=Copy(),
-            ),
-        )
-    )
-
-    mocker.patch.object(
-        FileConversionPlan,
-        "default_stream_indices",
-        new_callable=mocker.PropertyMock,
-        return_value=frozenset({0}),
-    )
-
-    # Act
-    args = build_ffmpeg_args(file_conversion_plan, Path("output.mkv"))
-
-    # Assert
-    input_args = [*expected_offset_args, *build_input_args(path)]
-    assert args[4 : 4 + len(input_args)] == input_args
 
 
 @pytest.mark.unit

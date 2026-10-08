@@ -1,6 +1,7 @@
 """Shared test helpers."""
 
 from collections.abc import AsyncIterator, Sequence
+from fractions import Fraction
 from typing import Generic
 
 from pydantic import BaseModel
@@ -10,6 +11,8 @@ from ts2mp4.converted_video_file import ConvertedVideoFile
 from ts2mp4.ffmpeg import FFmpegResult
 from ts2mp4.ffprobe_schema import FFprobeOutput
 from ts2mp4.video_file import Stream, VideoFile
+
+TS_TIME_BASE = Fraction(1, 90000)
 
 
 class FakeFFmpegRunner:

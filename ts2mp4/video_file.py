@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from fractions import Fraction
+
 from pydantic import BaseModel, ConfigDict, FilePath
 
 from .ffprobe_schema import FFprobeOutput, FFprobeStream, probe_file
@@ -106,6 +108,29 @@ class BaseStream(BaseModel):
             if stream.index == self.index:
                 return stream
         raise ValueError(f"Stream index {self.index} not found in {self.file.path}")
+
+    @property
+    def time_base(self) -> Fraction:
+        """Return the unit of the stream timestamps in seconds."""
+        return self._ffprobe_stream.time_base
+
+    @property
+    def start_offset(self) -> float | None:
+        """Return the offset of the stream start from the file start in seconds, if known."""
+        stream_start_time = self._ffprobe_stream.start_time
+        file_start_time = self.file.start_time
+        if stream_start_time is None or file_start_time is None:
+            return None
+        return stream_start_time - file_start_time
+
+    @property
+    def end_offset(self) -> float | None:
+        """Return the offset of the stream end from the file start in seconds, if known."""
+        start_offset = self.start_offset
+        duration = self.duration
+        if start_offset is None or duration is None:
+            return None
+        return start_offset + duration
 
     @property
     def duration(self) -> float | None:

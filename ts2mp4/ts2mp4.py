@@ -7,11 +7,26 @@ from logzero import logger
 from .audio_channels import find_streams_requiring_fixed_surround
 from .audio_encoder import build_file_conversion_plan_for_audio_encoding
 from .conversion import execute_conversion
+from .conversion_plan import FileConversionPlan
+from .converted_video_file import ConvertedVideoFile
 from .ffmpeg import FFmpegRunner, is_libfdk_aac_available
 from .quality_check import check_audio_quality
 from .stream_integrity import check_integrity
+from .stream_timing import check_timing
 from .video_encoder import build_file_conversion_plan_for_video_encoding
 from .video_file import VideoFile
+
+
+def _verify_timing(converted_file: ConvertedVideoFile[FileConversionPlan]) -> None:
+    """Raise if a re-encoded stream of ``converted_file`` is shifted in time."""
+    logger.info(f"Verifying re-encoded stream timing for {converted_file.path.name}")
+    timing_report = check_timing(converted_file)
+    if not timing_report.is_ok:
+        raise RuntimeError(
+            "Timing check failed for output streams at indices "
+            f"{sorted(timing_report.shifted_output_indices)} "
+            f"in {converted_file.path.name}"
+        )
 
 
 def ts2mp4(
@@ -54,13 +69,14 @@ def ts2mp4(
         output_path,
         ffmpeg_runner,
     )
+    _verify_timing(video_encoded_file)
 
     logger.info(f"Verifying copied stream integrity for {video_encoded_file.path.name}")
     video_encoded_integrity_report = check_integrity(video_encoded_file, ffmpeg_runner)
     if video_encoded_integrity_report.is_ok:
         logger.info(
             "Copied stream integrity verified successfully. "
-            "All audio parameters and MD5 hashes match."
+            "All audio parameters, frame hashes and timestamps match."
         )
     else:
         logger.warning(
@@ -84,6 +100,7 @@ def ts2mp4(
         temp_output_file,
         ffmpeg_runner,
     )
+    _verify_timing(audio_encoded_file)
 
     logger.info(f"Verifying copied stream integrity for {audio_encoded_file.path.name}")
     audio_encoded_integrity_report = check_integrity(audio_encoded_file, ffmpeg_runner)
@@ -95,7 +112,7 @@ def ts2mp4(
         )
     logger.info(
         "Copied stream integrity verified successfully. "
-        "All audio parameters and MD5 hashes match."
+        "All audio parameters, frame hashes and timestamps match."
     )
 
     audio_quality_report = check_audio_quality(audio_encoded_file, ffmpeg_runner)

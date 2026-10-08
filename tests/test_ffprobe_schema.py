@@ -8,6 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
+from tests.helpers import TS_TIME_BASE
 from ts2mp4.ffprobe_schema import (
     FFprobeFormat,
     FFprobeOutput,
@@ -31,7 +32,7 @@ def _ffprobe_result(stdout: bytes) -> MagicMock:
 def _minimal_ffprobe_stdout() -> bytes:
     return json.dumps(
         {
-            "streams": [{"codec_type": "video", "index": 0}],
+            "streams": [{"codec_type": "video", "index": 0, "time_base": "1/90000"}],
             "format": {"format_name": "mpegts"},
         }
     ).encode("utf-8")
@@ -93,12 +94,17 @@ def test_probe_file_reprobes_when_file_stat_changes(
             {
                 "index": 0,
                 "codec_type": "audio",
+                "time_base": "1/90000",
                 "tags": {"DURATION": "01:02:03.500000000"},
             },
             3723.5,
             id="duration_tag",
         ),
-        pytest.param({"index": 0, "codec_type": "audio"}, None, id="no_tags"),
+        pytest.param(
+            {"index": 0, "codec_type": "audio", "time_base": "1/90000"},
+            None,
+            id="no_tags",
+        ),
     ],
 )
 def test_ffprobe_stream_reads_duration_tag_in_seconds(
@@ -129,6 +135,7 @@ def test_probe_file_reads_real_ts_streams(ts_file: Path) -> None:
             FFprobeStream(
                 codec_type="video",
                 index=0,
+                time_base=TS_TIME_BASE,
                 width=1280,
                 height=720,
                 codec_name="mpeg2video",
@@ -137,6 +144,7 @@ def test_probe_file_reads_real_ts_streams(ts_file: Path) -> None:
             FFprobeStream(
                 codec_type="audio",
                 index=1,
+                time_base=TS_TIME_BASE,
                 codec_name="aac",
                 profile="LC",
                 channels=1,
@@ -145,6 +153,7 @@ def test_probe_file_reads_real_ts_streams(ts_file: Path) -> None:
             FFprobeStream(
                 codec_type="audio",
                 index=2,
+                time_base=TS_TIME_BASE,
                 codec_name="aac",
                 profile="LC",
                 channels=1,
