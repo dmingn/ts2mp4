@@ -11,10 +11,10 @@ from .conversion_plan import FileConversionPlan
 from .converted_video_file import ConvertedVideoFile
 from .ffmpeg import FFmpegRunner, is_libfdk_aac_available
 from .quality_check import check_audio_quality
-from .stream_integrity import check_integrity
+from .stream_integrity import IntegrityReport, check_integrity
 from .stream_timing import check_timing
 from .video_encoder import build_file_conversion_plan_for_video_encoding
-from .video_file import VideoFile
+from .video_file import SubtitleStream, VideoFile
 
 
 def _verify_timing(converted_file: ConvertedVideoFile[FileConversionPlan]) -> None:
@@ -26,6 +26,28 @@ def _verify_timing(converted_file: ConvertedVideoFile[FileConversionPlan]) -> No
             "Timing check failed for output streams at indices "
             f"{sorted(timing_report.shifted_output_indices)} "
             f"in {converted_file.path.name}"
+        )
+
+
+def _verify_subtitle_integrity(
+    converted_file: ConvertedVideoFile[FileConversionPlan],
+    integrity_report: IntegrityReport,
+) -> None:
+    """Raise if a copied subtitle stream of ``converted_file`` does not match its source.
+
+    Subtitles cannot be re-encoded, so the audio encoding pass copies them from
+    ``converted_file`` and its integrity check cannot detect this mismatch.
+    """
+    mismatched_subtitle_indices = sorted(
+        stream.index
+        for stream in converted_file.streams
+        if isinstance(stream, SubtitleStream)
+        and stream.index in integrity_report.mismatched_output_indices
+    )
+    if mismatched_subtitle_indices:
+        raise RuntimeError(
+            "Subtitle integrity check failed for output streams at indices "
+            f"{mismatched_subtitle_indices} in {converted_file.path.name}"
         )
 
 
@@ -80,9 +102,10 @@ def ts2mp4(
         )
     else:
         logger.warning(
-            "Audio integrity check failed for output streams at indices "
+            "Copied stream integrity check failed for output streams at indices "
             f"{sorted(video_encoded_integrity_report.mismatched_output_indices)}"
         )
+    _verify_subtitle_integrity(video_encoded_file, video_encoded_integrity_report)
 
     if video_encoded_integrity_report.is_ok and not fixed_surround_source_indices:
         return

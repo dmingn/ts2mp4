@@ -9,9 +9,9 @@ from .conversion_plan import Copy, FileConversionPlan
 from .converted_video_file import ConvertedVideoFile, StreamWithConversionPlan
 from .ffmpeg import FFmpegRunner
 from .hashing import FrameHash, get_frame_hashes
-from .video_file import AudioStream, OtherStream, Stream, VideoStream
+from .video_file import AudioStream, OtherStream, Stream, SubtitleStream, VideoStream
 
-DecodableStreamT = TypeVar("DecodableStreamT", VideoStream, AudioStream)
+HashableStreamT = TypeVar("HashableStreamT", VideoStream, AudioStream, SubtitleStream)
 
 
 class IntegrityReport(BaseModel):
@@ -33,11 +33,11 @@ def _frames_match(frame_a: FrameHash, frame_b: FrameHash, tolerance: float) -> b
 
 
 def compare_stream_hashes(
-    stream_a: DecodableStreamT,
-    stream_b: DecodableStreamT,
+    stream_a: HashableStreamT,
+    stream_b: HashableStreamT,
     ffmpeg_runner: FFmpegRunner,
 ) -> bool:
-    """Check that two streams decode to the same frames at the same times.
+    """Check that two streams have the same frames at the same times.
 
     A copied frame has its timestamp rounded to the time base of the output
     stream, so timestamps may differ by the coarser time base of the two.
@@ -141,9 +141,12 @@ def _stream_matches_source(
             ) and compare_stream_hashes(source_stream, stream, ffmpeg_runner)
         case (VideoStream(), VideoStream()):
             return compare_stream_hashes(source_stream, stream, ffmpeg_runner)
+        case (SubtitleStream(), SubtitleStream()):
+            return compare_stream_hashes(source_stream, stream, ffmpeg_runner)
         case (OtherStream(), _) | (_, OtherStream()):
             raise NotImplementedError(
-                "Stream integrity check for non-audio/video streams is not implemented."
+                "Stream integrity check for streams that are not video, audio "
+                "or subtitle is not implemented."
             )
         case _:
             raise ValueError(

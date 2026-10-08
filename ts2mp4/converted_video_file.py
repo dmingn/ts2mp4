@@ -12,12 +12,14 @@ from .conversion_plan import (
     StreamT,
     is_audio_stream_plan,
     is_other_stream_plan,
+    is_subtitle_stream_plan,
     is_video_stream_plan,
 )
 from .video_file import (
     AudioStream,
     OtherStream,
     Stream,
+    SubtitleStream,
     VideoFile,
     VideoStream,
 )
@@ -35,6 +37,7 @@ class StreamWithConversionPlan(BaseModel, Generic[StreamT]):
 AnyStreamWithConversionPlan = (
     StreamWithConversionPlan[VideoStream]
     | StreamWithConversionPlan[AudioStream]
+    | StreamWithConversionPlan[SubtitleStream]
     | StreamWithConversionPlan[OtherStream]
 )
 
@@ -47,6 +50,8 @@ def _pair(
         case VideoStream() if is_video_stream_plan(plan):
             return StreamWithConversionPlan(stream=stream, conversion_plan=plan)
         case AudioStream() if is_audio_stream_plan(plan):
+            return StreamWithConversionPlan(stream=stream, conversion_plan=plan)
+        case SubtitleStream() if is_subtitle_stream_plan(plan):
             return StreamWithConversionPlan(stream=stream, conversion_plan=plan)
         case OtherStream() if is_other_stream_plan(plan):
             return StreamWithConversionPlan(stream=stream, conversion_plan=plan)

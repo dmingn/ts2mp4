@@ -15,7 +15,7 @@ from ts2mp4.converted_video_file import (
     StreamWithConversionPlan,
 )
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
-from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
+from ts2mp4.video_file import AudioStream, SubtitleStream, VideoFile, VideoStream
 
 
 @pytest.fixture
@@ -113,6 +113,40 @@ def test_converted_videofile_streams_with_conversion_plans_pairs_output_stream_w
         StreamWithConversionPlan(
             stream=stream_at(converted_file.streams, 0),
             conversion_plan=stream_conversion_plan,
+        ),
+    )
+
+
+@pytest.mark.unit
+def test_converted_videofile_streams_with_conversion_plans_pairs_subtitle_stream(
+    dummy_video_file: VideoFile,
+) -> None:
+    """streams_with_conversion_plans pairs an output subtitle stream with its plan."""
+    # Arrange
+    subtitle_plan: StreamConversionPlan[SubtitleStream, ConversionMethod] = (
+        StreamConversionPlan(
+            source_stream=SubtitleStream(file=dummy_video_file, index=3),
+            conversion_method=Copy(),
+        )
+    )
+    converted_file = StubConvertedVideoFile[FileConversionPlan](
+        path=dummy_video_file.path,
+        stub_probe=FFprobeOutput(
+            streams=(
+                FFprobeStream(time_base=TS_TIME_BASE, codec_type="subtitle", index=0),
+            )
+        ),
+        file_conversion_plan=FileConversionPlan(root=(subtitle_plan,)),
+    )
+
+    # Act
+    streams_with_conversion_plans = converted_file.streams_with_conversion_plans
+
+    # Assert
+    assert streams_with_conversion_plans == (
+        StreamWithConversionPlan(
+            stream=stream_at(converted_file.streams, 0),
+            conversion_plan=subtitle_plan,
         ),
     )
 

@@ -13,7 +13,7 @@ from ts2mp4.quality_check import AudioQualityReport
 from ts2mp4.stream_integrity import IntegrityReport
 from ts2mp4.stream_timing import TimingReport
 from ts2mp4.ts2mp4 import ts2mp4
-from ts2mp4.video_file import VideoFile
+from ts2mp4.video_file import SubtitleStream, VideoFile
 
 _OK_REPORT = IntegrityReport(mismatched_output_indices=frozenset())
 _MISMATCH_REPORT = IntegrityReport(mismatched_output_indices=frozenset({1}))
@@ -388,6 +388,25 @@ def test_ts2mp4_builds_audio_file_conversion_plan_on_integrity_failure(
         fixed_surround_source_indices=frozenset(),
         libfdk_aac_available=False,
     )
+
+
+@pytest.mark.unit
+def test_ts2mp4_raises_before_audio_encoding_when_a_subtitle_stream_mismatches(
+    mock_video_file: VideoFile,
+    audio_fallback_mocks: _AudioFallbackMocks,
+    ffmpeg_runner: FakeFFmpegRunner,
+) -> None:
+    """Raise RuntimeError without encoding audio when a copied subtitle stream mismatches."""
+    # Arrange
+    audio_fallback_mocks.video_encoded_file.streams = frozenset(
+        {SubtitleStream(file=mock_video_file, index=1)}
+    )
+
+    # Act & Assert
+    with pytest.raises(RuntimeError, match=r"Subtitle integrity check failed .* \[1\]"):
+        ts2mp4(mock_video_file, Path("output.mkv"), 23, 5, ffmpeg_runner)
+
+    audio_fallback_mocks.build_audio_file_conversion_plan.assert_not_called()
 
 
 @pytest.mark.unit

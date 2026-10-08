@@ -20,11 +20,12 @@ from .conversion_plan import (
 )
 from .stream_integrity import IntegrityReport
 from .video_encoder import VideoEncodedFile
-from .video_file import AudioStream, VideoFile, VideoStream
+from .video_file import AudioStream, SubtitleStream, VideoFile, VideoStream
 
 StreamConversionPlanForAudioEncoding = (
     StreamConversionPlan[VideoStream, Copy]
     | StreamConversionPlan[AudioStream, AudioConversionMethod]
+    | StreamConversionPlan[SubtitleStream, Copy]
 )
 
 
@@ -83,7 +84,7 @@ def build_file_conversion_plan_for_audio_encoding(
 ) -> FileConversionPlanForAudioEncoding:
     """Build the file conversion plan that fixes problematic audio streams.
 
-    Video streams and the other audio streams are copied from ``encoded_file``.
+    Video, subtitle and the other audio streams are copied from ``encoded_file``.
     Audio streams in ``fixed_surround_source_indices`` are encoded from
     ``original_file`` as fixed 5.1ch. Audio streams reported as mismatched in
     ``integrity_report`` are encoded from ``original_file`` with their
@@ -176,6 +177,19 @@ def build_file_conversion_plan_for_audio_encoding(
                         conversion_method=Copy(),
                     )
                 )
+        elif isinstance(original_stream, SubtitleStream):
+            if not isinstance(matching_stream, SubtitleStream):
+                raise RuntimeError(
+                    f"Mismatch in stream types for file {encoded_file.path.name}: "
+                    f"Stream at index {matching_stream.index} was expected to be "
+                    f"'subtitle', but was '{type(matching_stream).__name__}'."
+                )
+            plans.append(
+                StreamConversionPlan(
+                    source_stream=matching_stream,
+                    conversion_method=Copy(),
+                )
+            )
 
     return FileConversionPlanForAudioEncoding(root=tuple(plans))
 
