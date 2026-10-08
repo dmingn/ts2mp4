@@ -23,7 +23,7 @@ def test_execute_conversion_runs_ffmpeg_with_built_args(mocker: MockerFixture) -
     """execute_conversion runs FFmpeg with the arguments built for the plan."""
     # Arrange
     file_conversion_plan = FileConversionPlan(root=())
-    output_path = Path("output.mp4")
+    output_path = Path("output.mkv")
     ffmpeg_runner = FakeFFmpegRunner()
 
     mock_build_ffmpeg_args = mocker.patch(
@@ -46,7 +46,7 @@ def test_execute_conversion_returns_converted_file_for_output(
     """execute_conversion returns the output file paired with the plan."""
     # Arrange
     file_conversion_plan = FileConversionPlan(root=())
-    output_path = Path("output.mp4")
+    output_path = Path("output.mkv")
 
     mocker.patch("ts2mp4.conversion.build_ffmpeg_args", return_value=["mock_arg"])
     mock_converted_video_file = mocker.patch("ts2mp4.conversion.ConvertedVideoFile")
@@ -77,7 +77,7 @@ def test_execute_conversion_shows_progress_on_tty(mocker: MockerFixture) -> None
     # Act
     execute_conversion(
         FileConversionPlan(root=()),
-        Path("output.mp4"),
+        Path("output.mkv"),
         FakeFFmpegRunner(out_seconds=out_seconds),
     )
 
@@ -107,7 +107,7 @@ def test_execute_conversion_caps_progress_at_source_duration(
     # Act
     execute_conversion(
         FileConversionPlan(root=()),
-        Path("output.mp4"),
+        Path("output.mkv"),
         FakeFFmpegRunner(out_seconds=out_seconds),
     )
 
@@ -131,7 +131,7 @@ def test_execute_conversion_does_not_show_negative_progress(
     # Act
     execute_conversion(
         FileConversionPlan(root=()),
-        Path("output.mp4"),
+        Path("output.mkv"),
         FakeFFmpegRunner(out_seconds=out_seconds),
     )
 
@@ -153,7 +153,7 @@ def test_execute_conversion_shows_nothing_on_non_tty(mocker: MockerFixture) -> N
     # Act
     execute_conversion(
         FileConversionPlan(root=()),
-        Path("output.mp4"),
+        Path("output.mkv"),
         FakeFFmpegRunner(out_seconds=out_seconds),
     )
 

@@ -1,4 +1,4 @@
-"""Selects which output streams receive the MP4 `default` disposition."""
+"""Selects which output streams receive the `default` disposition."""
 
 from collections.abc import Sequence
 

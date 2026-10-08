@@ -95,8 +95,15 @@ class BaseStream(BaseModel):
 
     @property
     def duration(self) -> float | None:
-        """Return the stream duration in seconds, if known."""
-        return self._ffprobe_stream.duration
+        """Return the stream duration in seconds, if known.
+
+        Matroska records stream durations only in the ``DURATION`` tag.
+        """
+        ffprobe_stream = self._ffprobe_stream
+        if ffprobe_stream.duration is not None:
+            return ffprobe_stream.duration
+
+        return ffprobe_stream.tags.duration
 
     @property
     def codec_type(self) -> str:

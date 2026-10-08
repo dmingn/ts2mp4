@@ -5,7 +5,9 @@ from pathlib import Path
 import pytest
 
 from tests.helpers import StubVideoFile, stream_at
-from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
+from ts2mp4.ffmpeg import SubprocessFFmpegRunner
+from ts2mp4.ffmpeg_input_args import build_input_args
+from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream, FFprobeStreamTags
 from ts2mp4.video_file import AudioStream, OtherStream, VideoFile, VideoStream
 
 
@@ -122,6 +124,79 @@ def test_videofile_valid_audio_streams_excludes_zero_channels(
         stream.channels is not None and stream.channels > 0
         for stream in valid_audio_streams
     )
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "ffprobe_stream, expected",
+    [
+        pytest.param(
+            FFprobeStream(codec_type="audio", index=0, duration=20.5),
+            20.5,
+            id="duration",
+        ),
+        pytest.param(
+            FFprobeStream(
+                codec_type="audio", index=0, tags=FFprobeStreamTags(duration=30.0)
+            ),
+            30.0,
+            id="duration_tag",
+        ),
+        pytest.param(
+            FFprobeStream(
+                codec_type="audio",
+                index=0,
+                duration=20.5,
+                tags=FFprobeStreamTags(duration=30.0),
+            ),
+            20.5,
+            id="duration_over_duration_tag",
+        ),
+        pytest.param(FFprobeStream(codec_type="audio", index=0), None, id="neither"),
+    ],
+)
+def test_stream_duration_falls_back_to_duration_tag(
+    dummy_path: Path, ffprobe_stream: FFprobeStream, expected: float | None
+) -> None:
+    """Stream.duration uses the probed duration, or the DURATION tag without it."""
+    # Arrange
+    stream = AudioStream(
+        file=StubVideoFile(
+            path=dummy_path, stub_probe=FFprobeOutput(streams=(ffprobe_stream,))
+        ),
+        index=0,
+    )
+
+    # Act
+    duration = stream.duration
+
+    # Assert
+    assert duration == expected
+
+
+@pytest.mark.integration
+def test_stream_duration_of_matroska_file(ts_file: Path, tmp_path: Path) -> None:
+    """Every stream of a Matroska file reports a positive duration."""
+    # Arrange
+    mkv_path = tmp_path / "copied.mkv"
+    SubprocessFFmpegRunner().run(
+        [
+            *build_input_args(ts_file),
+            "-map",
+            "0",
+            "-c",
+            "copy",
+            "-f",
+            "matroska",
+            str(mkv_path),
+        ]
+    )
+
+    # Act
+    durations = [stream.duration for stream in VideoFile(path=mkv_path).streams]
+
+    # Assert
+    assert all(duration is not None and duration > 0 for duration in durations)
 
 
 @pytest.mark.integration

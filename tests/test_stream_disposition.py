@@ -134,7 +134,7 @@ def test_get_default_stream_indices_uses_each_source_video_file_for_container_du
     # path_a: short container so a low-res video that fills it spans.
     # path_b: long container so a high-res video of the same stream length does not.
     # If every stream wrongly used one path's container, resolution would pick index 1.
-    path_a = tmp_path / "a.mp4"
+    path_a = tmp_path / "a.mkv"
     path_b = tmp_path / "b.ts"
     path_a.touch()
     path_b.touch()

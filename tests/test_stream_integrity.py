@@ -40,7 +40,7 @@ def input_video_file(tmp_path: Path) -> VideoFile:
 @pytest.fixture
 def output_video_file(tmp_path: Path) -> VideoFile:
     """Return an output VideoFile instance."""
-    dummy_file = tmp_path / "dummy_output.mp4.part"
+    dummy_file = tmp_path / "dummy_output.mkv.part"
     dummy_file.touch()
     return VideoFile(path=dummy_file)
 
@@ -149,7 +149,7 @@ def test_compare_audio_parameters_returns_true_when_parameters_match(
     """compare_audio_parameters returns True when the codec parameters match."""
     # Arrange
     stream_a = _stub_audio_stream(tmp_path / "a.ts", _LC_STEREO_AAC)
-    stream_b = _stub_audio_stream(tmp_path / "b.mp4", _LC_STEREO_AAC)
+    stream_b = _stub_audio_stream(tmp_path / "b.mkv", _LC_STEREO_AAC)
 
     # Act
     result = compare_audio_parameters(stream_a, stream_b)
@@ -184,7 +184,7 @@ def test_compare_audio_parameters_returns_false_when_parameters_differ(
     """compare_audio_parameters returns False when any codec parameter differs."""
     # Arrange
     stream_a = _stub_audio_stream(tmp_path / "a.ts", _LC_STEREO_AAC)
-    stream_b = _stub_audio_stream(tmp_path / "b.mp4", probe_stream_b)
+    stream_b = _stub_audio_stream(tmp_path / "b.mkv", probe_stream_b)
 
     # Act
     result = compare_audio_parameters(stream_a, stream_b)

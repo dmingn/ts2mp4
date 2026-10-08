@@ -77,7 +77,7 @@ def _audio_parameters(
 def compare_audio_parameters(stream_a: AudioStream, stream_b: AudioStream) -> bool:
     """Check that two audio streams declare the same codec parameters.
 
-    FFmpeg decodes an AAC stream copied into MP4 with its ADTS headers left in
+    FFmpeg decodes an AAC stream copied into a container with its ADTS headers left in
     place, so the MD5 hashes still match, but other players cannot decode it
     because its decoder configuration is missing or wrong. This shows up as a
     different profile, sample rate or channel count.

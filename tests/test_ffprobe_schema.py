@@ -85,6 +85,33 @@ def test_probe_file_reprobes_when_file_stat_changes(
     assert mock_execute_ffprobe.call_count == 2
 
 
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "stream, expected",
+    [
+        pytest.param(
+            {
+                "index": 0,
+                "codec_type": "audio",
+                "tags": {"DURATION": "01:02:03.500000000"},
+            },
+            3723.5,
+            id="duration_tag",
+        ),
+        pytest.param({"index": 0, "codec_type": "audio"}, None, id="no_tags"),
+    ],
+)
+def test_ffprobe_stream_reads_duration_tag_in_seconds(
+    stream: dict[str, object], expected: float | None
+) -> None:
+    """FFprobeStream reads the HH:MM:SS DURATION tag in seconds."""
+    # Act
+    duration = FFprobeStream.model_validate(stream).tags.duration
+
+    # Assert
+    assert duration == expected
+
+
 @pytest.mark.integration
 def test_probe_file_reads_real_ts_streams(ts_file: Path) -> None:
     """probe_file returns expected stream metadata for the fixture TS file."""

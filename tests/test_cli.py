@@ -62,6 +62,34 @@ def test_cli_options_recognized(mocker: MockerFixture, tmp_path: Path) -> None:
 
 
 @pytest.mark.integration
+def test_cli_writes_mkv_next_to_input(mocker: MockerFixture, tmp_path: Path) -> None:
+    """The CLI converts into a .mkv.part file and renames it to .mkv next to the input."""
+    # Arrange
+    mock_ts2mp4 = mocker.patch("ts2mp4.cli.ts2mp4")
+    mock_replace = mocker.patch("pathlib.Path.replace")
+    mock_stat_result = mocker.MagicMock()
+    mock_stat_result.st_size = 100
+    mock_stat_result.st_mode = 0o100644
+    mocker.patch("pathlib.Path.stat", return_value=mock_stat_result)
+    mocker.patch("pathlib.Path.exists", return_value=False)
+
+    from typer.testing import CliRunner
+
+    from ts2mp4.cli import app
+
+    dummy_ts_path = tmp_path / "dummy.ts"
+    dummy_ts_path.write_text("dummy")
+
+    # Act
+    result = CliRunner().invoke(app, [str(dummy_ts_path)])
+
+    # Assert
+    assert result.exit_code == 0
+    assert mock_ts2mp4.call_args.kwargs["output_path"] == tmp_path / "dummy.mkv.part"
+    mock_replace.assert_called_once_with(tmp_path / "dummy.mkv")
+
+
+@pytest.mark.integration
 def test_cli_invalid_crf_value(tmp_path: Path) -> None:
     """Test that the CLI handles invalid CRF values gracefully."""
     dummy_ts_path = tmp_path / "dummy.ts"

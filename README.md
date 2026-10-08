@@ -1,6 +1,6 @@
 # ts2mp4
 
-`ts2mp4` is a tool designed to convert Transport Stream (`.ts`) files into MP4 format.
+`ts2mp4` is a tool designed to convert Transport Stream (`.ts`) files into Matroska (`.mkv`) format.
 
 ## Development Workflow
 
