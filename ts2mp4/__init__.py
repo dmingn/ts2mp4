@@ -1,4 +1,4 @@
-"""A tool for converting TS video files to MP4 format."""
+"""A tool for converting TS video files to Matroska (MKV) format."""
 
 import importlib.metadata
 

@@ -65,7 +65,7 @@ def main(
         ),
     ] = False,
 ) -> None:
-    """Convert a Transport Stream (TS) file to MP4 format."""
+    """Convert a Transport Stream (TS) file to Matroska (MKV) format."""
     if log_file is None:
         timestamp = datetime.datetime.now().strftime("%Y%m%d%H%M%S")
         log_file = path.with_stem(f"{path.stem}-{timestamp}").with_suffix(".log")
@@ -83,17 +83,17 @@ def main(
         logger.info(f"Input File Size: {path.stat().st_size} bytes")
 
         ts_resolved = path.resolve()
-        mp4 = ts_resolved.with_suffix(".mp4")
-        mp4_part = ts_resolved.with_suffix(".mp4.part")
+        mkv = ts_resolved.with_suffix(".mkv")
+        mkv_part = ts_resolved.with_suffix(".mkv.part")
 
-        if mp4.exists():
-            logger.info(f"Output file {mp4.name} already exists. Skipping conversion.")
+        if mkv.exists():
+            logger.info(f"Output file {mkv.name} already exists. Skipping conversion.")
             return
 
         video_file = VideoFile(path=ts_resolved)
         ts2mp4(
             input_file=video_file,
-            output_path=mp4_part,
+            output_path=mkv_part,
             crf=crf,
             preset=preset,
             ffmpeg_runner=SubprocessFFmpegRunner(),
@@ -101,9 +101,9 @@ def main(
 
         logger.info("Conversion Status: Success")
 
-        mp4_part.replace(mp4)
-        logger.info(f"Output File: {mp4.resolve()}")
-        logger.info(f"Output File Size: {mp4.stat().st_size} bytes")
+        mkv_part.replace(mkv)
+        logger.info(f"Output File: {mkv.resolve()}")
+        logger.info(f"Output File Size: {mkv.stat().st_size} bytes")
 
         end_time = datetime.datetime.now()
         logger.info(f"End Time: {end_time}")

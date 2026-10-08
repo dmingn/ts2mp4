@@ -99,7 +99,7 @@ def mock_video_encoded_file_factory(
     def _factory(
         original_file: VideoFile,
         encoded_streams_indices: list[int],
-        file_name: str = "encoded.mp4",
+        file_name: str = "encoded.mkv",
     ) -> VideoEncodedFile:
         dummy_file = tmp_path / file_name
         dummy_file.touch()
@@ -505,7 +505,7 @@ def test_build_file_conversion_plan_for_audio_encoding_raises_for_missing_stream
     original_video_file = VideoFile(path=ts_file)
     original_streams = original_video_file.streams
 
-    encoded_file_path = tmp_path / "encoded_missing_stream.mp4"
+    encoded_file_path = tmp_path / "encoded_missing_stream.mkv"
     SubprocessFFmpegRunner().run(
         [
             "-i",
@@ -557,7 +557,7 @@ def test_file_conversion_plan_for_audio_encoding_validation_success(
     dummy_original_file.touch()
     original_file = VideoFile(path=dummy_original_file)
 
-    dummy_encoded_file = tmp_path / "encoded.mp4"
+    dummy_encoded_file = tmp_path / "encoded.mkv"
     dummy_encoded_file.touch()
     encoded_file = VideoFile(path=dummy_encoded_file)
 
@@ -610,7 +610,7 @@ def test_file_conversion_plan_for_audio_encoding_value_validation_failures(
     dummy_original_file.touch()
     original_file = VideoFile(path=dummy_original_file)
 
-    dummy_encoded_file = tmp_path / "encoded.mp4"
+    dummy_encoded_file = tmp_path / "encoded.mkv"
     dummy_encoded_file.touch()
     encoded_file = VideoFile(path=dummy_encoded_file)
 
@@ -691,7 +691,7 @@ def test_build_file_conversion_plan_for_audio_encoding_stream_type_mismatch_rais
 ) -> None:
     """Tests that a stream type mismatch raises a RuntimeError."""
     # Arrange
-    encoded_file_path = tmp_path / "encoded.mp4"
+    encoded_file_path = tmp_path / "encoded.mkv"
     encoded_file_path.touch()
     encoded_vf = VideoFile(path=encoded_file_path)
 

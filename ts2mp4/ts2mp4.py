@@ -21,7 +21,7 @@ def ts2mp4(
     preset: int,
     ffmpeg_runner: FFmpegRunner,
 ) -> None:
-    """Convert a Transport Stream (TS) file to MP4 format using FFmpeg.
+    """Convert a Transport Stream (TS) file to Matroska (MKV) format using FFmpeg.
 
     This function orchestrates the video conversion process, including video
     encoding, audio stream integrity verification, and conditional audio encoding.
@@ -29,7 +29,7 @@ def ts2mp4(
     Args:
     ----
         input_file: The VideoFile object for the input TS file.
-        output_path: The path where the output MP4 file will be saved.
+        output_path: The path where the output MKV file will be saved.
         crf: The Constant Rate Factor (CRF) value for video encoding. Lower
             values result in higher quality and larger file sizes.
         preset: The SVT-AV1 encoding preset from 0 to 13. Lower values are

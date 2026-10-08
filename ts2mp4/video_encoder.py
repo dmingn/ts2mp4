@@ -1,4 +1,4 @@
-"""Builds the file conversion plan for encoding video from TS to MP4."""
+"""Builds the file conversion plan for encoding video from TS to MKV."""
 
 from typing import Self
 
@@ -47,7 +47,7 @@ VideoEncodedFile = ConvertedVideoFile[FileConversionPlanForVideoEncoding]
 def build_file_conversion_plan_for_video_encoding(
     input_file: VideoFile, crf: int, preset: int
 ) -> FileConversionPlanForVideoEncoding:
-    """Build the file conversion plan that encodes video and copies audio from TS to MP4.
+    """Build the file conversion plan that encodes video and copies audio from TS to MKV.
 
     Video is encoded with SVT-AV1 in 10 bit, which reduces banding even from an
     8 bit source.

@@ -49,9 +49,9 @@ def ts_file(project_root: Path) -> Path:
 
 
 @pytest.fixture
-def mp4_file(project_root: Path) -> Path:
-    """Return the path to the test MP4 file."""
-    return project_root / "tests" / "assets" / "test_video.mp4"
+def mkv_file(project_root: Path) -> Path:
+    """Return the path to the test MKV file."""
+    return project_root / "tests" / "assets" / "test_video.mkv"
 
 
 @pytest.fixture(scope="session")
@@ -61,9 +61,9 @@ def mixed_surround_ts_file(project_root: Path) -> Path:
 
 
 @pytest.fixture
-def mixed_surround_mp4_file(project_root: Path) -> Path:
-    """Return the path to the MP4 file converted from the mixed surround TS file."""
-    return project_root / "tests" / "assets" / "test_mixed_surround.mp4"
+def mixed_surround_mkv_file(project_root: Path) -> Path:
+    """Return the path to the MKV file converted from the mixed surround TS file."""
+    return project_root / "tests" / "assets" / "test_mixed_surround.mkv"
 
 
 @pytest.fixture

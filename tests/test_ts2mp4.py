@@ -47,7 +47,7 @@ def test_ts2mp4_analyzes_channels_of_input_file(
     mocker.patch("ts2mp4.ts2mp4.check_integrity", return_value=_OK_REPORT)
 
     # Act
-    ts2mp4(mock_video_file, Path("output.mp4"), 32, 5, ffmpeg_runner)
+    ts2mp4(mock_video_file, Path("output.mkv"), 32, 5, ffmpeg_runner)
 
     # Assert
     find_streams_requiring_fixed_surround.assert_called_once_with(mock_video_file)
@@ -69,7 +69,7 @@ def test_ts2mp4_does_not_encode_video_on_unsupported_channel_layout(
 
     # Act & Assert
     with pytest.raises(UnsupportedChannelLayoutError):
-        ts2mp4(mock_video_file, Path("output.mp4"), 32, 5, ffmpeg_runner)
+        ts2mp4(mock_video_file, Path("output.mkv"), 32, 5, ffmpeg_runner)
 
     mock_execute_conversion.assert_not_called()
 
@@ -82,7 +82,7 @@ def test_ts2mp4_builds_video_file_conversion_plan_with_given_parameters(
 ) -> None:
     """Pass the input file, crf, and preset to the video file conversion plan builder."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
     crf = 23
     preset = 5
 
@@ -109,7 +109,7 @@ def test_ts2mp4_converts_video_file_conversion_plan_to_output(
 ) -> None:
     """Convert the video file conversion plan into the output path."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
 
     mock_build_video_file_conversion_plan = mocker.patch(
         "ts2mp4.ts2mp4.build_file_conversion_plan_for_video_encoding"
@@ -140,7 +140,7 @@ def test_ts2mp4_checks_integrity_of_video_encoded_file(
 ) -> None:
     """Check integrity of the file produced by the video conversion."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
     crf = 23
     preset = 5
 
@@ -172,7 +172,7 @@ def test_ts2mp4_skips_audio_encoding_when_integrity_is_ok(
 ) -> None:
     """Do not encode audio when the integrity report has no mismatch."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
     crf = 23
     preset = 5
 
@@ -199,7 +199,7 @@ def test_ts2mp4_raises_runtime_error_on_ffmpeg_failure(
 ) -> None:
     """Propagate RuntimeError when the video conversion fails."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
     crf = 23
     preset = 5
 
@@ -222,7 +222,7 @@ def test_ts2mp4_does_not_check_integrity_on_ffmpeg_failure(
 ) -> None:
     """Skip check_integrity when the video conversion raises."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
     crf = 23
     preset = 5
 
@@ -248,7 +248,7 @@ def test_ts2mp4_propagates_runtime_error_from_check_integrity(
 ) -> None:
     """Propagate unrelated RuntimeErrors instead of falling back to audio encoding."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
     crf = 23
     preset = 5
 
@@ -279,9 +279,9 @@ class _AudioFallbackMocks(NamedTuple):
 def audio_fallback_mocks(mocker: MockerFixture) -> _AudioFallbackMocks:
     """Patch collaborators so ts2mp4 re-encodes audio and the result passes."""
     video_encoded_file = mocker.MagicMock(spec=VideoFile)
-    video_encoded_file.path = Path("output.mp4")
+    video_encoded_file.path = Path("output.mkv")
     audio_encoded_file = mocker.MagicMock(spec=VideoFile)
-    audio_encoded_file.path = Path("output.mp4.temp")
+    audio_encoded_file.path = Path("output.mkv.temp")
     mocker.patch("ts2mp4.ts2mp4.build_file_conversion_plan_for_video_encoding")
 
     return _AudioFallbackMocks(
@@ -314,7 +314,7 @@ def test_ts2mp4_builds_audio_file_conversion_plan_on_integrity_failure(
 ) -> None:
     """Build the audio file conversion plan from the report when the integrity check fails."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
 
     # Act
     ts2mp4(
@@ -350,7 +350,7 @@ def test_ts2mp4_builds_audio_file_conversion_plan_for_fixed_surround_streams(
     # Act
     ts2mp4(
         mock_video_file,
-        Path("output.mp4"),
+        Path("output.mkv"),
         crf=23,
         preset=5,
         ffmpeg_runner=ffmpeg_runner,
@@ -374,7 +374,7 @@ def test_ts2mp4_converts_audio_file_conversion_plan_to_temp_file(
 ) -> None:
     """Convert the audio file conversion plan into a temp file next to the output."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
 
     # Act
     ts2mp4(
@@ -388,7 +388,7 @@ def test_ts2mp4_converts_audio_file_conversion_plan_to_temp_file(
     # Assert
     audio_fallback_mocks.execute_conversion.assert_called_with(
         audio_fallback_mocks.build_audio_file_conversion_plan.return_value,
-        Path("output.mp4.temp"),
+        Path("output.mkv.temp"),
         ffmpeg_runner,
     )
 
@@ -401,7 +401,7 @@ def test_ts2mp4_checks_integrity_of_audio_encoded_file(
 ) -> None:
     """Check integrity of the audio-encoded file after re-encoding audio."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
 
     # Act
     ts2mp4(
@@ -426,7 +426,7 @@ def test_ts2mp4_raises_when_audio_encoded_file_fails_integrity(
 ) -> None:
     """Raise RuntimeError when the audio-encoded file still mismatches."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
     audio_fallback_mocks.check_integrity.side_effect = [
         _MISMATCH_REPORT,
         _MISMATCH_REPORT,
@@ -453,7 +453,7 @@ def test_ts2mp4_checks_audio_quality_of_audio_encoded_file(
 ) -> None:
     """Check audio quality of the audio-encoded file."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
 
     # Act
     ts2mp4(
@@ -489,7 +489,7 @@ def test_ts2mp4_raises_when_audio_quality_is_below_threshold(
     ):
         ts2mp4(
             mock_video_file,
-            Path("output.mp4"),
+            Path("output.mkv"),
             crf=23,
             preset=5,
             ffmpeg_runner=ffmpeg_runner,
@@ -504,7 +504,7 @@ def test_ts2mp4_replaces_output_with_audio_encoded_file(
 ) -> None:
     """Replace the output path with the temp file holding the re-encoded audio."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
 
     # Act
     ts2mp4(
@@ -527,7 +527,7 @@ def test_ts2mp4_raises_on_audio_encode_failure(
 ) -> None:
     """Propagate RuntimeError when the audio conversion fails."""
     # Arrange
-    output_file = Path("output.mp4")
+    output_file = Path("output.mkv")
     audio_fallback_mocks.execute_conversion.side_effect = [
         audio_fallback_mocks.video_encoded_file,
         RuntimeError("Encode failed"),

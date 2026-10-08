@@ -3,12 +3,31 @@
 import json
 from functools import cache
 from pathlib import Path
-from typing import Optional
+from typing import Annotated, Any, Optional
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 
 from .ffmpeg import execute_ffprobe
 from .ffmpeg_input_args import build_input_args
+
+
+def _seconds_from_duration_tag(value: Any) -> Any:
+    """Convert a ``HH:MM:SS.nnnnnnnnn`` duration tag into seconds."""
+    if not isinstance(value, str):
+        return value
+
+    hours, minutes, seconds = value.split(":")
+    return int(hours) * 3600 + int(minutes) * 60 + float(seconds)
+
+
+class FFprobeStreamTags(BaseModel):
+    """The tags of a stream entry from ffprobe ``-show_streams`` JSON."""
+
+    model_config = ConfigDict(frozen=True, extra="ignore", populate_by_name=True)
+
+    duration: Annotated[
+        Optional[float], BeforeValidator(_seconds_from_duration_tag)
+    ] = Field(default=None, alias="DURATION")
 
 
 class FFprobeStream(BaseModel):
@@ -26,6 +45,7 @@ class FFprobeStream(BaseModel):
     bit_rate: Optional[int] = None
     channels: Optional[int] = None
     sample_rate: Optional[int] = None
+    tags: FFprobeStreamTags = Field(default_factory=FFprobeStreamTags)
 
 
 class FFprobeFormat(BaseModel):

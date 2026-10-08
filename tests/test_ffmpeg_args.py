@@ -31,7 +31,7 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
 ) -> None:
     """build_ffmpeg_args maps each plan from its input file in output order."""
     # Arrange
-    encoded_path = tmp_path / "encoded.mp4"
+    encoded_path = tmp_path / "encoded.mkv"
     encoded_path.touch()
     encoded_file = VideoFile(path=encoded_path)
 
@@ -59,7 +59,7 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
         return_value=frozenset({0}),
     )
 
-    output_path = Path("output.mp4")
+    output_path = Path("output.mkv")
 
     # Act
     args = build_ffmpeg_args(file_conversion_plan, output_path)
@@ -83,10 +83,8 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
         "default",
         "-disposition:1",
         "0",
-        "-movflags",
-        "+faststart",
         "-f",
-        "mp4",
+        "matroska",
         str(output_path),
     ]
 
@@ -122,7 +120,7 @@ def test_build_ffmpeg_args_reads_each_stream_of_a_shared_source_from_its_own_inp
     )
 
     # Act
-    args = build_ffmpeg_args(file_conversion_plan, Path("output.mp4"))
+    args = build_ffmpeg_args(file_conversion_plan, Path("output.mkv"))
 
     # Assert
     assert [args[i + 1] for i, arg in enumerate(args) if arg == "-i"] == [

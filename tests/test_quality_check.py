@@ -43,9 +43,9 @@ def _converted_file_with_audio_streams(
 ) -> MagicMock:
     """Return a converted file whose streams 0 and 2 are audio and 1 is copied video."""
     (tmp_path / "original.ts").touch()
-    (tmp_path / "converted.mp4").touch()
+    (tmp_path / "converted.mkv").touch()
     original_file = VideoFile(path=tmp_path / "original.ts")
-    converted_video = VideoFile(path=tmp_path / "converted.mp4")
+    converted_video = VideoFile(path=tmp_path / "converted.mkv")
 
     mock_converted_file = MagicMock(spec=ConvertedVideoFile)
     mock_converted_file.streams_with_conversion_plans = [
@@ -206,7 +206,7 @@ def test_build_reference_args_applies_audio_filter() -> None:
 def test_build_comparison_args_compares_stdin_with_re_encoded_stream() -> None:
     """build_comparison_args feeds the PCM from stdin and the re-encoded stream to asdr."""
     # Act
-    args = build_comparison_args(Path("converted.mp4"), 2)
+    args = build_comparison_args(Path("converted.mkv"), 2)
 
     # Assert
     assert args == [
@@ -216,7 +216,7 @@ def test_build_comparison_args_compares_stdin_with_re_encoded_stream() -> None:
         "nut",
         "-i",
         "pipe:0",
-        *build_input_args(Path("converted.mp4")),
+        *build_input_args(Path("converted.mkv")),
         "-filter_complex",
         "[0:0][1:2]asdr",
         "-f",
@@ -295,13 +295,13 @@ async def test_get_asdr_pipes_source_stream_into_comparison(
             build_reference_args(
                 tmp_path / "original.ts", 3, "aformat=channel_layouts=5.1"
             ),
-            build_comparison_args(tmp_path / "converted.mp4", 0),
+            build_comparison_args(tmp_path / "converted.mkv", 0),
         ),
         (
             build_reference_args(
                 tmp_path / "original.ts", 5, "aformat=channel_layouts=5.1"
             ),
-            build_comparison_args(tmp_path / "converted.mp4", 2),
+            build_comparison_args(tmp_path / "converted.mkv", 2),
         ),
     ]
 
@@ -404,7 +404,7 @@ async def test_get_asdr_meets_threshold_across_channel_layout_change(
                 ),
             )
         ),
-        tmp_path / "converted.mp4",
+        tmp_path / "converted.mkv",
         ffmpeg_runner,
     )
 
