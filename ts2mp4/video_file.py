@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from fractions import Fraction
+
 from pydantic import BaseModel, ConfigDict, FilePath
 
 from .ffprobe_schema import FFprobeOutput, FFprobeStream, probe_file
@@ -39,6 +41,13 @@ class VideoFile(BaseModel):
         if self.probe.format is None:
             return None
         return self.probe.format.duration
+
+    @property
+    def is_matroska(self) -> bool:
+        """Return True if the container is Matroska."""
+        if self.probe.format is None or self.probe.format.format_name is None:
+            return False
+        return "matroska" in self.probe.format.format_name.split(",")
 
     @staticmethod
     def _is_valid_audio_stream(stream: AudioStream) -> bool:
@@ -101,16 +110,45 @@ class BaseStream(BaseModel):
         raise ValueError(f"Stream index {self.index} not found in {self.file.path}")
 
     @property
+    def time_base(self) -> Fraction:
+        """Return the unit of the stream timestamps in seconds."""
+        return self._ffprobe_stream.time_base
+
+    @property
+    def start_offset(self) -> float | None:
+        """Return the offset of the stream start from the file start in seconds, if known."""
+        stream_start_time = self._ffprobe_stream.start_time
+        file_start_time = self.file.start_time
+        if stream_start_time is None or file_start_time is None:
+            return None
+        return stream_start_time - file_start_time
+
+    @property
+    def end_offset(self) -> float | None:
+        """Return the offset of the stream end from the file start in seconds, if known."""
+        start_offset = self.start_offset
+        duration = self.duration
+        if start_offset is None or duration is None:
+            return None
+        return start_offset + duration
+
+    @property
     def duration(self) -> float | None:
         """Return the stream duration in seconds, if known.
 
-        Matroska records stream durations only in the ``DURATION`` tag.
+        Matroska records only the end time of each stream, in its ``DURATION``
+        tag, so the duration is that end time minus the stream start time.
         """
         ffprobe_stream = self._ffprobe_stream
-        if ffprobe_stream.duration is not None:
+        if not self.file.is_matroska:
             return ffprobe_stream.duration
 
-        return ffprobe_stream.tags.duration
+        end_time = ffprobe_stream.tags.duration
+        start_time = ffprobe_stream.start_time
+        if end_time is None or start_time is None:
+            return None
+
+        return end_time - start_time
 
     @property
     def codec_type(self) -> str:

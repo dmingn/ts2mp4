@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers import StubVideoFile
+from tests.helpers import TS_TIME_BASE, StubVideoFile
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
 from ts2mp4.video_file import VideoFile
 
@@ -76,9 +76,13 @@ def mock_video_file(tmp_path: Path) -> VideoFile:
         path=dummy_file,
         stub_probe=FFprobeOutput(
             streams=(
-                FFprobeStream(codec_type="video", index=0),
-                FFprobeStream(codec_type="audio", index=1, channels=2),
-                FFprobeStream(codec_type="audio", index=2, channels=6),
+                FFprobeStream(time_base=TS_TIME_BASE, codec_type="video", index=0),
+                FFprobeStream(
+                    time_base=TS_TIME_BASE, codec_type="audio", index=1, channels=2
+                ),
+                FFprobeStream(
+                    time_base=TS_TIME_BASE, codec_type="audio", index=2, channels=6
+                ),
             )
         ),
     )

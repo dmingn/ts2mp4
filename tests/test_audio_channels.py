@@ -6,7 +6,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from tests.helpers import StubVideoFile
+from tests.helpers import TS_TIME_BASE, StubVideoFile
 from ts2mp4.audio_channels import (
     UnsupportedChannelLayoutError,
     _get_frame_channel_counts_cached,
@@ -112,9 +112,9 @@ def test_find_streams_requiring_fixed_surround_returns_mixed_stream_indices(
     # Arrange
     video_file = _stub_video_file(
         tmp_path,
-        FFprobeStream(codec_type="video", index=0),
-        FFprobeStream(codec_type="audio", index=1, channels=2),
-        FFprobeStream(codec_type="audio", index=2, channels=2),
+        FFprobeStream(time_base=TS_TIME_BASE, codec_type="video", index=0),
+        FFprobeStream(time_base=TS_TIME_BASE, codec_type="audio", index=1, channels=2),
+        FFprobeStream(time_base=TS_TIME_BASE, codec_type="audio", index=2, channels=2),
     )
     frame_channel_counts = {1: frozenset({2, 6}), 2: frozenset({2})}
     mocker.patch(
@@ -136,7 +136,8 @@ def test_find_streams_requiring_fixed_surround_notes_stream_on_unsupported_layou
     """find_streams_requiring_fixed_surround tells which stream has an unsupported layout."""
     # Arrange
     video_file = _stub_video_file(
-        tmp_path, FFprobeStream(codec_type="audio", index=1, channels=2)
+        tmp_path,
+        FFprobeStream(time_base=TS_TIME_BASE, codec_type="audio", index=1, channels=2),
     )
     mocker.patch(
         "ts2mp4.audio_channels.get_frame_channel_counts",

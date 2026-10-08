@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from tests.helpers import StubConvertedVideoFile, stream_at
+from tests.helpers import TS_TIME_BASE, StubConvertedVideoFile, stream_at
 from ts2mp4.conversion_plan import (
     ConversionMethod,
     Copy,
@@ -52,8 +52,10 @@ def test_converted_videofile_rejects_mismatched_stream_counts(
             path=dummy_video_file.path,
             stub_probe=FFprobeOutput(
                 streams=(
-                    FFprobeStream(codec_type="video", index=0),
-                    FFprobeStream(codec_type="audio", index=1, channels=2),
+                    FFprobeStream(time_base=TS_TIME_BASE, codec_type="video", index=0),
+                    FFprobeStream(
+                        time_base=TS_TIME_BASE, codec_type="audio", index=1, channels=2
+                    ),
                 )
             ),
             file_conversion_plan=file_conversion_plan,
@@ -78,7 +80,9 @@ def test_converted_videofile_rejects_stream_type_mismatch(
         StubConvertedVideoFile[FileConversionPlan](
             path=dummy_video_file.path,
             stub_probe=FFprobeOutput(
-                streams=(FFprobeStream(codec_type="video", index=0),)
+                streams=(
+                    FFprobeStream(time_base=TS_TIME_BASE, codec_type="video", index=0),
+                )
             ),
             file_conversion_plan=FileConversionPlan(root=(audio_stream_plan,)),
         )
@@ -93,7 +97,11 @@ def test_converted_videofile_streams_with_conversion_plans_pairs_output_stream_w
     # Arrange
     converted_file = StubConvertedVideoFile[FileConversionPlan](
         path=dummy_video_file.path,
-        stub_probe=FFprobeOutput(streams=(FFprobeStream(codec_type="video", index=0),)),
+        stub_probe=FFprobeOutput(
+            streams=(
+                FFprobeStream(time_base=TS_TIME_BASE, codec_type="video", index=0),
+            )
+        ),
         file_conversion_plan=FileConversionPlan(root=(stream_conversion_plan,)),
     )
 
@@ -131,8 +139,10 @@ def test_converted_videofile_streams_with_conversion_plans_follows_output_index_
         path=dummy_video_file.path,
         stub_probe=FFprobeOutput(
             streams=(
-                FFprobeStream(codec_type="audio", index=1, channels=2),
-                FFprobeStream(codec_type="video", index=0),
+                FFprobeStream(
+                    time_base=TS_TIME_BASE, codec_type="audio", index=1, channels=2
+                ),
+                FFprobeStream(time_base=TS_TIME_BASE, codec_type="video", index=0),
             )
         ),
         file_conversion_plan=FileConversionPlan(root=(video_plan, audio_plan)),

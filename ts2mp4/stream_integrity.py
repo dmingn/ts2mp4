@@ -8,7 +8,7 @@ from pydantic import BaseModel, ConfigDict
 from .conversion_plan import Copy, FileConversionPlan
 from .converted_video_file import ConvertedVideoFile, StreamWithConversionPlan
 from .ffmpeg import FFmpegRunner
-from .hashing import get_stream_md5
+from .hashing import FrameHash, get_frame_hashes
 from .video_file import AudioStream, OtherStream, Stream, VideoStream
 
 DecodableStreamT = TypeVar("DecodableStreamT", VideoStream, AudioStream)
@@ -27,40 +27,66 @@ class IntegrityReport(BaseModel):
         return not self.mismatched_output_indices
 
 
+def _frames_match(frame_a: FrameHash, frame_b: FrameHash, tolerance: float) -> bool:
+    """Return True if two frames have the same data at the same time."""
+    return frame_a.md5 == frame_b.md5 and abs(frame_a.pts - frame_b.pts) <= tolerance
+
+
 def compare_stream_hashes(
     stream_a: DecodableStreamT,
     stream_b: DecodableStreamT,
     ffmpeg_runner: FFmpegRunner,
 ) -> bool:
-    """Check the integrity of two streams by comparing MD5 hashes.
+    """Check that two streams decode to the same frames at the same times.
+
+    A copied frame has its timestamp rounded to the time base of the output
+    stream, so timestamps may differ by the coarser time base of the two.
 
     Returns
     -------
-        True if the stream hashes match and hash generation is successful,
-        False otherwise.
+        True if every frame has the same MD5 hash and timestamp and hash
+        generation is successful, False otherwise.
     """
     try:
-        md5_a = get_stream_md5(stream_a, ffmpeg_runner)
+        frames_a = get_frame_hashes(stream_a, ffmpeg_runner)
     except RuntimeError as e:
         logger.warning(
-            f"Failed to get MD5 for stream at index {stream_a.index} "
+            f"Failed to get frame hashes for stream at index {stream_a.index} "
             f"in {stream_a.file.path}: {e}"
         )
         return False
 
     try:
-        md5_b = get_stream_md5(stream_b, ffmpeg_runner)
+        frames_b = get_frame_hashes(stream_b, ffmpeg_runner)
     except RuntimeError as e:
         logger.warning(
-            f"Failed to get MD5 for stream at index {stream_b.index} "
+            f"Failed to get frame hashes for stream at index {stream_b.index} "
             f"in {stream_b.file.path}: {e}"
         )
         return False
 
-    if md5_a != md5_b:
+    if len(frames_a) != len(frames_b):
         logger.warning(
-            f"Mismatch in stream at index {stream_a.index}: "
-            f"MD5 A: {md5_a}, MD5 B: {md5_b}"
+            f"Mismatch in frame count of stream at index {stream_a.index}: "
+            f"A: {len(frames_a)}, B: {len(frames_b)}"
+        )
+        return False
+
+    tolerance = float(max(stream_a.time_base, stream_b.time_base))
+    mismatch = next(
+        (
+            (frame_a, frame_b)
+            for frame_a, frame_b in zip(frames_a, frames_b)
+            if not _frames_match(frame_a, frame_b, tolerance)
+        ),
+        None,
+    )
+    if mismatch is not None:
+        frame_a, frame_b = mismatch
+        logger.warning(
+            f"Mismatch in frames of stream at index {stream_a.index}: "
+            f"A: {frame_a.md5} at {frame_a.pts:.3f}s, "
+            f"B: {frame_b.md5} at {frame_b.pts:.3f}s"
         )
         return False
 

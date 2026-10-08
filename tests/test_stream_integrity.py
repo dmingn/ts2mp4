@@ -1,5 +1,6 @@
 """Unit tests for the stream_integrity module."""
 
+from fractions import Fraction
 from pathlib import Path
 from typing import cast
 from unittest.mock import MagicMock
@@ -7,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from tests.helpers import FakeFFmpegRunner, StubVideoFile
+from tests.helpers import TS_TIME_BASE, FakeFFmpegRunner, StubVideoFile
 from ts2mp4.conversion_plan import (
     Copy,
     EncodeAudioWithNativeAac,
@@ -18,6 +19,7 @@ from ts2mp4.conversion_plan import (
 from ts2mp4.converted_video_file import ConvertedVideoFile, StreamWithConversionPlan
 from ts2mp4.ffmpeg import FFmpegProcessError
 from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream
+from ts2mp4.hashing import FrameHash
 from ts2mp4.stream_integrity import (
     IntegrityReport,
     check_integrity,
@@ -45,48 +47,86 @@ def output_video_file(tmp_path: Path) -> VideoFile:
     return VideoFile(path=dummy_file)
 
 
-@pytest.mark.unit
-def test_compare_stream_hashes_returns_true_when_hashes_match(
-    mocker: MockerFixture,
-    input_video_file: VideoFile,
-    output_video_file: VideoFile,
-) -> None:
-    """compare_stream_hashes returns True when both MD5 hashes match."""
-    # Arrange
-    mocker.patch("ts2mp4.stream_integrity.get_stream_md5", return_value="same_hash")
+_MKV_TIME_BASE = Fraction(1, 1000)
+_TOLERANCE = float(_MKV_TIME_BASE)
 
-    # Act
-    result = compare_stream_hashes(
-        AudioStream(file=input_video_file, index=1),
-        AudioStream(file=output_video_file, index=1),
-        _FFMPEG_RUNNER,
+_SOURCE_FRAMES = (
+    FrameHash(pts=0.0, md5="hash1"),
+    FrameHash(pts=0.0213, md5="hash2"),
+)
+
+
+@pytest.fixture
+def source_audio_stream(tmp_path: Path) -> AudioStream:
+    """Return a source audio stream with the MPEG-TS time base."""
+    return _stub_audio_stream(tmp_path / "source.ts", _LC_STEREO_AAC)
+
+
+@pytest.fixture
+def output_audio_stream(tmp_path: Path) -> AudioStream:
+    """Return an output audio stream with the Matroska time base."""
+    return _stub_audio_stream(
+        tmp_path / "output.mkv",
+        _LC_STEREO_AAC.model_copy(update={"time_base": _MKV_TIME_BASE}),
     )
 
-    # Assert
-    assert result is True
-
 
 @pytest.mark.unit
-def test_compare_stream_hashes_returns_false_when_hashes_differ(
+@pytest.mark.parametrize(
+    "output_frames, expected",
+    [
+        pytest.param(_SOURCE_FRAMES, True, id="same"),
+        pytest.param(
+            (
+                FrameHash(pts=0.0, md5="hash1"),
+                FrameHash(pts=0.0213 + _TOLERANCE / 2, md5="hash2"),
+            ),
+            True,
+            id="within_timestamp_tolerance",
+        ),
+        pytest.param(
+            (
+                FrameHash(pts=0.0, md5="hash1"),
+                FrameHash(pts=0.0213, md5="other"),
+            ),
+            False,
+            id="different_hash",
+        ),
+        pytest.param(
+            (
+                FrameHash(pts=0.0, md5="hash1"),
+                FrameHash(pts=0.0213 + _TOLERANCE * 2, md5="hash2"),
+            ),
+            False,
+            id="shifted_timestamp",
+        ),
+        pytest.param(_SOURCE_FRAMES[:1], False, id="missing_frame"),
+    ],
+)
+def test_compare_stream_hashes_compares_hashes_and_timestamps_of_frames(
     mocker: MockerFixture,
-    input_video_file: VideoFile,
-    output_video_file: VideoFile,
+    source_audio_stream: AudioStream,
+    output_audio_stream: AudioStream,
+    output_frames: tuple[FrameHash, ...],
+    expected: bool,
 ) -> None:
-    """compare_stream_hashes returns False when MD5 hashes differ."""
+    """compare_stream_hashes requires every frame to match in hash and timestamp.
+
+    Timestamps may differ by the coarser time base of the two streams.
+    """
     # Arrange
     mocker.patch(
-        "ts2mp4.stream_integrity.get_stream_md5", side_effect=["hash1", "hash2"]
+        "ts2mp4.stream_integrity.get_frame_hashes",
+        side_effect=[_SOURCE_FRAMES, output_frames],
     )
 
     # Act
     result = compare_stream_hashes(
-        AudioStream(file=input_video_file, index=1),
-        AudioStream(file=output_video_file, index=1),
-        _FFMPEG_RUNNER,
+        source_audio_stream, output_audio_stream, _FFMPEG_RUNNER
     )
 
     # Assert
-    assert result is False
+    assert result is expected
 
 
 @pytest.mark.unit
@@ -102,19 +142,17 @@ def test_compare_stream_hashes_returns_false_when_hashes_differ(
 )
 def test_compare_stream_hashes_returns_false_when_hashing_fails(
     mocker: MockerFixture,
-    input_video_file: VideoFile,
-    output_video_file: VideoFile,
+    source_audio_stream: AudioStream,
+    output_audio_stream: AudioStream,
     error: Exception,
 ) -> None:
-    """compare_stream_hashes returns False when get_stream_md5 raises."""
+    """compare_stream_hashes returns False when get_frame_hashes raises."""
     # Arrange
-    mocker.patch("ts2mp4.stream_integrity.get_stream_md5", side_effect=error)
+    mocker.patch("ts2mp4.stream_integrity.get_frame_hashes", side_effect=error)
 
     # Act
     result = compare_stream_hashes(
-        AudioStream(file=input_video_file, index=1),
-        AudioStream(file=output_video_file, index=1),
-        _FFMPEG_RUNNER,
+        source_audio_stream, output_audio_stream, _FFMPEG_RUNNER
     )
 
     # Assert
@@ -122,6 +160,7 @@ def test_compare_stream_hashes_returns_false_when_hashing_fails(
 
 
 _LC_STEREO_AAC = FFprobeStream(
+    time_base=TS_TIME_BASE,
     index=1,
     codec_type="audio",
     codec_name="aac",

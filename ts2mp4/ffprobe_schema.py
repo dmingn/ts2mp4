@@ -1,6 +1,7 @@
 """ffprobe JSON output schema and probing."""
 
 import json
+from fractions import Fraction
 from functools import cache
 from pathlib import Path
 from typing import Annotated, Any, Optional
@@ -37,6 +38,8 @@ class FFprobeStream(BaseModel):
 
     index: int
     codec_type: str
+    time_base: Fraction
+    start_time: Optional[float] = None
     duration: Optional[float] = None
     width: Optional[int] = None
     height: Optional[int] = None

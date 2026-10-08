@@ -11,17 +11,26 @@ from tests.helpers import FakeFFmpegRunner
 from ts2mp4.audio_channels import UnsupportedChannelLayoutError
 from ts2mp4.quality_check import AudioQualityReport
 from ts2mp4.stream_integrity import IntegrityReport
+from ts2mp4.stream_timing import TimingReport
 from ts2mp4.ts2mp4 import ts2mp4
 from ts2mp4.video_file import VideoFile
 
 _OK_REPORT = IntegrityReport(mismatched_output_indices=frozenset())
 _MISMATCH_REPORT = IntegrityReport(mismatched_output_indices=frozenset({1}))
+_OK_TIMING_REPORT = TimingReport(shifted_output_indices=frozenset())
+_SHIFTED_TIMING_REPORT = TimingReport(shifted_output_indices=frozenset({0}))
 
 
 @pytest.fixture
 def ffmpeg_runner() -> FakeFFmpegRunner:
     """Return a FakeFFmpegRunner for one test."""
     return FakeFFmpegRunner()
+
+
+@pytest.fixture(autouse=True)
+def check_timing(mocker: MockerFixture) -> MagicMock:
+    """Patch the timing check so that no stream is shifted by default."""
+    return mocker.patch("ts2mp4.ts2mp4.check_timing", return_value=_OK_TIMING_REPORT)
 
 
 @pytest.fixture(autouse=True)
@@ -304,6 +313,52 @@ def audio_fallback_mocks(mocker: MockerFixture) -> _AudioFallbackMocks:
         ),
         replace=mocker.patch("pathlib.Path.replace"),
     )
+
+
+@pytest.mark.unit
+def test_ts2mp4_checks_timing_of_every_converted_file(
+    mock_video_file: VideoFile,
+    audio_fallback_mocks: _AudioFallbackMocks,
+    ffmpeg_runner: FakeFFmpegRunner,
+    check_timing: MagicMock,
+) -> None:
+    """Check timing of both the video-encoded and the audio-encoded file."""
+    # Act
+    ts2mp4(mock_video_file, Path("output.mkv"), 23, 5, ffmpeg_runner)
+
+    # Assert
+    assert [call.args for call in check_timing.call_args_list] == [
+        (audio_fallback_mocks.video_encoded_file,),
+        (audio_fallback_mocks.audio_encoded_file,),
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "timing_reports",
+    [
+        pytest.param([_SHIFTED_TIMING_REPORT], id="video_encoded_file"),
+        pytest.param(
+            [_OK_TIMING_REPORT, _SHIFTED_TIMING_REPORT], id="audio_encoded_file"
+        ),
+    ],
+)
+def test_ts2mp4_raises_when_a_stream_is_shifted(
+    mock_video_file: VideoFile,
+    audio_fallback_mocks: _AudioFallbackMocks,
+    ffmpeg_runner: FakeFFmpegRunner,
+    check_timing: MagicMock,
+    timing_reports: list[TimingReport],
+) -> None:
+    """Raise RuntimeError when a converted file has a shifted stream."""
+    # Arrange
+    check_timing.side_effect = timing_reports
+
+    # Act & Assert
+    with pytest.raises(RuntimeError, match=r"Timing check failed .* \[0\]"):
+        ts2mp4(mock_video_file, Path("output.mkv"), 23, 5, ffmpeg_runner)
+
+    audio_fallback_mocks.replace.assert_not_called()
 
 
 @pytest.mark.unit
