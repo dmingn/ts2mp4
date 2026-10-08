@@ -9,6 +9,7 @@ from .video_file import (
     AudioStream,
     OtherStream,
     Stream,
+    SubtitleStream,
     VideoFile,
     VideoStream,
 )
@@ -104,6 +105,13 @@ def is_audio_stream_plan(
 ) -> TypeGuard[StreamConversionPlan[AudioStream, ConversionMethodT]]:
     """Return True if ``plan`` converts an audio stream."""
     return isinstance(plan.source_stream, AudioStream)
+
+
+def is_subtitle_stream_plan(
+    plan: StreamConversionPlan[Stream, ConversionMethodT],
+) -> TypeGuard[StreamConversionPlan[SubtitleStream, ConversionMethodT]]:
+    """Return True if ``plan`` converts a subtitle stream."""
+    return isinstance(plan.source_stream, SubtitleStream)
 
 
 def is_other_stream_plan(

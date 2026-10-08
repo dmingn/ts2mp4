@@ -16,6 +16,7 @@ from ts2mp4.ffprobe_schema import (
 from ts2mp4.video_file import (
     AudioStream,
     OtherStream,
+    SubtitleStream,
     VideoFile,
     VideoStream,
 )
@@ -46,7 +47,24 @@ def mixed_video_file(dummy_path: Path) -> VideoFile:
                 FFprobeStream(
                     time_base=TS_TIME_BASE, codec_type="audio", index=3, channels=6
                 ),
-                FFprobeStream(time_base=TS_TIME_BASE, codec_type="subtitle", index=4),
+                FFprobeStream(
+                    time_base=TS_TIME_BASE,
+                    codec_type="subtitle",
+                    index=4,
+                    codec_name="arib_caption",
+                ),
+                FFprobeStream(
+                    time_base=TS_TIME_BASE,
+                    codec_type="subtitle",
+                    index=5,
+                    codec_name="dvb_subtitle",
+                ),
+                FFprobeStream(
+                    time_base=TS_TIME_BASE,
+                    codec_type="data",
+                    index=6,
+                    codec_name="bin_data",
+                ),
             )
         ),
     )
@@ -69,18 +87,19 @@ def test_audiostream_channels_derives_from_probe(mixed_video_file: VideoFile) ->
 def test_videofile_streams_maps_probe_output_to_domain_types(
     mixed_video_file: VideoFile,
 ) -> None:
-    """VideoFile.streams maps probed entries to Video/Audio/OtherStream."""
+    """VideoFile.streams maps probed entries to Video/Audio/Subtitle/OtherStream."""
     # Act
     streams = mixed_video_file.streams
 
     # Assert
     assert isinstance(stream_at(streams, 0), VideoStream)
     assert isinstance(stream_at(streams, 1), AudioStream)
+    assert isinstance(stream_at(streams, 4), SubtitleStream)
+    assert isinstance(stream_at(streams, 6), OtherStream)
     assert stream_at(streams, 0).codec_type == "video"
     assert stream_at(streams, 1).codec_type == "audio"
-    other = stream_at(streams, 4)
-    assert isinstance(other, OtherStream)
-    assert other.codec_type == "subtitle"
+    assert stream_at(streams, 4).codec_type == "subtitle"
+    assert stream_at(streams, 6).codec_type == "data"
 
 
 @pytest.mark.unit
@@ -140,6 +159,35 @@ def test_videofile_valid_audio_streams_excludes_zero_channels(
         stream.channels is not None and stream.channels > 0
         for stream in valid_audio_streams
     )
+
+
+@pytest.mark.unit
+def test_videofile_valid_subtitle_streams_includes_every_subtitle_codec(
+    mixed_video_file: VideoFile,
+) -> None:
+    """VideoFile.valid_subtitle_streams includes subtitle streams of any codec."""
+    # Act
+    valid_subtitle_streams = mixed_video_file.valid_subtitle_streams
+
+    # Assert
+    assert valid_subtitle_streams == frozenset(
+        {
+            SubtitleStream(file=mixed_video_file, index=4),
+            SubtitleStream(file=mixed_video_file, index=5),
+        }
+    )
+
+
+@pytest.mark.unit
+def test_videofile_valid_streams_includes_subtitle_streams(
+    mixed_video_file: VideoFile,
+) -> None:
+    """VideoFile.valid_streams includes the valid subtitle streams."""
+    # Act
+    valid_streams = mixed_video_file.valid_streams
+
+    # Assert
+    assert mixed_video_file.valid_subtitle_streams <= valid_streams
 
 
 @pytest.mark.unit

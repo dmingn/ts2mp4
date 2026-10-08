@@ -59,6 +59,11 @@ class VideoFile(BaseModel):
         """Return True if the video stream is valid."""
         return True
 
+    @staticmethod
+    def _is_valid_subtitle_stream(stream: SubtitleStream) -> bool:
+        """Return True if the subtitle stream is valid."""
+        return True
+
     @property
     def valid_audio_streams(self) -> frozenset[AudioStream]:
         """Return valid audio streams."""
@@ -80,9 +85,23 @@ class VideoFile(BaseModel):
         )
 
     @property
-    def valid_streams(self) -> frozenset[VideoStream | AudioStream]:
-        """Return valid video and audio streams."""
-        return self.valid_video_streams | self.valid_audio_streams
+    def valid_subtitle_streams(self) -> frozenset[SubtitleStream]:
+        """Return valid subtitle streams."""
+        return frozenset(
+            stream
+            for stream in self.streams
+            if isinstance(stream, SubtitleStream)
+            and VideoFile._is_valid_subtitle_stream(stream)
+        )
+
+    @property
+    def valid_streams(self) -> frozenset[VideoStream | AudioStream | SubtitleStream]:
+        """Return valid video, audio and subtitle streams."""
+        return (
+            self.valid_video_streams
+            | self.valid_audio_streams
+            | self.valid_subtitle_streams
+        )
 
 
 class BaseStream(BaseModel):
@@ -199,11 +218,20 @@ class AudioStream(BaseStream):
         return self._ffprobe_stream.sample_rate
 
 
+class SubtitleStream(BaseStream):
+    """A subtitle stream belonging to a VideoFile."""
+
+    @property
+    def codec_name(self) -> str | None:
+        """Return the subtitle codec name, if known."""
+        return self._ffprobe_stream.codec_name
+
+
 class OtherStream(BaseStream):
-    """A non-video, non-audio stream belonging to a VideoFile."""
+    """A stream belonging to a VideoFile that is not video, audio or subtitle."""
 
 
-Stream = VideoStream | AudioStream | OtherStream
+Stream = VideoStream | AudioStream | SubtitleStream | OtherStream
 
 
 def _to_domain_stream(file: VideoFile, probe: FFprobeStream) -> Stream:
@@ -213,6 +241,8 @@ def _to_domain_stream(file: VideoFile, probe: FFprobeStream) -> Stream:
             return VideoStream(file=file, index=probe.index)
         case "audio":
             return AudioStream(file=file, index=probe.index)
+        case "subtitle":
+            return SubtitleStream(file=file, index=probe.index)
         case _:
             return OtherStream(file=file, index=probe.index)
 
@@ -221,4 +251,5 @@ VideoFile.model_rebuild()
 BaseStream.model_rebuild()
 VideoStream.model_rebuild()
 AudioStream.model_rebuild()
+SubtitleStream.model_rebuild()
 OtherStream.model_rebuild()

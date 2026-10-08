@@ -32,7 +32,13 @@ from ts2mp4.video_encoder import (
     FileConversionPlanForVideoEncoding,
     VideoEncodedFile,
 )
-from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
+from ts2mp4.video_file import (
+    AudioStream,
+    Stream,
+    SubtitleStream,
+    VideoFile,
+    VideoStream,
+)
 
 _NO_MISMATCH_REPORT = IntegrityReport(mismatched_output_indices=frozenset())
 
@@ -119,25 +125,23 @@ def mock_video_encoded_file_factory(
 
         original_streams = original_file.streams
 
-        streams_with_conversion_plans: tuple[
-            StreamWithConversionPlan[VideoStream | AudioStream], ...
-        ] = tuple(
-            StreamWithConversionPlan(
-                stream=(
-                    VideoStream(file=encoded_vf, index=new_index)
-                    if isinstance(stream_at(original_streams, i), VideoStream)
-                    else AudioStream(file=encoded_vf, index=new_index)
-                ),
-                conversion_plan=StreamConversionPlan(
-                    source_stream=stream_at(original_streams, i),
-                    conversion_method=(
-                        EncodeVideo(codec="libsvtav1", crf=32, preset=5)
-                        if isinstance(stream_at(original_streams, i), VideoStream)
-                        else Copy()
+        streams_with_conversion_plans: tuple[StreamWithConversionPlan[Stream], ...] = (
+            tuple(
+                StreamWithConversionPlan(
+                    stream=type(stream_at(original_streams, i))(
+                        file=encoded_vf, index=new_index
                     ),
-                ),
+                    conversion_plan=StreamConversionPlan(
+                        source_stream=stream_at(original_streams, i),
+                        conversion_method=(
+                            EncodeVideo(codec="libsvtav1", crf=32, preset=5)
+                            if isinstance(stream_at(original_streams, i), VideoStream)
+                            else Copy()
+                        ),
+                    ),
+                )
+                for new_index, i in enumerate(encoded_streams_indices)
             )
-            for new_index, i in enumerate(encoded_streams_indices)
         )
         type(mock_encoded_file).streams_with_conversion_plans = mocker.PropertyMock(
             return_value=streams_with_conversion_plans
@@ -323,6 +327,63 @@ def test_build_file_conversion_plan_for_audio_encoding_missing_stream_raises_err
             fixed_surround_source_indices=frozenset(),
             libfdk_aac_available=False,
         )
+
+
+@pytest.fixture
+def original_video_file_with_captions(tmp_path: Path) -> VideoFile:
+    """Create an original VideoFile with video, audio and ARIB caption streams."""
+    path = tmp_path / "captioned.ts"
+    path.touch()
+
+    return StubVideoFile(
+        path=path,
+        stub_probe=FFprobeOutput(
+            streams=(
+                FFprobeStream(time_base=TS_TIME_BASE, codec_type="video", index=0),
+                FFprobeStream(
+                    time_base=TS_TIME_BASE,
+                    codec_type="audio",
+                    index=1,
+                    codec_name="aac",
+                    channels=2,
+                ),
+                FFprobeStream(
+                    time_base=TS_TIME_BASE,
+                    codec_type="subtitle",
+                    index=2,
+                    codec_name="arib_caption",
+                ),
+            )
+        ),
+    )
+
+
+@pytest.mark.unit
+def test_build_file_conversion_plan_for_audio_encoding_copies_captions_from_encoded_file(
+    original_video_file_with_captions: VideoFile,
+    mock_video_encoded_file_factory: Callable[..., VideoEncodedFile],
+) -> None:
+    """Caption streams are copied from the encoded file."""
+    # Arrange
+    mock_encoded_video_file = mock_video_encoded_file_factory(
+        original_video_file_with_captions, [0, 1, 2]
+    )
+    integrity_report = IntegrityReport(mismatched_output_indices=frozenset({1}))
+
+    # Act
+    file_conversion_plan = build_file_conversion_plan_for_audio_encoding(
+        original_video_file_with_captions,
+        mock_encoded_video_file,
+        integrity_report,
+        fixed_surround_source_indices=frozenset(),
+        libfdk_aac_available=False,
+    )
+
+    # Assert
+    caption_plan = file_conversion_plan[-1]
+    assert isinstance(caption_plan.source_stream, SubtitleStream)
+    assert caption_plan.source_stream.file.path == mock_encoded_video_file.path
+    assert caption_plan.conversion_method == Copy()
 
 
 @pytest.mark.unit

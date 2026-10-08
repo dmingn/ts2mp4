@@ -26,7 +26,13 @@ from ts2mp4.stream_integrity import (
     compare_audio_parameters,
     compare_stream_hashes,
 )
-from ts2mp4.video_file import AudioStream, OtherStream, VideoFile, VideoStream
+from ts2mp4.video_file import (
+    AudioStream,
+    OtherStream,
+    SubtitleStream,
+    VideoFile,
+    VideoStream,
+)
 
 _FFMPEG_RUNNER = FakeFFmpegRunner()
 
@@ -429,6 +435,36 @@ def test_check_integrity_compares_only_hashes_of_copied_video_streams(
 
 
 @pytest.mark.unit
+def test_check_integrity_compares_hashes_of_copied_subtitle_streams(
+    mocker: MockerFixture,
+    input_video_file: VideoFile,
+    output_video_file: VideoFile,
+) -> None:
+    """check_integrity reports a copied subtitle stream whose hashes differ."""
+    # Arrange
+    mock_converted_file = cast(MagicMock, mocker.MagicMock(spec=ConvertedVideoFile))
+    mock_converted_file.path = output_video_file.path
+    type(mock_converted_file).streams_with_conversion_plans = mocker.PropertyMock(
+        return_value=[
+            StreamWithConversionPlan(
+                stream=SubtitleStream(file=output_video_file, index=2),
+                conversion_plan=StreamConversionPlan(
+                    source_stream=SubtitleStream(file=input_video_file, index=3),
+                    conversion_method=Copy(),
+                ),
+            ),
+        ]
+    )
+    mocker.patch("ts2mp4.stream_integrity.compare_stream_hashes", return_value=False)
+
+    # Act
+    report = check_integrity(mock_converted_file, _FFMPEG_RUNNER)
+
+    # Assert
+    assert report == IntegrityReport(mismatched_output_indices=frozenset({2}))
+
+
+@pytest.mark.unit
 def test_check_integrity_raises_for_stream_type_mismatch(
     mocker: MockerFixture,
     input_video_file: VideoFile,
@@ -497,7 +533,7 @@ def test_check_integrity_raises_for_unsupported_stream_type(
     mock_converted_video_file: MagicMock,
     output_video_file: VideoFile,
 ) -> None:
-    """check_integrity raises NotImplementedError for non-A/V copied streams."""
+    """check_integrity raises NotImplementedError for other copied streams."""
     # Arrange
     mocker.patch("ts2mp4.stream_integrity.compare_stream_hashes", return_value=False)
     mock_converted_video_file.streams = frozenset(
@@ -519,6 +555,6 @@ def test_check_integrity_raises_for_unsupported_stream_type(
     # Act & Assert
     with pytest.raises(
         NotImplementedError,
-        match="Stream integrity check for non-audio/video streams is not implemented.",
+        match="Stream integrity check for streams that are not video, audio or subtitle",
     ):
         check_integrity(mock_converted_video_file, _FFMPEG_RUNNER)

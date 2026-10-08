@@ -15,7 +15,7 @@ from ts2mp4.hashing import (
     get_frame_hashes,
     parse_framemd5,
 )
-from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
+from ts2mp4.video_file import AudioStream, SubtitleStream, VideoFile, VideoStream
 
 _FRAMEMD5_OUTPUT = b"""#format: frame checksums
 #version: 2
@@ -62,6 +62,47 @@ def test_parse_framemd5_reads_timestamps_in_seconds_and_hashes() -> None:
         FrameHash(pts=0.0, md5="57b8b5c4305040bdc2935aaaa2802898"),
         FrameHash(pts=1024 / 48000, md5="ded585697000a346360d74709bb89fa7"),
     )
+
+
+@pytest.mark.unit
+def test_parse_framemd5_ignores_side_data_columns() -> None:
+    """parse_framemd5 ignores the side data that follows the hash of a packet."""
+    # Arrange
+    lines = [
+        "#tb 0: 1/90000",
+        "0,     106173,     106173,        0,       20, "
+        "742389c00502a66eea6685b3cd079770, S=1,        1, "
+        "abae57cb562ecf295b4a37a76efe61fb",
+    ]
+
+    # Act
+    frames = parse_framemd5(lines)
+
+    # Assert
+    assert frames == (
+        FrameHash(pts=106173 / 90000, md5="742389c00502a66eea6685b3cd079770"),
+    )
+
+
+@pytest.mark.unit
+def test_get_frame_hashes_hashes_subtitle_packets_without_decoding(
+    tmp_path: Path,
+) -> None:
+    """get_frame_hashes copies subtitle packets instead of decoding them."""
+    # Arrange
+    file_path = tmp_path / "test.ts"
+    file_path.touch()
+    stream = SubtitleStream(
+        file=StubVideoFile(path=file_path, stub_probe=FFprobeOutput()), index=3
+    )
+    ffmpeg_runner = FakeFFmpegRunner(stdout=_FRAMEMD5_OUTPUT)
+
+    # Act
+    get_frame_hashes(stream, ffmpeg_runner)
+
+    # Assert
+    (args,) = ffmpeg_runner.calls
+    assert any(args[i : i + 2] == ["-codec", "copy"] for i in range(len(args)))
 
 
 @pytest.mark.unit

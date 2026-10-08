@@ -13,7 +13,7 @@ from ts2mp4.video_encoder import (
     StreamConversionPlanForVideoEncoding,
     build_file_conversion_plan_for_video_encoding,
 )
-from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
+from ts2mp4.video_file import AudioStream, SubtitleStream, VideoFile, VideoStream
 
 
 @pytest.fixture
@@ -109,6 +109,44 @@ def test_build_file_conversion_plan_for_video_encoding_marks_video_encoded_and_a
     assert file_conversion_plan[1].conversion_method == Copy()
     assert isinstance(file_conversion_plan[2].source_stream, AudioStream)
     assert file_conversion_plan[2].conversion_method == Copy()
+
+
+@pytest.mark.unit
+def test_build_file_conversion_plan_for_video_encoding_copies_subtitles_last(
+    tmp_path: Path,
+) -> None:
+    """Copy subtitle streams after the video and audio streams."""
+    # Arrange
+    path = tmp_path / "test.ts"
+    path.touch()
+    input_file = StubVideoFile(
+        path=path,
+        stub_probe=FFprobeOutput(
+            streams=[
+                FFprobeStream(time_base=TS_TIME_BASE, codec_type="video", index=0),
+                FFprobeStream(
+                    time_base=TS_TIME_BASE,
+                    codec_type="subtitle",
+                    index=1,
+                    codec_name="arib_caption",
+                ),
+                FFprobeStream(
+                    time_base=TS_TIME_BASE, codec_type="audio", index=2, channels=2
+                ),
+            ]
+        ),
+    )
+
+    # Act
+    file_conversion_plan = build_file_conversion_plan_for_video_encoding(
+        input_file, crf=32, preset=5
+    )
+
+    # Assert
+    assert file_conversion_plan[-1] == StreamConversionPlan(
+        source_stream=SubtitleStream(file=input_file, index=1),
+        conversion_method=Copy(),
+    )
 
 
 @pytest.mark.unit

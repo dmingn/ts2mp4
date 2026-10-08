@@ -6,11 +6,12 @@ from pydantic import model_validator
 
 from .conversion_plan import Copy, EncodeVideo, FileConversionPlan, StreamConversionPlan
 from .converted_video_file import ConvertedVideoFile
-from .video_file import AudioStream, VideoFile, VideoStream
+from .video_file import AudioStream, SubtitleStream, VideoFile, VideoStream
 
 StreamConversionPlanForVideoEncoding = (
     StreamConversionPlan[VideoStream, EncodeVideo]
     | StreamConversionPlan[AudioStream, Copy]
+    | StreamConversionPlan[SubtitleStream, Copy]
 )
 
 
@@ -47,7 +48,9 @@ VideoEncodedFile = ConvertedVideoFile[FileConversionPlanForVideoEncoding]
 def build_file_conversion_plan_for_video_encoding(
     input_file: VideoFile, crf: int, preset: int
 ) -> FileConversionPlanForVideoEncoding:
-    """Build the file conversion plan that encodes video and copies audio from TS to MKV.
+    """Build the file conversion plan that encodes video and copies the rest from TS to MKV.
+
+    Audio and subtitle streams are copied.
 
     Video is encoded with SVT-AV1 in 10 bit, which reduces banding even from an
     8 bit source.
@@ -75,5 +78,14 @@ def build_file_conversion_plan_for_video_encoding(
         )
         for stream in sorted(input_file.valid_audio_streams)
     ]
+    subtitle_plans: list[StreamConversionPlanForVideoEncoding] = [
+        StreamConversionPlan(
+            source_stream=stream,
+            conversion_method=Copy(),
+        )
+        for stream in sorted(input_file.valid_subtitle_streams)
+    ]
 
-    return FileConversionPlanForVideoEncoding(root=tuple(video_plans + audio_plans))
+    return FileConversionPlanForVideoEncoding(
+        root=tuple(video_plans + audio_plans + subtitle_plans)
+    )
