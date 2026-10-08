@@ -54,6 +54,7 @@ class FFprobeFormat(BaseModel):
     model_config = ConfigDict(frozen=True, extra="ignore")
 
     format_name: Optional[str] = None
+    start_time: Optional[float] = None
     duration: Optional[float] = None
 
 

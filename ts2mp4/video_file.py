@@ -27,6 +27,13 @@ class VideoFile(BaseModel):
         )
 
     @property
+    def start_time(self) -> float | None:
+        """Return the container start time in seconds, if known."""
+        if self.probe.format is None:
+            return None
+        return self.probe.format.start_time
+
+    @property
     def duration(self) -> float | None:
         """Return the container duration in seconds, if known."""
         if self.probe.format is None:

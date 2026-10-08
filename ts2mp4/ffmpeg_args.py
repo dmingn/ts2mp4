@@ -15,6 +15,7 @@ from .conversion_plan import (
     LibfdkVbrMode,
 )
 from .ffmpeg_input_args import build_input_args
+from .video_file import VideoFile
 
 
 def _stream_options_args(
@@ -106,6 +107,13 @@ def _disposition_args(file_conversion_plan: FileConversionPlan) -> list[str]:
     ]
 
 
+def _source_input_args(source_file: VideoFile) -> list[str]:
+    """Build the arguments that open ``source_file`` with its start time at zero."""
+    start_time = source_file.start_time
+    offset_args = ["-itsoffset", str(-start_time)] if start_time else []
+    return offset_args + build_input_args(source_file.path)
+
+
 def build_ffmpeg_args(
     file_conversion_plan: FileConversionPlan, output_path: Path
 ) -> list[str]:
@@ -115,13 +123,17 @@ def build_ffmpeg_args(
     of ``file_conversion_plan[i]``. Each output stream gets its own input even
     when streams share a source file, because FFmpeg truncates the other
     decoded streams of an input when one of them ends midway.
+
+    Without ``-copyts``, FFmpeg shifts each input so that its own mapped stream
+    starts at zero, which discards the offsets between streams of the source.
+    Each input is instead shifted by the start time of its source file.
     """
     return (
-        ["-hide_banner", "-nostats", "-y"]
+        ["-hide_banner", "-nostats", "-y", "-copyts"]
         + [
             arg
             for plan in file_conversion_plan
-            for arg in build_input_args(plan.source_stream.file.path)
+            for arg in _source_input_args(plan.source_stream.file)
         ]
         + [
             arg

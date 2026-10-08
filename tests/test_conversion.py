@@ -1,6 +1,7 @@
-"""Unit tests for the conversion module."""
+"""Tests for the conversion module."""
 
 import io
+import json
 from pathlib import Path
 
 import pytest
@@ -8,7 +9,10 @@ from pytest_mock import MockerFixture
 
 from tests.helpers import FakeFFmpegRunner
 from ts2mp4.conversion import execute_conversion
-from ts2mp4.conversion_plan import FileConversionPlan
+from ts2mp4.conversion_plan import Copy, FileConversionPlan, StreamConversionPlan
+from ts2mp4.ffmpeg import SubprocessFFmpegRunner, execute_ffprobe
+from ts2mp4.ffmpeg_input_args import build_input_args
+from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
 
 class _TTYStringIO(io.StringIO):
@@ -159,3 +163,73 @@ def test_execute_conversion_shows_nothing_on_non_tty(mocker: MockerFixture) -> N
 
     # Assert
     assert stderr.getvalue() == ""
+
+
+def _stream_start_times(path: Path) -> list[float]:
+    """Return the start time in seconds of each stream of ``path``."""
+    result = execute_ffprobe(
+        [
+            "-v",
+            "error",
+            "-show_entries",
+            "stream=start_time",
+            "-of",
+            "json",
+            *build_input_args(path),
+        ]
+    )
+    return [
+        float(stream["start_time"]) for stream in json.loads(result.stdout)["streams"]
+    ]
+
+
+@pytest.mark.integration
+def test_execute_conversion_keeps_offsets_between_streams(
+    ts_file: Path, tmp_path: Path
+) -> None:
+    """execute_conversion keeps the offset between streams read from separate inputs."""
+    # Arrange
+    delayed_audio_path = tmp_path / "delayed_audio.ts"
+    SubprocessFFmpegRunner().run(
+        [
+            *build_input_args(ts_file),
+            "-itsoffset",
+            "0.5",
+            *build_input_args(ts_file),
+            "-map",
+            "0:v:0",
+            "-map",
+            "1:a:0",
+            "-c",
+            "copy",
+            "-f",
+            "mpegts",
+            str(delayed_audio_path),
+        ]
+    )
+    source_video_start, source_audio_start = _stream_start_times(delayed_audio_path)
+
+    source_file = VideoFile(path=delayed_audio_path)
+    file_conversion_plan = FileConversionPlan(
+        root=(
+            StreamConversionPlan(
+                source_stream=VideoStream(file=source_file, index=0),
+                conversion_method=Copy(),
+            ),
+            StreamConversionPlan(
+                source_stream=AudioStream(file=source_file, index=1),
+                conversion_method=Copy(),
+            ),
+        )
+    )
+
+    # Act
+    converted_file = execute_conversion(
+        file_conversion_plan, tmp_path / "converted.mkv", SubprocessFFmpegRunner()
+    )
+
+    # Assert
+    video_start, audio_start = _stream_start_times(converted_file.path)
+    assert audio_start - video_start == pytest.approx(
+        source_audio_start - source_video_start, abs=0.002
+    )
