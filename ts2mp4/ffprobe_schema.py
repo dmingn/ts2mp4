@@ -37,6 +37,7 @@ class FFprobeStream(BaseModel):
 
     index: int
     codec_type: str
+    start_time: Optional[float] = None
     duration: Optional[float] = None
     width: Optional[int] = None
     height: Optional[int] = None

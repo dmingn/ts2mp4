@@ -7,7 +7,12 @@ import pytest
 from tests.helpers import StubVideoFile, stream_at
 from ts2mp4.ffmpeg import SubprocessFFmpegRunner
 from ts2mp4.ffmpeg_input_args import build_input_args
-from ts2mp4.ffprobe_schema import FFprobeOutput, FFprobeStream, FFprobeStreamTags
+from ts2mp4.ffprobe_schema import (
+    FFprobeFormat,
+    FFprobeOutput,
+    FFprobeStream,
+    FFprobeStreamTags,
+)
 from ts2mp4.video_file import AudioStream, OtherStream, VideoFile, VideoStream
 
 
@@ -128,41 +133,94 @@ def test_videofile_valid_audio_streams_excludes_zero_channels(
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
-    "ffprobe_stream, expected",
+    "format_name, expected",
+    [
+        pytest.param("matroska,webm", True, id="matroska"),
+        pytest.param("mpegts", False, id="mpegts"),
+        pytest.param(None, False, id="unknown"),
+    ],
+)
+def test_videofile_is_matroska_reads_format_name(
+    dummy_path: Path, format_name: str | None, expected: bool
+) -> None:
+    """VideoFile.is_matroska is True if the format names include matroska."""
+    # Arrange
+    video_file = StubVideoFile(
+        path=dummy_path,
+        stub_probe=FFprobeOutput(format=FFprobeFormat(format_name=format_name)),
+    )
+
+    # Act
+    is_matroska = video_file.is_matroska
+
+    # Assert
+    assert is_matroska == expected
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "format_name, ffprobe_stream, expected",
     [
         pytest.param(
+            "mpegts",
             FFprobeStream(codec_type="audio", index=0, duration=20.5),
             20.5,
-            id="duration",
+            id="mpegts",
         ),
         pytest.param(
-            FFprobeStream(
-                codec_type="audio", index=0, tags=FFprobeStreamTags(duration=30.0)
-            ),
-            30.0,
-            id="duration_tag",
-        ),
-        pytest.param(
+            "mpegts",
             FFprobeStream(
                 codec_type="audio",
                 index=0,
-                duration=20.5,
                 tags=FFprobeStreamTags(duration=30.0),
             ),
-            20.5,
-            id="duration_over_duration_tag",
+            None,
+            id="mpegts_ignores_duration_tag",
         ),
-        pytest.param(FFprobeStream(codec_type="audio", index=0), None, id="neither"),
+        pytest.param(
+            "matroska,webm",
+            FFprobeStream(
+                codec_type="audio",
+                index=0,
+                start_time=0.5,
+                tags=FFprobeStreamTags(duration=30.0),
+            ),
+            29.5,
+            id="matroska",
+        ),
+        pytest.param(
+            "matroska,webm",
+            FFprobeStream(
+                codec_type="audio",
+                index=0,
+                tags=FFprobeStreamTags(duration=30.0),
+            ),
+            None,
+            id="matroska_without_start_time",
+        ),
+        pytest.param(
+            "matroska,webm",
+            FFprobeStream(codec_type="audio", index=0, start_time=0.5),
+            None,
+            id="matroska_without_duration_tag",
+        ),
     ],
 )
-def test_stream_duration_falls_back_to_duration_tag(
-    dummy_path: Path, ffprobe_stream: FFprobeStream, expected: float | None
+def test_stream_duration_depends_on_container(
+    dummy_path: Path,
+    format_name: str,
+    ffprobe_stream: FFprobeStream,
+    expected: float | None,
 ) -> None:
-    """Stream.duration uses the probed duration, or the DURATION tag without it."""
+    """Stream.duration reads the end time in the DURATION tag only for Matroska."""
     # Arrange
     stream = AudioStream(
         file=StubVideoFile(
-            path=dummy_path, stub_probe=FFprobeOutput(streams=(ffprobe_stream,))
+            path=dummy_path,
+            stub_probe=FFprobeOutput(
+                streams=(ffprobe_stream,),
+                format=FFprobeFormat(format_name=format_name),
+            ),
         ),
         index=0,
     )

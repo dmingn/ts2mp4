@@ -40,6 +40,13 @@ class VideoFile(BaseModel):
             return None
         return self.probe.format.duration
 
+    @property
+    def is_matroska(self) -> bool:
+        """Return True if the container is Matroska."""
+        if self.probe.format is None or self.probe.format.format_name is None:
+            return False
+        return "matroska" in self.probe.format.format_name.split(",")
+
     @staticmethod
     def _is_valid_audio_stream(stream: AudioStream) -> bool:
         """Return True if the audio stream is valid."""
@@ -104,13 +111,19 @@ class BaseStream(BaseModel):
     def duration(self) -> float | None:
         """Return the stream duration in seconds, if known.
 
-        Matroska records stream durations only in the ``DURATION`` tag.
+        Matroska records only the end time of each stream, in its ``DURATION``
+        tag, so the duration is that end time minus the stream start time.
         """
         ffprobe_stream = self._ffprobe_stream
-        if ffprobe_stream.duration is not None:
+        if not self.file.is_matroska:
             return ffprobe_stream.duration
 
-        return ffprobe_stream.tags.duration
+        end_time = ffprobe_stream.tags.duration
+        start_time = ffprobe_stream.start_time
+        if end_time is None or start_time is None:
+            return None
+
+        return end_time - start_time
 
     @property
     def codec_type(self) -> str:

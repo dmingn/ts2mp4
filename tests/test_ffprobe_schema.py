@@ -119,10 +119,9 @@ def test_probe_file_reads_real_ts_streams(ts_file: Path) -> None:
     result = probe_file(ts_file)
 
     # Assert
-    # AAC bit_rate, stream/format durations and the format start time vary
-    # across ffmpeg versions.
+    # AAC bit_rate, durations and start times vary across ffmpeg versions.
     variable_fields_exclude = {
-        "streams": {"__all__": {"bit_rate", "duration"}},
+        "streams": {"__all__": {"bit_rate", "start_time", "duration"}},
         "format": {"start_time", "duration"},
     }
     expected = FFprobeOutput(
