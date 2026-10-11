@@ -15,6 +15,7 @@ from .conversion_plan import (
     LibfdkVbrMode,
 )
 from .ffmpeg_input_args import build_zero_based_input_args
+from .video_file import AudioStream, Stream
 
 
 def _stream_options_args(
@@ -76,11 +77,37 @@ def _encode_audio_args(
     )
 
 
-def _codec_args(conversion_method: ConversionMethod, output_index: int) -> list[str]:
+def _copies_aac_from_mpegts(source_stream: Stream) -> bool:
+    """Return True if ``source_stream`` is AAC carried in MPEG-TS.
+
+    Matroska stores AAC as AudioSpecificConfig. ``aac_adtstoasc`` builds that
+    from an ADTS header. The muxer inserts this filter on its own only when the
+    first packet looks like ADTS, so a broken first packet aborts the copy.
+    """
+    return (
+        isinstance(source_stream, AudioStream)
+        and source_stream.codec_name == "aac"
+        and source_stream.file.is_mpegts
+    )
+
+
+def _copy_args(source_stream: Stream, output_index: int) -> list[str]:
+    """Build the arguments that copy ``source_stream`` into the output."""
+    args = [f"-codec:{output_index}", "copy"]
+
+    if _copies_aac_from_mpegts(source_stream):
+        args += [f"-bsf:{output_index}", "aac_adtstoasc"]
+
+    return args
+
+
+def _codec_args(
+    conversion_method: ConversionMethod, source_stream: Stream, output_index: int
+) -> list[str]:
     """Build the codec arguments for an output stream."""
     match conversion_method:
         case Copy():
-            return [f"-codec:{output_index}", "copy"]
+            return _copy_args(source_stream, output_index)
         case EncodeVideo():
             return _encode_video_args(conversion_method, output_index)
         case EncodeAudioWithLibfdkAac() | EncodeAudioWithNativeAac():
@@ -131,7 +158,7 @@ def build_ffmpeg_args(
             for arg in (
                 "-map",
                 f"{i}:{plan.source_stream.index}",
-                *_codec_args(plan.conversion_method, i),
+                *_codec_args(plan.conversion_method, plan.source_stream, i),
             )
         ]
         + _disposition_args(file_conversion_plan)

@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pytest_mock import MockerFixture
 
-from tests.helpers import StubVideoFile
+from tests.helpers import TS_TIME_BASE, StubVideoFile
 from ts2mp4.conversion_plan import (
     BitRate,
     Copy,
@@ -23,7 +23,7 @@ from ts2mp4.ffmpeg_args import (
     build_ffmpeg_args,
 )
 from ts2mp4.ffmpeg_input_args import build_zero_based_input_args
-from ts2mp4.ffprobe_schema import FFprobeOutput
+from ts2mp4.ffprobe_schema import FFprobeFormat, FFprobeOutput, FFprobeStream
 from ts2mp4.video_file import AudioStream, VideoFile, VideoStream
 
 
@@ -89,6 +89,115 @@ def test_build_ffmpeg_args_maps_each_source_to_an_output_stream(
         "-f",
         "matroska",
         str(output_path),
+    ]
+
+
+def _probed_file(
+    path: Path, format_name: str, streams: tuple[FFprobeStream, ...]
+) -> StubVideoFile:
+    """Return a stub file whose container and streams are given."""
+    path.touch()
+    return StubVideoFile(
+        path=path,
+        stub_probe=FFprobeOutput(
+            format=FFprobeFormat(format_name=format_name),
+            streams=streams,
+        ),
+    )
+
+
+@pytest.mark.unit
+def test_build_ffmpeg_args_adds_aac_adtstoasc_when_copying_mpegts_aac(
+    mocker: MockerFixture, tmp_path: Path
+) -> None:
+    """build_ffmpeg_args adds aac_adtstoasc only when copying AAC from MPEG-TS."""
+    # Arrange
+    ts_file = _probed_file(
+        tmp_path / "input.ts",
+        "mpegts",
+        (
+            FFprobeStream(
+                index=0,
+                codec_type="video",
+                time_base=TS_TIME_BASE,
+                codec_name="mpeg2video",
+            ),
+            FFprobeStream(
+                index=1,
+                codec_type="audio",
+                time_base=TS_TIME_BASE,
+                codec_name="aac",
+            ),
+            FFprobeStream(
+                index=2,
+                codec_type="audio",
+                time_base=TS_TIME_BASE,
+                codec_name="aac_latm",
+            ),
+        ),
+    )
+    mkv_file = _probed_file(
+        tmp_path / "encoded.mkv",
+        "matroska,webm",
+        (
+            FFprobeStream(
+                index=1,
+                codec_type="audio",
+                time_base=TS_TIME_BASE,
+                codec_name="aac",
+            ),
+        ),
+    )
+    file_conversion_plan = FileConversionPlan(
+        root=(
+            StreamConversionPlan(
+                source_stream=VideoStream(file=ts_file, index=0),
+                conversion_method=Copy(),
+            ),
+            StreamConversionPlan(
+                source_stream=AudioStream(file=ts_file, index=1),
+                conversion_method=Copy(),
+            ),
+            StreamConversionPlan(
+                source_stream=AudioStream(file=mkv_file, index=1),
+                conversion_method=Copy(),
+            ),
+            StreamConversionPlan(
+                source_stream=AudioStream(file=ts_file, index=2),
+                conversion_method=Copy(),
+            ),
+        )
+    )
+    mocker.patch.object(
+        FileConversionPlan,
+        "default_stream_indices",
+        new_callable=mocker.PropertyMock,
+        return_value=frozenset({0}),
+    )
+
+    # Act
+    args = build_ffmpeg_args(file_conversion_plan, Path("output.mkv"))
+
+    # Assert
+    assert args[args.index("-map") : args.index("-disposition:0")] == [
+        "-map",
+        "0:0",
+        "-codec:0",
+        "copy",
+        "-map",
+        "1:1",
+        "-codec:1",
+        "copy",
+        "-bsf:1",
+        "aac_adtstoasc",
+        "-map",
+        "2:1",
+        "-codec:2",
+        "copy",
+        "-map",
+        "3:2",
+        "-codec:3",
+        "copy",
     ]
 
 
