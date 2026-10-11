@@ -218,6 +218,32 @@ def test_videofile_is_matroska_reads_format_name(
 
 @pytest.mark.unit
 @pytest.mark.parametrize(
+    "format_name, expected",
+    [
+        pytest.param("mpegts", True, id="mpegts"),
+        pytest.param("matroska,webm", False, id="matroska"),
+        pytest.param(None, False, id="unknown"),
+    ],
+)
+def test_videofile_is_mpegts_reads_format_name(
+    dummy_path: Path, format_name: str | None, expected: bool
+) -> None:
+    """VideoFile.is_mpegts is True if the format names include mpegts."""
+    # Arrange
+    video_file = StubVideoFile(
+        path=dummy_path,
+        stub_probe=FFprobeOutput(format=FFprobeFormat(format_name=format_name)),
+    )
+
+    # Act
+    is_mpegts = video_file.is_mpegts
+
+    # Assert
+    assert is_mpegts == expected
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
     "format_name, ffprobe_stream, expected",
     [
         pytest.param(

@@ -49,6 +49,13 @@ class VideoFile(BaseModel):
             return False
         return "matroska" in self.probe.format.format_name.split(",")
 
+    @property
+    def is_mpegts(self) -> bool:
+        """Return True if the container is MPEG-TS."""
+        if self.probe.format is None or self.probe.format.format_name is None:
+            return False
+        return "mpegts" in self.probe.format.format_name.split(",")
+
     @staticmethod
     def _is_valid_audio_stream(stream: AudioStream) -> bool:
         """Return True if the audio stream is valid."""
