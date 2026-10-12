@@ -328,8 +328,8 @@ def test_ts2mp4_checks_timing_of_every_converted_file(
 
     # Assert
     assert [call.args for call in check_timing.call_args_list] == [
-        (audio_fallback_mocks.video_encoded_file,),
-        (audio_fallback_mocks.audio_encoded_file,),
+        (audio_fallback_mocks.video_encoded_file, ffmpeg_runner),
+        (audio_fallback_mocks.audio_encoded_file, ffmpeg_runner),
     ]
 
 

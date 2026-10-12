@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import pytest
 from pytest_mock import MockerFixture
 
-from tests.helpers import TS_TIME_BASE, StubVideoFile
+from tests.helpers import TS_TIME_BASE, FakeFFmpegRunner, StubVideoFile
 from ts2mp4.conversion_plan import (
     ConversionMethod,
     Copy,
@@ -21,13 +21,24 @@ from ts2mp4.converted_video_file import (
     ConvertedVideoFile,
     StreamWithConversionPlan,
 )
+from ts2mp4.ffmpeg import FFmpegProcessError
+from ts2mp4.ffmpeg_input_args import build_zero_based_input_args
 from ts2mp4.ffprobe_schema import FFprobeFormat, FFprobeOutput, FFprobeStream
 from ts2mp4.stream_timing import (
     CFR_VIDEO_END_TOLERANCE_SECONDS,
     TimingReport,
     check_timing,
+    first_decoded_pts,
 )
 from ts2mp4.video_file import AudioStream, VideoStream
+
+_FRAMEMD5_OUTPUT = b"""#format: frame checksums
+#version: 2
+#hash: MD5
+#tb 0: 1/48000
+#stream#, dts,        pts, duration,     size, hash
+0,       1024,       1024,     1024,     4096, 979d1739445970f12da5a7fc215b75b4
+"""
 
 _ENCODE_VIDEO = EncodeVideo(codec="libsvtav1", crf=32, preset=5, fps_mode="cfr")
 
@@ -149,36 +160,69 @@ def _converted_file(
             frozenset({0}),
             id="shifted",
         ),
-        pytest.param(None, 0.5, frozenset(), id="unknown"),
     ],
 )
 def test_check_timing_compares_start_offset_of_encoded_audio(
     mocker: MockerFixture,
     tmp_path: Path,
-    output_start_offset: float | None,
-    source_start_offset: float | None,
+    output_start_offset: float,
+    source_start_offset: float,
     expected_shifted: frozenset[int],
 ) -> None:
-    """check_timing reports re-encoded audio that starts at a different time.
+    """check_timing reports re-encoded audio whose first decoded sample differs.
 
-    Start offsets may differ by the coarser time base of the two streams.
+    The container start time is ignored. The decoded timestamps may differ by
+    the coarser time base of the two streams.
     """
     # Arrange
-    converted_file = _converted_file(
-        mocker,
-        _audio_stream_with_plan(
-            tmp_path,
-            EncodeAudioWithNativeAac(),
-            output_start_offset,
-            source_start_offset,
-        ),
+    stream_with_plan = _audio_stream_with_plan(
+        tmp_path, EncodeAudioWithNativeAac(), 0.0, 10.0
+    )
+    converted_file = _converted_file(mocker, stream_with_plan)
+    decoded_pts = mocker.patch(
+        "ts2mp4.stream_timing.first_decoded_pts",
+        side_effect=[output_start_offset, source_start_offset],
     )
 
     # Act
-    report = check_timing(converted_file)
+    report = check_timing(converted_file, FakeFFmpegRunner())
 
     # Assert
     assert report == TimingReport(shifted_output_indices=expected_shifted)
+    assert [call.args[0] for call in decoded_pts.call_args_list] == [
+        stream_with_plan.stream,
+        stream_with_plan.conversion_plan.source_stream,
+    ]
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("output_start_offset", "source_start_offset"),
+    [
+        pytest.param(None, 0.5, id="output"),
+        pytest.param(0.5, None, id="source"),
+    ],
+)
+def test_check_timing_raises_when_the_first_decoded_sample_is_missing(
+    mocker: MockerFixture,
+    tmp_path: Path,
+    output_start_offset: float | None,
+    source_start_offset: float | None,
+) -> None:
+    """check_timing raises when either re-encoded audio stream has no decoded sample."""
+    # Arrange
+    converted_file = _converted_file(
+        mocker,
+        _audio_stream_with_plan(tmp_path, EncodeAudioWithNativeAac(), 0.0, 10.0),
+    )
+    mocker.patch(
+        "ts2mp4.stream_timing.first_decoded_pts",
+        side_effect=[output_start_offset, source_start_offset],
+    )
+
+    # Act & Assert
+    with pytest.raises(RuntimeError, match="Could not read the first decoded sample"):
+        check_timing(converted_file, FakeFFmpegRunner())
 
 
 @pytest.mark.unit
@@ -215,7 +259,7 @@ def test_check_timing_compares_end_offset_of_cfr_encoded_video(
     )
 
     # Act
-    report = check_timing(converted_file)
+    report = check_timing(converted_file, FakeFFmpegRunner())
 
     # Assert
     assert report == TimingReport(shifted_output_indices=expected_shifted)
@@ -230,12 +274,14 @@ def test_check_timing_leaves_copied_streams_to_the_integrity_check(
     converted_file = _converted_file(
         mocker, _audio_stream_with_plan(tmp_path, Copy(), 0.0, 0.5)
     )
+    decoded_pts = mocker.patch("ts2mp4.stream_timing.first_decoded_pts")
 
     # Act
-    report = check_timing(converted_file)
+    report = check_timing(converted_file, FakeFFmpegRunner())
 
     # Assert
     assert report.is_ok
+    decoded_pts.assert_not_called()
 
 
 @pytest.mark.unit
@@ -256,4 +302,125 @@ def test_check_timing_raises_for_video_not_encoded_with_cfr(
 
     # Act & Assert
     with pytest.raises(NotImplementedError, match="fps_mode passthrough"):
-        check_timing(converted_file)
+        check_timing(converted_file, FakeFFmpegRunner())
+
+
+def _audio_stream(tmp_path: Path, start_time: float) -> AudioStream:
+    """Return an audio stream of an empty file whose container starts at ``start_time``."""
+    return AudioStream(
+        file=_stub_file(tmp_path / "audio.ts", "audio", start_time, 10.0, TS_TIME_BASE),
+        index=2,
+    )
+
+
+@pytest.mark.unit
+def test_first_decoded_pts_reads_the_first_frame_from_the_file_start(
+    tmp_path: Path,
+) -> None:
+    """first_decoded_pts returns the first framemd5 timestamp, in seconds."""
+    # Arrange
+    stream = _audio_stream(tmp_path, 100.0)
+    ffmpeg_runner = FakeFFmpegRunner(stdout=_FRAMEMD5_OUTPUT)
+
+    # Act
+    pts = first_decoded_pts(stream, ffmpeg_runner)
+
+    # Assert
+    assert pts == pytest.approx(1024 / 48000)
+    (args,) = ffmpeg_runner.calls
+    input_args = build_zero_based_input_args(stream.file.path, stream.file.start_time)
+    assert args[:3] == ["-hide_banner", "-nostats", "-copyts"]
+    assert any(args[i : i + len(input_args)] == input_args for i in range(len(args)))
+    assert any(args[i : i + 2] == ["-map", "0:2"] for i in range(len(args)))
+    assert any(args[i : i + 2] == ["-frames:a", "1"] for i in range(len(args)))
+
+
+@pytest.mark.unit
+def test_first_decoded_pts_is_unknown_when_no_frame_decodes(tmp_path: Path) -> None:
+    """first_decoded_pts returns None when ffmpeg emits no frame."""
+    # Arrange
+    stream = _audio_stream(tmp_path, 0.0)
+    ffmpeg_runner = FakeFFmpegRunner(stdout=b"#tb 0: 1/48000\n")
+
+    # Act
+    pts = first_decoded_pts(stream, ffmpeg_runner)
+
+    # Assert
+    assert pts is None
+
+
+@pytest.mark.unit
+def test_first_decoded_pts_is_unknown_without_framemd5_output(tmp_path: Path) -> None:
+    """first_decoded_pts returns None when ffmpeg emits no framemd5 header."""
+    # Arrange
+    stream = _audio_stream(tmp_path, 0.0)
+
+    # Act
+    pts = first_decoded_pts(stream, FakeFFmpegRunner(stdout=b""))
+
+    # Assert
+    assert pts is None
+
+
+@pytest.mark.unit
+def test_first_decoded_pts_raises_on_ffmpeg_failure(tmp_path: Path) -> None:
+    """first_decoded_pts raises FFmpegProcessError when ffmpeg fails."""
+    # Arrange
+    stream = _audio_stream(tmp_path, 0.0)
+    ffmpeg_runner = FakeFFmpegRunner(error=FFmpegProcessError("ffmpeg failed"))
+
+    # Act & Assert
+    with pytest.raises(FFmpegProcessError, match="ffmpeg failed"):
+        first_decoded_pts(stream, ffmpeg_runner)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("output_is_audio", "source_is_audio"),
+    [
+        pytest.param(False, True, id="output"),
+        pytest.param(True, False, id="source"),
+    ],
+)
+def test_check_timing_rejects_a_non_audio_stream_encoded_as_audio(
+    mocker: MockerFixture,
+    tmp_path: Path,
+    output_is_audio: bool,
+    source_is_audio: bool,
+) -> None:
+    """check_timing raises when an audio encoding plan is paired with video."""
+    # Arrange
+    output_type = AudioStream if output_is_audio else VideoStream
+    source_type = AudioStream if source_is_audio else VideoStream
+    converted_file = _converted_file(
+        mocker,
+        StreamWithConversionPlan(
+            stream=output_type(
+                file=_stub_file(
+                    tmp_path / "out.mkv",
+                    "audio" if output_is_audio else "video",
+                    0.0,
+                    10.0,
+                    _MKV_TIME_BASE,
+                ),
+                index=0,
+            ),
+            conversion_plan=StreamConversionPlan(
+                source_stream=source_type(
+                    file=_stub_file(
+                        tmp_path / "in.ts",
+                        "audio" if source_is_audio else "video",
+                        0.0,
+                        10.0,
+                        TS_TIME_BASE,
+                    ),
+                    index=0,
+                ),
+                conversion_method=EncodeAudioWithNativeAac(),
+            ),
+        ),
+    )
+
+    # Act & Assert
+    with pytest.raises(ValueError, match="Stream type mismatch"):
+        check_timing(converted_file, FakeFFmpegRunner())
