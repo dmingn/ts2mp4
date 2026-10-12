@@ -17,10 +17,13 @@ from .video_encoder import build_file_conversion_plan_for_video_encoding
 from .video_file import SubtitleStream, VideoFile
 
 
-def _verify_timing(converted_file: ConvertedVideoFile[FileConversionPlan]) -> None:
+def _verify_timing(
+    converted_file: ConvertedVideoFile[FileConversionPlan],
+    ffmpeg_runner: FFmpegRunner,
+) -> None:
     """Raise if a re-encoded stream of ``converted_file`` is shifted in time."""
     logger.info(f"Verifying re-encoded stream timing for {converted_file.path.name}")
-    timing_report = check_timing(converted_file)
+    timing_report = check_timing(converted_file, ffmpeg_runner)
     if not timing_report.is_ok:
         raise RuntimeError(
             "Timing check failed for output streams at indices "
@@ -91,7 +94,7 @@ def ts2mp4(
         output_path,
         ffmpeg_runner,
     )
-    _verify_timing(video_encoded_file)
+    _verify_timing(video_encoded_file, ffmpeg_runner)
 
     logger.info(f"Verifying copied stream integrity for {video_encoded_file.path.name}")
     video_encoded_integrity_report = check_integrity(video_encoded_file, ffmpeg_runner)
@@ -123,7 +126,7 @@ def ts2mp4(
         temp_output_file,
         ffmpeg_runner,
     )
-    _verify_timing(audio_encoded_file)
+    _verify_timing(audio_encoded_file, ffmpeg_runner)
 
     logger.info(f"Verifying copied stream integrity for {audio_encoded_file.path.name}")
     audio_encoded_integrity_report = check_integrity(audio_encoded_file, ffmpeg_runner)
