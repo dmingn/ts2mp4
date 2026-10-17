@@ -6,7 +6,7 @@ authors = [{ name = "dmingn", email = "dmingn@users.noreply.github.com" }]
 requires-python = ">=3.12"
 dependencies = [
     "logzero>=1.7.0",
-    "pydantic>=2.5.3",
+    "pydantic>=2.14.1",
     "tqdm>=4.70.1",
     "typer>=0.27.3",
 ]
@@ -22,7 +22,7 @@ dev = [
     "pytest>=8.4.1",
     "pytest-asyncio>=0.23.7",
     "pytest-mock>=3.16.0",
-    "ruff>=0.16.10",
+    "ruff>=0.17.0",
     "types-tqdm>=4.70.0.20260906",
 ]
 
