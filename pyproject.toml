@@ -6,7 +6,7 @@ authors = [{ name = "dmingn", email = "dmingn@users.noreply.github.com" }]
 requires-python = ">=3.12"
 dependencies = [
     "logzero>=1.7.0",
-    "pydantic>=2.5.3",
+    "pydantic>=2.14.1",
     "tqdm>=4.70.1",
     "typer>=0.27.3",
 ]
@@ -16,13 +16,13 @@ ts2mp4 = "ts2mp4.cli:app"
 
 [dependency-groups]
 dev = [
-    "coverage>=7.16.2",
+    "coverage>=7.17.0",
     "freezegun>=1.5.5",
     "mypy>=2.4.0",
-    "pytest>=8.4.1",
-    "pytest-asyncio>=0.23.7",
-    "pytest-mock>=3.16.0",
-    "ruff>=0.16.10",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.4.1",
+    "pytest-mock>=3.17.0",
+    "ruff>=0.17.3",
     "types-tqdm>=4.70.0.20260906",
 ]
 
