@@ -23,7 +23,7 @@ dev = [
     "pytest-asyncio>=1.4.1.post1",
     "pytest-mock>=3.17.0",
     "ruff>=0.17.3",
-    "types-tqdm>=4.70.0.20261102",
+    "types-tqdm>=4.70.0.20261106",
 ]
 
 [tool.hatch.version]
